@@ -12,6 +12,7 @@ dependencies = [
     "httpx>=0.27",
     "python-multipart>=0.0.12",
     "aiofiles>=24.1",
+    "zeroconf>=0.135",
 ]
 
 [project.optional-dependencies]

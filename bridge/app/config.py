@@ -6,6 +6,7 @@ class Settings(BaseSettings):
 
     host: str = "127.0.0.1"
     port: int = 8765
+    reverb_port: int = 8080
     agent_token: str = "dev-shared-token-change-me"
     transfers_dir: str = "~/Linkup/Inbox"
     downloads_dir: str = "~/Linkup/Downloads"

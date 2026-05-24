@@ -1,16 +1,39 @@
 import platform
 import time
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 
 from app import __version__
 from app.config import settings
+from app.routes import mdns as mdns_routes
+from app.services.mdns import LinkupAnnouncer, LinkupBrowser
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start mDNS bidirectional (announce + browse)
+    announcer = LinkupAnnouncer(port=settings.reverb_port, version=__version__)
+    browser = LinkupBrowser()
+    await announcer.start()
+    await browser.start()
+    app.state.mdns_announcer = announcer
+    app.state.mdns_browser = browser
+    try:
+        yield
+    finally:
+        await browser.stop()
+        await announcer.stop()
+
 
 app = FastAPI(
     title="Linkup Bridge",
     version=__version__,
     description="OS bridge for Linkup — clipboard, files, processes, media.",
+    lifespan=lifespan,
 )
+
+app.include_router(mdns_routes.router)
 
 _started_at = time.monotonic()
 
