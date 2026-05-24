@@ -73,32 +73,18 @@
 
 ---
 
+## ✅ Étapes complétées
+
+- [x] DNS ajoutés : `linkup.sahelstack.tech` + `relay.sahelstack.tech` → 72.61.194.76
+- [x] SSL Let's Encrypt : certbot --apache → expire 2026-08-22, renouvellement auto
+- [x] coturn TLS activé avec le cert Let's Encrypt
+- [x] Hook renouvellement : `/etc/letsencrypt/renewal-hooks/post/coturn-reload.sh`
+
 ## ⏳ Étapes restantes (à faire avant B7)
 
-### 1. Ajouter les DNS (chez ton registrar / Hostinger DNS)
-
-Aller dans le panneau DNS de `sahelstack.tech` et ajouter :
-
-```
-linkup    A    72.61.194.76    TTL 3600
-relay     A    72.61.194.76    TTL 3600
-```
-
-### 2. Générer SSL avec Certbot (après DNS propagé ~5-30 min)
-
-```bash
-ssh root@72.61.194.76
-certbot --apache -d linkup.sahelstack.tech -d relay.sahelstack.tech
-```
-
-### 3. Activer TLS coturn
-
-Décommenter dans `/etc/turnserver.conf` :
-```
-cert=/etc/letsencrypt/live/linkup.sahelstack.tech/fullchain.pem
-pkey=/etc/letsencrypt/live/linkup.sahelstack.tech/privkey.pem
-```
-Puis : `systemctl restart coturn`
+### 1. ~~DNS~~ ✅ Fait
+### 2. ~~SSL Certbot~~ ✅ Fait
+### 3. ~~TLS coturn~~ ✅ Fait
 
 ### 4. Générer la clé SSH du PC agent + la déposer sur le VPS
 
