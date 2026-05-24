@@ -62,6 +62,8 @@ agent/.phpunit.cache/
 bridge/.venv/
 bridge/poetry.lock
 bridge/.python-version
+bridge/*.egg-info/
+**/*.egg-info/
 
 # Flutter
 mobile/.dart_tool/
