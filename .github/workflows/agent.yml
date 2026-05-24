@@ -1,0 +1,48 @@
+name: agent (Laravel)
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - "agent/**"
+      - ".github/workflows/agent.yml"
+  pull_request:
+    paths:
+      - "agent/**"
+      - ".github/workflows/agent.yml"
+
+defaults:
+  run:
+    working-directory: agent
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, sqlite, pdo_sqlite, sodium, zip, curl, intl
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: agent/vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('agent/composer.lock') }}
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Copy .env
+        run: cp .env.example .env && php artisan key:generate
+
+      - name: Run Pint (formatting)
+        run: ./vendor/bin/pint --test
+
+      - name: Run Pest
+        run: ./vendor/bin/pest --ci
