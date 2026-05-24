@@ -1,0 +1,90 @@
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Claude Code (local-only)
+.claude/
+
+# Logs
+*.log
+storage/logs/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.keystore
+keystores/
+~/.linkup/
+
+# Dependencies
+node_modules/
+vendor/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Build / dist
+dist/
+build/
+out/
+*.apk
+*.aab
+.next/
+.nuxt/
+.turbo/
+
+# Coverage / test artifacts
+coverage/
+.coverage
+.pytest_cache/
+.phpunit.result.cache
+
+# Laravel
+agent/bootstrap/cache/*.php
+agent/storage/framework/cache/*
+agent/storage/framework/sessions/*
+agent/storage/framework/views/*
+agent/storage/app/private/*
+agent/.phpunit.cache/
+
+# Python
+bridge/.venv/
+bridge/poetry.lock
+bridge/.python-version
+
+# Flutter
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.metadata
+mobile/.packages
+mobile/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/key.properties
+
+# Next.js
+dashboard/.next/
+dashboard/out/
+dashboard/.env*.local
+
+# SQLite local dev databases
+*.sqlite
+*.sqlite-journal
+*.db
+
+# Linkup runtime data
+**/linkup_data/
+**/transfers/
+**/gallery_cache/
