@@ -372,6 +372,60 @@ Chaque semaine est structurée en :
 
 ---
 
+# 📦 BRIQUE 2.5 — Alpha publique LAN (S6.5 • 1 semaine)
+
+> **Décision 2026-05-30 :** au lieu d'attendre S23 pour packager Linkup, on livre une **alpha publique LAN-only** dès la fin de la brique 2. Objectif : mettre Linkup entre les mains de vrais utilisateurs (5-20 testeurs) avec 5 modules sur 9, et récolter du feedback pendant que le reste se développe.
+
+**🎯 Objectif global :** Linkup installable en double-clic sur Linux + Windows + APK signé téléchargeable, page de download publique. Limitation assumée : usage **sur même Wi-Fi uniquement** (le tunnel VPS arrive S20-S21).
+
+**📤 Sortie :** `linkup.sahelstack.tech` avec 3 boutons (Linux .sh • Windows .exe • Android .apk), README utilisateur, version v0.5.0-alpha taguée sur GitHub.
+
+## S6.5.J1 — Installateur Linux
+- T6.5.1 🔴 Script `infra/install-linux.sh` :
+  - Détection apt/dnf
+  - Install PHP 8.4, Python 3.11, dépendances système
+  - Clone du repo dans `/opt/linkup/`
+  - Génération clés Ed25519 + APP_KEY Laravel
+  - Création 3 services systemd : `linkup-agent.service`, `linkup-bridge.service`, `linkup-reverb.service`
+  - Démarrage auto au boot
+- T6.5.2 🔴 Tester sur Ubuntu 24.04 LTS fresh VM
+- T6.5.3 🔴 Tester sur Debian 12 fresh VM
+
+## S6.5.J2 — Installateur Windows
+- T6.5.4 🔴 Inno Setup `infra/installer-win.iss`
+- T6.5.5 🔴 Bundler PHP 8.4 portable + Python 3.11 embedded (~150 Mo)
+- T6.5.6 🔴 Service Windows via `nssm` (3 services)
+- T6.5.7 🔴 Tester sur Windows 11 fresh VM
+
+## S6.5.J3 — APK Android signé
+- T6.5.8 🔴 Générer keystore production (sauvegardé chiffré dans coffre-fort)
+- T6.5.9 🔴 `flutter build apk --release` signé
+- T6.5.10 🔴 Tester sideload sur 3 modèles Android différents
+
+## S6.5.J4 — Page de download + GitHub Releases
+- T6.5.11 🔴 Page statique `linkup.sahelstack.tech` (3 boutons + screenshots)
+- T6.5.12 🔴 GitHub Release `v0.5.0-alpha` avec les 3 binaires
+- T6.5.13 🔴 README utilisateur clair : « Linkup v0.5 = 5 modules livrés, 4 à venir »
+- T6.5.14 🔴 Mention explicite : « Alpha LAN-only, usage hors Wi-Fi prévu pour v0.7 (mi-S21) »
+
+## S6.5.J5 — Feedback channel + observabilité
+- T6.5.15 🔴 Lien « Signaler un bug » → GitHub Issues template pré-rempli
+- T6.5.16 🔴 Sentry actif sur les 3 binaires (DSN dédiés alpha)
+- T6.5.17 🔴 Tutoriel vidéo court (3 min) : install + pairing + transfert fichier
+- T6.5.18 📝 ADR-003.5 « Pourquoi alpha publique anticipée »
+
+**🧪 DoD S6.5 :**
+- [ ] Linkup installable en double-clic sur Linux + Windows fresh OS
+- [ ] APK installable sideload sur Android 8+ sans erreur
+- [ ] Page de download publique en ligne
+- [ ] 3 testeurs externes ont installé, appairé et transféré un fichier sans aide
+
+**🚦 Gate B2.5 :** Linkup est public. **Démo : envoyer le lien à 3 personnes différentes, elles installent toutes seules, elles transfèrent un fichier de leur tel à leur PC.**
+
+> **Note planning :** ce bloc d'1 semaine décale toutes les semaines suivantes de +1 (S7 devient S8, etc.). Total projet passe à **26 semaines** au lieu de 25. Webcam virtuelle Windows reste sacrifiable si glissement (cf. Annexe C). Les installeurs S23 deviennent un simple **refresh des installeurs** alpha pour la version v1.0 finale (~2-3 jours au lieu d'une semaine entière).
+
+---
+
 # 📷 BRIQUE 3 — WebRTC Caméra & Micro (S7 → S10 • 4 semaines)
 
 **🎯 Objectif global :** Flux vidéo + audio fluide tel → PC en navigateur, latence < 300 ms LAN.
@@ -857,6 +911,7 @@ Chaque semaine est structurée en :
 | S4 | B2 | Transfert fichiers (1) | 500 Mo + reprise OK |
 | S5 | B2 | Presse-papier + Lien (3) | < 1s sync clipboard |
 | S6 | B2 | Galerie distante (4) | 50 vignettes < 3s |
+| **S6.5** | **B2.5** | **Alpha publique LAN (installeurs Linux+Win+APK)** | **3 testeurs externes OK** |
 | S7 | B3 | Signaling WebRTC | Flux navigateur |
 | S8 | B3 | Vidéo + audio | < 300 ms latence |
 | S9 | B3 | Robustesse WebRTC | 10 sessions sans crash |

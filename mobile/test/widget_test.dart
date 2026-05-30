@@ -1,30 +1,78 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:linkup_mobile/main.dart';
+import 'package:linkup_mobile/models/linkup_agent.dart';
+import 'package:linkup_mobile/screens/agent_picker_screen.dart';
+
+import 'fakes/fake_discovery.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Empty state shows scanning hint at startup', (tester) async {
+    final discovery = FakeDiscovery();
+    await tester.pumpWidget(
+      MaterialApp(home: AgentPickerScreen(discovery: discovery)),
+    );
+    await tester.pump(); // initial frame + post-frame auto-scan déclenché
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Pendant l'auto-scan, l'empty state affiche « Recherche en cours… ».
+    expect(find.text('Recherche en cours…'), findsOneWidget);
+    expect(find.text('Saisie manuelle'), findsOneWidget);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+  testWidgets('Discovered agents render in the list', (tester) async {
+    final discovery = FakeDiscovery();
+    discovery.emit([
+      const LinkupAgent(
+        instanceName: 'linkup-abc._linkup._tcp.local.',
+        host: 'pc.local.',
+        address: '192.168.1.10',
+        reverbPort: 8080,
+        bridgePort: 8765,
+        agentId: 'linkup-abc',
+        fingerprint: 'fp1234abcd',
+        version: '0.1.0',
+        source: LinkupAgentSource.mdns,
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(home: AgentPickerScreen(discovery: discovery)),
+    );
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('linkup-abc'), findsOneWidget);
+    expect(find.textContaining('192.168.1.10:8765'), findsOneWidget);
+  });
+
+  testWidgets('Tapping an agent calls onAgentSelected', (tester) async {
+    final discovery = FakeDiscovery();
+    discovery.emit([
+      const LinkupAgent(
+        instanceName: 'linkup-xyz._linkup._tcp.local.',
+        host: 'pc.local.',
+        address: '10.0.0.5',
+        reverbPort: 8080,
+        bridgePort: 8765,
+        agentId: 'linkup-xyz',
+        source: LinkupAgentSource.mdns,
+      ),
+    ]);
+
+    LinkupAgent? picked;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AgentPickerScreen(
+          discovery: discovery,
+          onAgentSelected: (a) => picked = a,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('linkup-xyz'));
+    await tester.pump();
+
+    expect(picked, isNotNull);
+    expect(picked!.address, '10.0.0.5');
   });
 }

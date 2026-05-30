@@ -2,7 +2,9 @@
 # IMPORTS
 # =========================
 
+import getpass  # Nom de l'utilisateur courant du PC
 import platform  # Permet de récupérer les infos de l'ordinateur (OS, machine, version...)
+import socket  # Nom de la machine (gethostname)
 import time  # Permet de mesurer le temps (ici uptime du serveur)
 from contextlib import asynccontextmanager
 
@@ -152,10 +154,20 @@ def health(request: Request) -> dict:
         "version": __version__,  # version de l'API
         "uptime_seconds": round(time.monotonic() - _started_at, 1),
         # temps depuis le démarrage
+        "host": socket.gethostname(),  # nom de la machine (ex: mahamane-VivoBook)
+        "user": _safe_username(),  # nom de l'utilisateur connecté (ex: mahamane)
         "os": platform.system(),  # ex: Linux / Windows
         "os_release": platform.release(),  # version OS
         "python": platform.python_version(),  # version Python
     }
+
+
+def _safe_username() -> str:
+    """Retourne le nom user du PC sans planter si l'env est dégradé."""
+    try:
+        return getpass.getuser()
+    except Exception:
+        return "unknown"
 
 
 # =========================
