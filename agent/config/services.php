@@ -41,4 +41,11 @@ return [
         'timeout_seconds' => env('LINKUP_BRIDGE_TIMEOUT_SECONDS', 2),
     ],
 
+    'linkup' => [
+        // Dossier racine où Linkup stocke ses clés Ed25519, transferts, etc.
+        // Par défaut : $HOME du user qui lance Laravel. Overridable via .env
+        // pour les tests, conteneurs, ou installations multi-comptes.
+        'home_dir' => env('LINKUP_HOME_DIR', $_SERVER['HOME'] ?? sys_get_temp_dir() . '/linkup'),
+    ],
+
 ];
