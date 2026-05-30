@@ -10,7 +10,7 @@ import '../services/agent_info_client.dart';
 /// viendra le bouton « Lancer le pairing » qui scannera le QR.
 class AgentDetailScreen extends StatefulWidget {
   final LinkupAgent agent;
-  final AgentInfoClient? client;
+  final AgentInfoFetcher? client;
 
   const AgentDetailScreen({
     super.key,
@@ -23,7 +23,7 @@ class AgentDetailScreen extends StatefulWidget {
 }
 
 class _AgentDetailScreenState extends State<AgentDetailScreen> {
-  late final AgentInfoClient _client;
+  late final AgentInfoFetcher _client;
   late final bool _ownsClient;
   AgentInfo? _info;
   String? _error;
@@ -131,10 +131,15 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
   }
 
   Widget _buildInfo(AgentInfo info) {
+    final isPending = info.fingerprint == 'pending';
     final rows = [
       _Row('Nom mDNS', info.name),
       _Row('Agent ID', info.agentId ?? '—'),
-      _Row('Empreinte', info.fingerprint, mono: true),
+      _Row(
+        'Empreinte',
+        isPending ? 'Pas encore générée (pairing S2)' : info.fingerprint,
+        mono: !isPending,
+      ),
       _Row('Version', info.version),
       _Row('Port Reverb', info.reverbPort?.toString() ?? '—'),
       _Row('Port bridge', info.bridgePort?.toString() ?? '—'),

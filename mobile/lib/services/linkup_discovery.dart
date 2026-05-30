@@ -240,7 +240,7 @@ class LinkupDiscovery implements AgentDiscovery {
   }
 
   /// Arrête le client mDNS, signale au sweep en cours de s'arrêter, libère le
-  /// verrou multicast. Idempotent.
+  /// verrou multicast + le client HTTP du sweep. Idempotent.
   @override
   Future<void> dispose() async {
     _cancelled = true;
@@ -248,6 +248,7 @@ class LinkupDiscovery implements AgentDiscovery {
       _client.stop();
       _started = false;
     }
+    _lanSweep.close();
     await MulticastLock.release();
     if (!_controller.isClosed) {
       await _controller.close();

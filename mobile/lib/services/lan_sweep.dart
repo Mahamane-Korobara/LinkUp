@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 
 import '../config/linkup_ports.dart';
@@ -13,22 +14,36 @@ import '../models/linkup_agent.dart';
 ///
 /// Sert de fallback quand le multicast mDNS est bloque (hotspot Samsung, Wi-Fi
 /// public, isolation client). Invisible pour l'utilisateur final.
+///
+/// **Temps d'exécution :** en pratique 2-5 s sur un LAN normal (la plupart des
+/// IPs retournent `connection refused` immédiatement). **Worst case ~24 s** si
+/// chaque IP atteint son timeout + retry (typique d'un AP très saturé) : 8
+/// batches × 1.5 s × 2 essais. L'appelant doit prévoir une fenêtre auto-scan
+/// suffisamment large.
 class LanSweepDiscovery {
+  final http.Client _client;
+  final bool _ownsClient;
   final int bridgePort;
   final Duration requestTimeout;
+  final Duration retryBackoff;
   final int maxParallel;
 
   LanSweepDiscovery({
+    http.Client? client,
     this.bridgePort = LinkupPorts.bridge,
     // 1500ms : assez large pour absorber la congestion sur un hotspot tel
     // (l'AP traite N requêtes concurrentes en série). 600ms causait des
     // timeouts faux-positifs sur les IPs « lointaines » du subnet.
     this.requestTimeout = const Duration(milliseconds: 1500),
+    // 150ms de pause avant le retry : laisse à l'AP saturé le temps de
+    // dépiler ses connexions plutôt que de retaper instantanément.
+    this.retryBackoff = const Duration(milliseconds: 150),
     // 32 plutôt que 64 : 8 batches au lieu de 4, mais moins de pression sur
     // l'AP du hotspot tel. Net : plus rapide qu'on le pense (moins de retries
     // dus à la congestion).
     this.maxParallel = 32,
-  });
+  })  : _client = client ?? http.Client(),
+        _ownsClient = client == null;
 
   /// Lance le balayage. Si [onAgentFound] est fourni, chaque agent est
   /// notifie des qu'il est detecte (UX progressive). Le Future ne se resout
@@ -66,7 +81,7 @@ class LanSweepDiscovery {
     for (int i = 0; i < ips.length; i += maxParallel) {
       if (isCancelled?.call() == true) return discovered;
       final batch = ips.skip(i).take(maxParallel).toList();
-      final results = await Future.wait(batch.map(_probe));
+      final results = await Future.wait(batch.map(probe));
       if (isCancelled?.call() == true) return discovered;
 
       int foundInBatch = 0;
@@ -76,10 +91,12 @@ class LanSweepDiscovery {
         discovered.add(agent);
         if (onAgentFound != null) onAgentFound(agent);
       }
+      // Log de batch en niveau FINE (500) — visible si on filtre par tag,
+      // mais hors view par défaut pour ne pas spammer logcat sur rescan.
       developer.log(
-        'batch [${batch.first}..${batch.last}] : '
-        '$foundInBatch agent(s)',
+        'batch [${batch.first}..${batch.last}] : $foundInBatch agent(s)',
         name: 'linkup.sweep',
+        level: 500,
       );
     }
 
@@ -90,15 +107,20 @@ class LanSweepDiscovery {
     return discovered;
   }
 
-  /// Hit `/health` with one retry on timeout (le hotspot tel peut être lent
-  /// à la première salve, mais répond à la seconde).
-  Future<LinkupAgent?> _probe(String ip) async {
+  /// Hit `/health` avec un retry sur timeout (le hotspot tel peut être lent
+  /// à la première salve, mais répond à la seconde après backoff).
+  ///
+  /// Exposé `@visibleForTesting` car la logique de retry est critique et
+  /// mérite des tests unitaires directs.
+  @visibleForTesting
+  Future<LinkupAgent?> probe(String ip) async {
     for (int attempt = 0; attempt < 2; attempt++) {
       try {
         return await _probeOnce(ip);
       } on TimeoutException {
         if (attempt == 1) return null;
-        // Premier timeout : on réessaye une fois
+        // Backoff : laisse l'AP saturé respirer avant de retaper.
+        await Future.delayed(retryBackoff);
         continue;
       }
     }
@@ -108,9 +130,10 @@ class LanSweepDiscovery {
   Future<LinkupAgent?> _probeOnce(String ip) async {
     final uri = Uri.parse('http://$ip:$bridgePort/health');
     try {
-      final response = await http
-          .get(uri, headers: {'Accept': 'application/json'})
-          .timeout(requestTimeout);
+      final response = await _client
+          .get(uri, headers: {'Accept': 'application/json'}).timeout(
+        requestTimeout,
+      );
       if (response.statusCode != 200) return null;
       final payload = jsonDecode(response.body);
       if (payload is! Map<String, dynamic>) return null;
@@ -147,8 +170,8 @@ class LanSweepDiscovery {
       // Wi-Fi, on peut tomber sur l'IP 10.x.x.x du carrier et balayer 254 IPs
       // qui n'aboutissent pas.
       interfaces.sort((a, b) {
-        final aWifi = _isWifiInterface(a.name);
-        final bWifi = _isWifiInterface(b.name);
+        final aWifi = isLikelyWifiInterface(a.name);
+        final bWifi = isLikelyWifiInterface(b.name);
         if (aWifi == bWifi) return 0;
         return aWifi ? -1 : 1;
       });
@@ -165,12 +188,21 @@ class LanSweepDiscovery {
     return null;
   }
 
-  bool _isWifiInterface(String name) {
+  /// Vrai si le nom d'interface ressemble à du Wi-Fi.
+  ///
+  /// Accepte : `wlan*` (Linux/Android), `swlan*` (Samsung hotspot), `wifi`,
+  /// `en0`/`en1` (macOS/iOS Wi-Fi). Refuse `enp*`/`eno*`/`ens*` (Ethernet
+  /// Linux) qui partagent le préfixe `en` mais ne sont pas Wi-Fi.
+  ///
+  /// Public + static pour être unit-testable sans monter de socket.
+  static bool isLikelyWifiInterface(String name) {
     final lower = name.toLowerCase();
-    return lower.startsWith('wlan') ||
-        lower.startsWith('swlan') ||
-        lower.startsWith('en') || // en0 sur macOS/iOS = Wi-Fi
-        lower == 'wifi';
+    if (lower.startsWith('wlan')) return true;
+    if (lower.startsWith('swlan')) return true;
+    if (lower == 'wifi') return true;
+    // macOS/iOS Wi-Fi : en0, en1 — pattern `en` + digit uniquement.
+    if (RegExp(r'^en\d+$').hasMatch(lower)) return true;
+    return false;
   }
 
   /// Extrait `a.b.c` d'une IPv4 `a.b.c.d`. Retourne null si invalide.
@@ -183,5 +215,11 @@ class LanSweepDiscovery {
       if (n == null || n < 0 || n > 255) return null;
     }
     return '${parts[0]}.${parts[1]}.${parts[2]}';
+  }
+
+  /// Libère le client HTTP interne si LanSweepDiscovery l'a créé lui-même.
+  /// À appeler depuis `LinkupDiscovery.dispose()`.
+  void close() {
+    if (_ownsClient) _client.close();
   }
 }

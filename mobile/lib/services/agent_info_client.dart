@@ -36,10 +36,40 @@ class AgentInfo {
         bridgePort: json['bridge_port'] as int?,
         source: json['source'] as String? ?? 'unknown',
       );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AgentInfo &&
+          other.name == name &&
+          other.fingerprint == fingerprint &&
+          other.agentId == agentId &&
+          other.version == version &&
+          other.reverbPort == reverbPort &&
+          other.bridgePort == bridgePort &&
+          other.source == source;
+
+  @override
+  int get hashCode => Object.hash(
+        name,
+        fingerprint,
+        agentId,
+        version,
+        reverbPort,
+        bridgePort,
+        source,
+      );
+}
+
+/// Surface minimale d'un fetcher d'info agent. Permet d'injecter un fake
+/// dans les widget tests de `AgentDetailScreen` sans toucher au réseau.
+abstract class AgentInfoFetcher {
+  Future<AgentInfo> fetch(LinkupAgent agent);
+  void close();
 }
 
 /// Récupère les infos riches d'un agent via son Laravel `/api/agent/info`.
-class AgentInfoClient {
+class AgentInfoClient implements AgentInfoFetcher {
   final http.Client _client;
   final Duration timeout;
   final int laravelPort;
@@ -54,6 +84,7 @@ class AgentInfoClient {
   ///
   /// Throws [AgentInfoUnavailable] si Laravel ne répond pas (PC éteint,
   /// firewall, port 8000 pas ouvert, bridge down).
+  @override
   Future<AgentInfo> fetch(LinkupAgent agent) async {
     final uri = agent.agentInfoUri(laravelPort: laravelPort);
     try {
@@ -85,6 +116,7 @@ class AgentInfoClient {
     }
   }
 
+  @override
   void close() => _client.close();
 }
 
