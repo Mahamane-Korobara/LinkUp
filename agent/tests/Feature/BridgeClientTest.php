@@ -1,8 +1,9 @@
 <?php
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
-it('returns 503 when bridge is down (connection refused)', function () {
+it('returns 503 when bridge responds with HTTP 5xx', function () {
     Http::fake([
         'http://127.0.0.1:8765/mdns/info' => Http::response(null, 500),
     ]);
@@ -10,6 +11,16 @@ it('returns 503 when bridge is down (connection refused)', function () {
     $this->getJson('/api/agent/info')
         ->assertStatus(503)
         ->assertJsonStructure(['error']);
+});
+
+it('returns 503 when bridge is totally unreachable (ConnectionException)', function () {
+    Http::fake(function () {
+        throw new ConnectionException('Connection refused');
+    });
+
+    $this->getJson('/api/agent/info')
+        ->assertStatus(503)
+        ->assertJsonPath('error', fn ($msg) => str_contains((string) $msg, 'injoignable'));
 });
 
 it('proxies local mDNS agent info through Laravel', function () {

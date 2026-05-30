@@ -52,5 +52,80 @@ void main() {
       // Le stream a été fermé proprement, pas d'erreur attendue.
       expect(discovery.agents, isEmpty);
     });
+
+    test('addManualAgent merges with existing sweep agent (preserves user)',
+        () async {
+      // Le sweep a déjà trouvé l'agent avec user=mahamane et hostname riches
+      final sweepAgent = LinkupAgent(
+        instanceName: 'linkup-abc._linkup._tcp.local.',
+        address: '192.168.1.10',
+        reverbPort: 8080,
+        bridgePort: 8765,
+        agentId: 'linkup-abc',
+        user: 'mahamane',
+        hostname: 'mahamane-VivoBook',
+        version: '0.1.0',
+        source: LinkupAgentSource.lanSweep,
+      );
+      final discovery = LinkupDiscovery(lanSweep: _FakeLanSweep([sweepAgent]));
+      await discovery.scanOnce();
+
+      // Une saisie manuelle sur la même IP/port ne doit PAS écraser les champs
+      // riches venus du sweep.
+      discovery.addManualAgent(
+        address: '192.168.1.10',
+        bridgePort: 8765,
+      );
+
+      // L'agent existe encore avec ses champs user/hostname
+      final merged = discovery.agents.firstWhere(
+        (a) => a.address == '192.168.1.10',
+      );
+      expect(merged.user, 'mahamane',
+          reason: 'le user du sweep doit être préservé après saisie manuelle');
+      expect(merged.hostname, 'mahamane-VivoBook',
+          reason: 'le hostname du sweep doit être préservé');
+      expect(merged.version, '0.1.0',
+          reason: 'la version du sweep doit être préservée');
+
+      await discovery.dispose();
+    });
+
+    test('addManualAgent creates new entry when nothing exists', () async {
+      final discovery = LinkupDiscovery(lanSweep: _FakeLanSweep(const []));
+
+      final added = discovery.addManualAgent(
+        address: '10.0.0.5',
+        bridgePort: 8765,
+      );
+
+      expect(added.source, LinkupAgentSource.manual);
+      expect(added.user, isNull);
+      expect(discovery.agents, hasLength(1));
+
+      await discovery.dispose();
+    });
+
+    test('addManualAgent rejects empty address', () async {
+      final discovery = LinkupDiscovery(lanSweep: _FakeLanSweep(const []));
+      expect(
+        () => discovery.addManualAgent(address: '  '),
+        throwsArgumentError,
+      );
+      await discovery.dispose();
+    });
+
+    test('addManualAgent rejects invalid port', () async {
+      final discovery = LinkupDiscovery(lanSweep: _FakeLanSweep(const []));
+      expect(
+        () => discovery.addManualAgent(address: '1.2.3.4', bridgePort: 0),
+        throwsArgumentError,
+      );
+      expect(
+        () => discovery.addManualAgent(address: '1.2.3.4', bridgePort: 99999),
+        throwsArgumentError,
+      );
+      await discovery.dispose();
+    });
   });
 }

@@ -67,7 +67,11 @@ class BridgeClient
             ->baseUrl($this->baseUrl())
             ->acceptJson()
             ->withToken((string) config('services.linkup_bridge.token'))
-            ->timeout((int) config('services.linkup_bridge.timeout_seconds', 2));
+            ->timeout((int) config('services.linkup_bridge.timeout_seconds', 2))
+            // Le bridge peut être lent à démarrer (mDNS init + zeroconf setup).
+            // 2 retries avec 100 ms de backoff évitent un 503 sur un boot léger
+            // sans masquer un vrai down.
+            ->retry(2, 100, throw: false);
     }
 
     private function baseUrl(): string

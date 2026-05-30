@@ -86,10 +86,28 @@ Donc le pattern « Flutter → Laravel → bridge » est respecté pour tout sau
 
 ### À mettre à jour suite à cette décision
 - [x] Créer cet ADR
-- [ ] Mettre à jour `stack-roles.md` ligne 83 (suppression mention « jamais exposé sur le réseau »)
+- [x] Mettre à jour `stack-roles.md` ligne 83 (suppression mention « jamais exposé sur le réseau »)
 - [ ] Documenter dans `Linkup-Tutoriel-Architecture.md` la phase de découverte
 - [ ] Ajouter dans l'installeur S6.5 l'ouverture des ports 8765 (TCP) et 5353 (UDP) dans le pare-feu
 - [ ] À S20-S21 (tunnel VPS), prévoir que le bridge expose `/health` également via tunnel (pour le LAN sweep distant ne marche évidemment plus, mais Reverb signale présence)
+
+### Décision corollaire : `usesCleartextTraffic="true"` côté Android
+
+Le LAN sweep frappe `http://192.168.x.y:8765/health` en HTTP cleartext. Android 9+ bloque ça par défaut, donc on a activé `android:usesCleartextTraffic="true"` dans le manifest (S1.J4).
+
+**Limites de cette configuration :**
+- Autorise le cleartext **vers tout domaine**, pas seulement les IPs RFC1918 LAN.
+- Un attaquant MITM sur le LAN peut intercepter ou injecter du contenu dans `/health`.
+- À terme (S2 pairing), toute communication métier passe par un canal chiffré Noise IK + token persistant, donc l'impact est limité à la phase de découverte.
+
+**Mitigation prévue :**
+- À S6.5 (alpha publique), ajouter un `res/xml/network_security_config.xml` qui restreint le cleartext aux plages RFC1918 (192.168/16, 10/8, 172.16/12) si Android le permet. **Note :** le format Android `network-security-config` ne supporte pas les CIDR dans `<domain>`, donc cette restriction peut nécessiter un wildcard de premier niveau (`192.168.0.0` matche `192.168.X.Y` ?) — à valider en S6.5.
+- À S20-S21 (tunnel VPS), le tunnel est en HTTPS via Let's Encrypt côté `linkup.sahelstack.tech`, donc HORS LAN tout est chiffré.
+
+**Décision actée :** garder `usesCleartextTraffic="true"` jusqu'à S6.5 inclus. Acceptable parce que :
+1. Linkup est LAN-first et le LAN est supposé semi-confiance (le pairing QR de S2 ajoute la couche crypto)
+2. `/health` ne révèle rien que mDNS ne broadcast déjà publiquement
+3. Une fois le pairing établi, le canal applicatif est chiffré indépendamment de TLS
 
 ## Alternatives écartées
 

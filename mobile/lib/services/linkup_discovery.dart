@@ -230,8 +230,10 @@ class LinkupDiscovery implements AgentDiscovery {
       bridgePort: bridgePort,
       source: LinkupAgentSource.manual,
     );
-    _agents[agent.uniqueKey] = agent;
-    _emit();
+    // Passe par _mergeAgent comme sweep et mDNS : si l'IP saisie correspond à
+    // un agent déjà découvert (avec user/hostname riches), on ne perd pas ces
+    // champs.
+    _mergeAgent(agent);
     return agent;
   }
 

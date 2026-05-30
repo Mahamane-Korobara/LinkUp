@@ -1,8 +1,7 @@
 <?php
 
-use App\Events\PingEvent;
-use App\Services\BridgeClient;
-use App\Services\BridgeUnavailableException;
+use App\Http\Controllers\AgentInfoController;
+use App\Http\Controllers\PingController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -15,46 +14,10 @@ Route::get('/health', function () {
     ]);
 });
 
-Route::get('/agent/info', function (BridgeClient $bridge) {
-    try {
-        $info = $bridge->localInfo();
-    } catch (BridgeUnavailableException $e) {
-        return response()->json(['error' => $e->getMessage()], 503);
-    }
+Route::get('/agent/info', [AgentInfoController::class, 'show']);
+Route::get('/mdns/services', [AgentInfoController::class, 'services']);
 
-    return response()->json([
-        'name' => $info['instance_name'] ?? config('app.name'),
-        'fingerprint' => $info['fingerprint'] ?? 'pending',
-        'agent_id' => $info['agent_id'] ?? null,
-        'version' => $info['version'] ?? config('app.version', '0.1.0'),
-        'reverb_port' => $info['port'] ?? null,
-        'bridge_port' => $info['bridge_port'] ?? null,
-        'source' => 'bridge',
-    ]);
-});
-
-Route::get('/mdns/services', function (BridgeClient $bridge) {
-    try {
-        return response()->json($bridge->discoveredServices());
-    } catch (BridgeUnavailableException $e) {
-        return response()->json(['error' => $e->getMessage()], 503);
-    }
-});
-
-Route::post('/ping', function (Request $request) {
-    $validated = $request->validate([
-        'message' => 'sometimes|string|max:500',
-    ]);
-    $message = $validated['message'] ?? 'pong';
-    event(new PingEvent($message));
-
-    return response()->json([
-        'broadcasted' => true,
-        'channel' => 'linkup-system',
-        'event' => 'ping',
-        'message' => $message,
-    ]);
-});
+Route::post('/ping', [PingController::class, 'send']);
 
 Route::get('/user', function (Request $request) {
     return $request->user();

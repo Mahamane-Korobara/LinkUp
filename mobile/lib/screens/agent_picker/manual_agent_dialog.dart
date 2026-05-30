@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../config/linkup_ports.dart';
+import '../../utils/address_validators.dart';
 
 /// Résultat du dialog de saisie manuelle : IP + port du bridge.
 class ManualAgentInput {
@@ -11,7 +12,7 @@ class ManualAgentInput {
 }
 
 /// Dialog de saisie manuelle d'un agent (T1.17 du plan).
-/// Affiche un formulaire IPv4 / hostname + port avec validation stricte.
+/// Affiche un formulaire IPv4 / hostname `.local` + port avec validation stricte.
 class ManualAgentDialog extends StatefulWidget {
   const ManualAgentDialog({super.key});
 
@@ -48,7 +49,7 @@ class _ManualAgentDialogState extends State<ManualAgentDialog> {
               ),
               keyboardType: TextInputType.url,
               autofocus: true,
-              validator: _validateAddress,
+              validator: validateAddress,
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -58,7 +59,7 @@ class _ManualAgentDialogState extends State<ManualAgentDialog> {
                 hintText: '${LinkupPorts.bridge}',
               ),
               keyboardType: TextInputType.number,
-              validator: _validatePort,
+              validator: validatePort,
             ),
           ],
         ),
@@ -84,30 +85,4 @@ class _ManualAgentDialogState extends State<ManualAgentDialog> {
       ],
     );
   }
-}
-
-// Validation IPv4 stricte (0.0.0.0 – 255.255.255.255) ou hostname mDNS de
-// type `pc.local`. Refuse les chaînes arbitraires comme « foobar » qui
-// passaient l'ancienne regex permissive.
-final _ipv4Regex = RegExp(
-  r'^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)'
-  r'(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$',
-);
-final _hostnameRegex = RegExp(r'^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}(\.local)?$');
-
-String? _validateAddress(String? value) {
-  final v = value?.trim() ?? '';
-  if (v.isEmpty) return 'Adresse requise';
-  if (!_ipv4Regex.hasMatch(v) && !_hostnameRegex.hasMatch(v)) {
-    return 'Format invalide (ex: 192.168.1.10 ou pc.local)';
-  }
-  return null;
-}
-
-String? _validatePort(String? value) {
-  final n = int.tryParse(value?.trim() ?? '');
-  if (n == null || n <= 0 || n > 65535) {
-    return 'Port entre 1 et 65535';
-  }
-  return null;
 }

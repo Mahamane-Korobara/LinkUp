@@ -104,6 +104,17 @@ class LanSweepDiscovery {
         includeLoopback: false,
         includeLinkLocal: false,
       );
+      // Priorise les interfaces Wi-Fi (wlan0, swlan0 sur Samsung) sur les
+      // interfaces cellular (rmnet*). Sans ça, sur un tel avec data mobile +
+      // Wi-Fi, on peut tomber sur l'IP 10.x.x.x du carrier et balayer 254 IPs
+      // qui n'aboutissent pas.
+      interfaces.sort((a, b) {
+        final aWifi = _isWifiInterface(a.name);
+        final bWifi = _isWifiInterface(b.name);
+        if (aWifi == bWifi) return 0;
+        return aWifi ? -1 : 1;
+      });
+
       for (final iface in interfaces) {
         for (final addr in iface.addresses) {
           final ip = addr.address;
@@ -116,10 +127,23 @@ class LanSweepDiscovery {
     return null;
   }
 
+  bool _isWifiInterface(String name) {
+    final lower = name.toLowerCase();
+    return lower.startsWith('wlan') ||
+        lower.startsWith('swlan') ||
+        lower.startsWith('en') || // en0 sur macOS/iOS = Wi-Fi
+        lower == 'wifi';
+  }
+
+  /// Extrait `a.b.c` d'une IPv4 `a.b.c.d`. Retourne null si invalide.
+  /// Valide aussi que chaque octet est dans [0, 255].
   String? _subnet24(String ip) {
     final parts = ip.split('.');
     if (parts.length != 4) return null;
+    for (final p in parts) {
+      final n = int.tryParse(p);
+      if (n == null || n < 0 || n > 255) return null;
+    }
     return '${parts[0]}.${parts[1]}.${parts[2]}';
   }
-
 }
