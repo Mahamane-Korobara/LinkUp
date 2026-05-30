@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'linkup_bridge' => [
+        'base_url' => env('LINKUP_BRIDGE_BASE_URL', 'http://127.0.0.1:8765'),
+        'token' => env('LINKUP_BRIDGE_AGENT_TOKEN', 'dev-shared-token-change-me'),
+        'timeout_seconds' => env('LINKUP_BRIDGE_TIMEOUT_SECONDS', 2),
+    ],
+
 ];

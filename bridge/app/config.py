@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     transfers_dir: str = "~/Linkup/Inbox"
     downloads_dir: str = "~/Linkup/Downloads"
     log_level: str = "INFO"
+    mdns_heartbeat_interval_seconds: float = 5.0
+    mdns_stale_after_seconds: float = 15.0
+    mdns_healthcheck_timeout_seconds: float = 2.0
 
 
 settings = Settings()

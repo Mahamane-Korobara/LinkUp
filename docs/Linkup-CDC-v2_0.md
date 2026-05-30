@@ -162,6 +162,23 @@ Tu scannes un QR code une seule fois — ton téléphone et ton PC sont reliés,
 
 Si mDNS échoue (Wi-Fi entreprise, Livebox isolée), l'utilisateur peut saisir manuellement `IP:port` ou scanner un QR affiché dans le dashboard PC qui contient les mêmes infos.
 
+## 4.2 bis Présence agent sur le LAN
+
+Le LAN discovery ne doit pas seulement trouver un agent, il doit aussi savoir s'il est encore vivant.
+
+**Mais tu n'as pas encore le vrai modèle de présence :**
+
+- pas de heartbeat applicatif,
+- pas de TTL d'expiration,
+- pas de purge automatique des fantômes.
+
+**Modèle retenu pour Phase 1 :**
+
+- le bridge expose `GET /health` avec `status=alive`, `agent_id` et `timestamp`
+- le scanner mDNS met à jour `last_seen` quand un agent répond encore sur `/health`
+- `/mdns/services` ne retourne que les agents dont `last_seen` reste dans une fenêtre TTL de 15 secondes
+- au shutdown propre, le service mDNS est désenregistré explicitement
+
 ## 4.3 Les deux modes de transport
 
 | Mode | Quand | Caractéristiques |
@@ -189,6 +206,8 @@ Si mDNS échoue (Wi-Fi entreprise, Livebox isolée), l'utilisateur peut saisir m
 | **Dashboard Next.js** | Vue navigateur : gestion appareils, approbation pairing, outils accessibles sans app |
 | **Reverb** (WebSocket) | Canal temps réel bidirectionnel entre tous les acteurs (signaling) |
 | **Tunnel VPS** | Relais chiffré (Reverb relay + coturn TURN) quand les appareils ne sont pas sur le même LAN |
+
+**Note d'implémentation S1 :** le plan cible un `MdnsAnnouncer` côté Laravel. Le bas niveau mDNS reste porté par le bridge Python pour gérer Zeroconf multi-OS, mais Laravel redevient la façade métier via un service `MdnsAnnouncer` qui interroge le bridge local.
 
 ## 5.2 Services partagés Laravel (anti-duplication)
 

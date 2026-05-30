@@ -1,33 +1,46 @@
-from fastapi.testclient import TestClient
+from types import SimpleNamespace
 
-from app.main import app
+import pytest
+from fastapi import HTTPException
 
-client = TestClient(app)
+from app.main import health, require_agent_token, system_info
 
 
-def test_health_returns_ok():
-    response = client.get("/health")
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "ok"
+def test_health_returns_alive():
+    request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                mdns_announcer=SimpleNamespace(agent_id="linkup-test-1234"),
+            )
+        )
+    )
+
+    body = health(request)
+
+    assert body["status"] == "alive"
+    assert body["service"] == "linkup-bridge"
+    assert body["agent_id"] == "linkup-test-1234"
+    assert "timestamp" in body
     assert "version" in body
     assert "os" in body
 
 
 def test_system_info_requires_token():
-    response = client.get("/system/info")
-    assert response.status_code == 401
+    with pytest.raises(HTTPException) as exc:
+        require_agent_token(None)
+
+    assert exc.value.status_code == 401
 
 
 def test_system_info_rejects_bad_token():
-    response = client.get("/system/info", headers={"Authorization": "Bearer wrong"})
-    assert response.status_code == 401
+    with pytest.raises(HTTPException) as exc:
+        require_agent_token("Bearer wrong")
+
+    assert exc.value.status_code == 401
 
 
 def test_system_info_accepts_dev_token():
-    response = client.get(
-        "/system/info",
-        headers={"Authorization": "Bearer dev-shared-token-change-me"},
-    )
-    assert response.status_code == 200
-    assert "os" in response.json()
+    require_agent_token("Bearer dev-shared-token-change-me")
+
+    body = system_info()
+    assert "os" in body

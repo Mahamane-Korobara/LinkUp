@@ -123,8 +123,12 @@ Chaque semaine est structurée en :
 ### S1.J3 — mDNS Linux + Windows
 - T1.10 🔴 Lib `php-zeroconf` ou wrapper Avahi (Linux) / Bonjour (Windows) pour annoncer `_linkup._tcp.local`
 - T1.11 🔴 Service `MdnsAnnouncer` Laravel démarré au boot agent
+- T1.11bis 🔴 Service Laravel `MdnsAnnouncer` = façade métier sur le bridge local pour `/mdns/info`, `/mdns/services`, `/health`
 - T1.12 🔴 Tester depuis un autre PC : `avahi-browse -a` voit l'annonce
+- T1.12bis 🔴 Modèle de présence : heartbeat HTTP `/health` toutes les 5 s + `last_seen` + TTL 15 s + purge des agents fantômes
 - T1.13 🔴 Fallback : si mDNS échoue, afficher IP+port dans console + page dashboard `/setup`
+
+> Note d'alignement au 24 mai 2026 : l'annonce mDNS bas niveau est actuellement implémentée dans `bridge/app/main.py` via Python Zeroconf. Pour rester fidèle à l'architecture cible, Laravel porte désormais la façade `MdnsAnnouncer` et consomme l'état du bridge au lieu d'exposer directement ce détail au reste du projet.
 
 ### S1.J4 — Découverte Flutter
 - T1.14 🔴 Lib `multicast_dns` Flutter, scan des `_linkup._tcp`
