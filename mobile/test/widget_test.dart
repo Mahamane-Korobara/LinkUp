@@ -24,7 +24,6 @@ void main() {
     discovery.emit([
       const LinkupAgent(
         instanceName: 'linkup-abc._linkup._tcp.local.',
-        host: 'pc.local.',
         address: '192.168.1.10',
         reverbPort: 8080,
         bridgePort: 8765,
@@ -49,7 +48,6 @@ void main() {
     discovery.emit([
       const LinkupAgent(
         instanceName: 'linkup-xyz._linkup._tcp.local.',
-        host: 'pc.local.',
         address: '10.0.0.5',
         reverbPort: 8080,
         bridgePort: 8765,

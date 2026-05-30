@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
+import '../config/linkup_ports.dart';
 import '../models/linkup_agent.dart';
 
 /// Balaye en parallele les 254 IPs du sous-reseau local pour trouver des bridges
@@ -17,7 +18,7 @@ class LanSweepDiscovery {
   final int maxParallel;
 
   LanSweepDiscovery({
-    this.bridgePort = 8765,
+    this.bridgePort = LinkupPorts.bridge,
     this.requestTimeout = const Duration(milliseconds: 600),
     this.maxParallel = 64,
   });
@@ -76,15 +77,14 @@ class LanSweepDiscovery {
       if (payload['service'] != 'linkup-bridge') return null;
       return LinkupAgent(
         instanceName: '${payload['agent_id'] ?? ip}._linkup._tcp.local.',
-        host: (payload['host'] as String?) ?? ip,
         address: ip,
-        reverbPort: 8080,
+        reverbPort: LinkupPorts.reverb,
         bridgePort: bridgePort,
         agentId: payload['agent_id'] as String?,
         version: payload['version'] as String?,
         hostname: payload['host'] as String?,
         user: payload['user'] as String?,
-        source: LinkupAgentSource.mdns,
+        source: LinkupAgentSource.lanSweep,
       );
     } on TimeoutException {
       return null;

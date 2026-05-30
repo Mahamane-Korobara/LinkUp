@@ -36,7 +36,6 @@ void main() {
         lanSweep: _FakeLanSweep(const [
           LinkupAgent(
             instanceName: 'a',
-            host: '1.2.3.4',
             address: '1.2.3.4',
             reverbPort: 8080,
             bridgePort: 8765,

@@ -5,6 +5,12 @@ import 'package:flutter/services.dart';
 /// Sans ce verrou, Android filtre les paquets multicast UDP 5353 reçus en
 /// arrière-plan et le scan zeroconf retourne zéro résultat sans erreur.
 /// Voir `MainActivity.kt` pour l'implémentation native.
+///
+/// **Plateformes :** Android uniquement. Sur iOS, Linux, Windows, macOS et
+/// dans les widget tests Flutter, le MethodChannel n'est pas branché et
+/// chaque méthode rattrape `MissingPluginException` pour retourner `false`
+/// silencieusement. C'est OK parce que ces plateformes ne souffrent pas du
+/// filtrage multicast Android.
 class MulticastLock {
   static const MethodChannel _channel = MethodChannel('linkup/multicast');
 

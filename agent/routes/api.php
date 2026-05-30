@@ -1,7 +1,8 @@
 <?php
 
-use App\Services\MdnsAnnouncer;
 use App\Events\PingEvent;
+use App\Services\BridgeClient;
+use App\Services\BridgeUnavailableException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -14,8 +15,12 @@ Route::get('/health', function () {
     ]);
 });
 
-Route::get('/agent/info', function (MdnsAnnouncer $mdns) {
-    $info = $mdns->localInfo();
+Route::get('/agent/info', function (BridgeClient $bridge) {
+    try {
+        $info = $bridge->localInfo();
+    } catch (BridgeUnavailableException $e) {
+        return response()->json(['error' => $e->getMessage()], 503);
+    }
 
     return response()->json([
         'name' => $info['instance_name'] ?? config('app.name'),
@@ -28,12 +33,19 @@ Route::get('/agent/info', function (MdnsAnnouncer $mdns) {
     ]);
 });
 
-Route::get('/mdns/services', function (MdnsAnnouncer $mdns) {
-    return response()->json($mdns->discoveredServices());
+Route::get('/mdns/services', function (BridgeClient $bridge) {
+    try {
+        return response()->json($bridge->discoveredServices());
+    } catch (BridgeUnavailableException $e) {
+        return response()->json(['error' => $e->getMessage()], 503);
+    }
 });
 
 Route::post('/ping', function (Request $request) {
-    $message = $request->input('message', 'pong');
+    $validated = $request->validate([
+        'message' => 'sometimes|string|max:500',
+    ]);
+    $message = $validated['message'] ?? 'pong';
     event(new PingEvent($message));
 
     return response()->json([

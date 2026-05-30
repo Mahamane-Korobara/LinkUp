@@ -28,9 +28,7 @@ def _settings_from_env(env: dict[str, str]) -> Settings:
 
 def test_settings_refuse_placeholder_token():
     with pytest.raises(ValidationError) as exc:
-        _settings_from_env(
-            {"LINKUP_BRIDGE_AGENT_TOKEN": "change-me-to-a-random-32-bytes-base64"}
-        )
+        _settings_from_env({"LINKUP_BRIDGE_AGENT_TOKEN": "change-me-to-a-random-32-bytes-base64"})
     assert "placeholder" in str(exc.value).lower()
 
 

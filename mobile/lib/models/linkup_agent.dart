@@ -1,3 +1,5 @@
+import '../config/linkup_ports.dart';
+
 /// Représente un agent Linkup détecté sur le LAN ou saisi manuellement.
 ///
 /// La source `mdns` signifie que l'agent a été découvert via zeroconf.
@@ -5,20 +7,25 @@
 /// (fallback T1.17 quand le multicast ne passe pas).
 class LinkupAgent {
   final String instanceName;
-  final String host;
   final String address;
   final int reverbPort;
   final int bridgePort;
   final String? agentId;
   final String? fingerprint;
   final String? version;
+
+  /// Nom de la machine côté PC, nettoyé (« mahamane-VivoBook » sans `.local.`).
+  /// Vient soit du TXT mDNS, soit de la réponse `/health` du bridge.
   final String? hostname;
+
+  /// Nom d'utilisateur connecté côté PC (« mahamane »).
+  /// Vient du JSON `/health` (le LAN sweep).
   final String? user;
+
   final LinkupAgentSource source;
 
   const LinkupAgent({
     required this.instanceName,
-    required this.host,
     required this.address,
     required this.reverbPort,
     required this.bridgePort,
@@ -41,16 +48,27 @@ class LinkupAgent {
     return agentId ?? address;
   }
 
+  /// Sous-titre formaté pour le `ListTile` : `hostname • ip:port • vX.Y.Z`.
+  /// Calculé une fois par instance (constructeur const = même résultat à
+  /// chaque rebuild de l'item).
+  String get subtitleLine {
+    final parts = <String>[];
+    if (hostname != null && hostname != displayName) parts.add(hostname!);
+    parts.add('$address:$bridgePort');
+    if (version != null) parts.add('v$version');
+    return parts.join('  •  ');
+  }
+
   /// URL HTTP du bridge Python, utilisée pour `/health` et `/api/agent/info`
   /// (le bridge expose les deux ; Laravel parle sur un port différent, ici on
   /// vise le bridge directement pour la vérification de présence).
   Uri get bridgeHealthUri => Uri.parse('http://$address:$bridgePort/health');
 
   /// URL HTTP de l'agent Laravel, pour appeler `/api/agent/info`.
-  /// Par convention Linkup, Laravel écoute sur 8000 en dev — le port
-  /// Reverb annoncé en mDNS n'est PAS le port HTTP métier, donc on ne peut
-  /// pas le déduire de l'annonce. On garde 8000 par défaut.
-  Uri agentInfoUri({int laravelPort = 8000}) =>
+  /// Par convention Linkup, Laravel écoute sur `LinkupPorts.laravel` en dev — le
+  /// port Reverb annoncé en mDNS n'est PAS le port HTTP métier, donc on ne peut
+  /// pas le déduire de l'annonce.
+  Uri agentInfoUri({int laravelPort = LinkupPorts.laravel}) =>
       Uri.parse('http://$address:$laravelPort/api/agent/info');
 
   /// Clé stable pour différencier deux agents dans une liste/dictionnaire.
@@ -65,7 +83,6 @@ class LinkupAgent {
   }) {
     return LinkupAgent(
       instanceName: instanceName,
-      host: host,
       address: address,
       reverbPort: reverbPort,
       bridgePort: bridgePort,
@@ -91,4 +108,10 @@ class LinkupAgent {
       'LinkupAgent($uniqueKey, $address:$bridgePort, source=$source)';
 }
 
-enum LinkupAgentSource { mdns, manual }
+/// D'où vient un agent dans la liste de l'app.
+///
+/// - [mdns] : annonce zeroconf reçue (TXT record SRV+TXT+A).
+/// - [lanSweep] : trouvé en frappant `/health` sur le sous-réseau /24.
+///   Utile quand le multicast est bloqué (hotspot, Wi-Fi public).
+/// - [manual] : saisi par l'utilisateur dans le dialog IP.
+enum LinkupAgentSource { mdns, lanSweep, manual }

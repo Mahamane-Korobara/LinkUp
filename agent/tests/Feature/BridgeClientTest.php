@@ -2,6 +2,16 @@
 
 use Illuminate\Support\Facades\Http;
 
+it('returns 503 when bridge is down (connection refused)', function () {
+    Http::fake([
+        'http://127.0.0.1:8765/mdns/info' => Http::response(null, 500),
+    ]);
+
+    $this->getJson('/api/agent/info')
+        ->assertStatus(503)
+        ->assertJsonStructure(['error']);
+});
+
 it('proxies local mDNS agent info through Laravel', function () {
     Http::fake([
         'http://127.0.0.1:8765/mdns/info' => Http::response([

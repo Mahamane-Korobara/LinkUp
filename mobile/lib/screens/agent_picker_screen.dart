@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../models/linkup_agent.dart';
 import '../services/agent_discovery.dart';
 import '../services/linkup_discovery.dart';
+import 'agent_picker/empty_state.dart';
+import 'agent_picker/manual_agent_dialog.dart';
 
 /// Écran principal du flow d'appairage : liste les agents découverts sur le LAN
 /// via mDNS (T1.15) avec un bouton de saisie manuelle d'IP en fallback (T1.17).
@@ -23,6 +25,9 @@ class AgentPickerScreen extends StatefulWidget {
 }
 
 class _AgentPickerScreenState extends State<AgentPickerScreen> {
+  /// Nombre de relances automatiques au démarrage tant qu'aucun agent n'est
+  /// trouvé. 4 × 2s = ~8s, valeur empirique qui couvre les démarrages Android
+  /// où la pile Wi-Fi met quelques secondes à être prête après l'ouverture.
   static const int _autoScanMaxAttempts = 4;
   static const Duration _autoScanInterval = Duration(seconds: 2);
 
@@ -110,9 +115,9 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
   }
 
   Future<void> _addManual() async {
-    final result = await showDialog<_ManualAgentInput>(
+    final result = await showDialog<ManualAgentInput>(
       context: context,
-      builder: (context) => const _ManualAgentDialog(),
+      builder: (context) => const ManualAgentDialog(),
     );
     if (result == null || !mounted) return;
     try {
@@ -149,7 +154,9 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
       body: Column(
         children: [
           if (_scanning) const LinearProgressIndicator(),
-          if (_error != null)
+          // L'erreur est masquée dès qu'au moins un agent est visible : on
+          // veut pas garder un bandeau rouge si la liste répond enfin.
+          if (_error != null && _agents.isEmpty)
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: Text(_error!, style: const TextStyle(color: Colors.red)),
@@ -167,7 +174,7 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
 
   Widget _buildAgentList() {
     if (_agents.isEmpty) {
-      return _EmptyState(
+      return EmptyState(
         scanning: _scanning || _autoScanRunning,
         onRetry: _runScan,
       );
@@ -177,178 +184,27 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final agent = _agents[index];
-        final subtitleParts = <String>[];
-        if (agent.hostname != null && agent.hostname != agent.displayName) {
-          subtitleParts.add(agent.hostname!);
-        }
-        subtitleParts.add('${agent.address}:${agent.bridgePort}');
-        if (agent.version != null) subtitleParts.add('v${agent.version}');
-
+        final isAuto = agent.source == LinkupAgentSource.mdns ||
+            agent.source == LinkupAgentSource.lanSweep;
         return ListTile(
           leading: CircleAvatar(
-            backgroundColor: agent.source == LinkupAgentSource.mdns
+            backgroundColor: isAuto
                 ? Colors.deepPurple.shade100
                 : Colors.orange.shade100,
             child: Icon(
-              agent.source == LinkupAgentSource.mdns
-                  ? Icons.computer
-                  : Icons.edit_location_alt,
-              color: agent.source == LinkupAgentSource.mdns
-                  ? Colors.deepPurple
-                  : Colors.orange,
+              isAuto ? Icons.computer : Icons.edit_location_alt,
+              color: isAuto ? Colors.deepPurple : Colors.orange,
             ),
           ),
           title: Text(
             agent.displayName,
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
-          subtitle: Text(subtitleParts.join('  •  ')),
+          subtitle: Text(agent.subtitleLine),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _notifySelection(agent),
         );
       },
     );
   }
-}
-
-class _EmptyState extends StatelessWidget {
-  final bool scanning;
-  final VoidCallback onRetry;
-
-  const _EmptyState({required this.scanning, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            scanning
-                ? const SizedBox(
-                    width: 64,
-                    height: 64,
-                    child: CircularProgressIndicator(strokeWidth: 4),
-                  )
-                : Icon(Icons.search_off, size: 64, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            Text(
-              scanning ? 'Recherche en cours…' : 'Aucun agent détecté',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              scanning
-                  ? 'On scanne le Wi-Fi pour trouver ton PC.\nCa peut prendre quelques secondes.'
-                  : 'Vérifie que ton PC est sur le même Wi-Fi et que Linkup tourne.\n'
-                      'Si le multicast est bloqué, utilise « Saisie manuelle ».',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: scanning ? null : onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Rescanner'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ManualAgentDialog extends StatefulWidget {
-  const _ManualAgentDialog();
-
-  @override
-  State<_ManualAgentDialog> createState() => _ManualAgentDialogState();
-}
-
-class _ManualAgentDialogState extends State<_ManualAgentDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _addressController = TextEditingController();
-  final _portController = TextEditingController(text: '8765');
-
-  @override
-  void dispose() {
-    _addressController.dispose();
-    _portController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Saisie manuelle'),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: _addressController,
-              decoration: const InputDecoration(
-                labelText: 'IP locale du PC',
-                hintText: '192.168.1.42',
-              ),
-              keyboardType: TextInputType.url,
-              autofocus: true,
-              validator: (value) {
-                final v = value?.trim() ?? '';
-                if (v.isEmpty) return 'Adresse requise';
-                if (!RegExp(r'^[\w.\-:]+$').hasMatch(v)) {
-                  return 'Caractères invalides';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _portController,
-              decoration: const InputDecoration(
-                labelText: 'Port du bridge',
-                hintText: '8765',
-              ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                final n = int.tryParse(value?.trim() ?? '');
-                if (n == null || n <= 0 || n > 65535) {
-                  return 'Port entre 1 et 65535';
-                }
-                return null;
-              },
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Annuler'),
-        ),
-        FilledButton(
-          onPressed: () {
-            if (_formKey.currentState?.validate() ?? false) {
-              Navigator.of(context).pop(
-                _ManualAgentInput(
-                  address: _addressController.text.trim(),
-                  bridgePort: int.parse(_portController.text.trim()),
-                ),
-              );
-            }
-          },
-          child: const Text('Ajouter'),
-        ),
-      ],
-    );
-  }
-}
-
-class _ManualAgentInput {
-  final String address;
-  final int bridgePort;
-
-  _ManualAgentInput({required this.address, required this.bridgePort});
 }

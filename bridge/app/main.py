@@ -1,36 +1,22 @@
-# =========================
-# IMPORTS
-# =========================
+"""Point d'entrée FastAPI du bridge Linkup.
 
-import getpass  # Nom de l'utilisateur courant du PC
-import platform  # Permet de récupérer les infos de l'ordinateur (OS, machine, version...)
-import socket  # Nom de la machine (gethostname)
-import time  # Permet de mesurer le temps (ici uptime du serveur)
+Lifespan : démarre l'annonce mDNS + le browser de découverte.
+Routes publiques : /health.
+Routes protégées par token Bearer : /system/info, /mdns/*.
+"""
+
+import getpass
+import platform
+import socket
+import time
 from contextlib import asynccontextmanager
 
-# Sert à gérer proprement le cycle de vie du serveur (démarrage / arrêt)
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 
-# FastAPI = framework web
-# Depends = système de dépendances (ex: sécurité)
-# Header = lire les headers HTTP (ex: Authorization)
-# HTTPException = renvoyer des erreurs HTTP
-# status = codes HTTP (401, 200, etc.)
 from app import __version__
-
-# Version de l'application (ex: "1.0.0")
 from app.config import settings
-
-# Configuration globale (ex: token de sécurité, ports...)
 from app.routes import mdns as mdns_routes
-
-# Routes liées à mDNS (découverte réseau)
 from app.services.mdns import LinkupAnnouncer, LinkupBrowser
-
-# Services réseau :
-# - LinkupAnnouncer = annonce la machine sur le réseau
-# - LinkupBrowser = détecte les autres machines
-
 
 # =========================
 # GESTION DU CYCLE DE VIE DU SERVEUR
@@ -163,10 +149,15 @@ def health(request: Request) -> dict:
 
 
 def _safe_username() -> str:
-    """Retourne le nom user du PC sans planter si l'env est dégradé."""
+    """Retourne le nom user du PC sans planter si l'env est dégradé.
+
+    `getpass.getuser()` lève `KeyError` si `LOGNAME`/`USER`/`USERNAME` sont
+    absents, et `OSError` sur Windows quand `os.getlogin()` échoue. Pas de
+    raison de catcher autre chose ici.
+    """
     try:
         return getpass.getuser()
-    except Exception:
+    except (KeyError, OSError):
         return "unknown"
 
 

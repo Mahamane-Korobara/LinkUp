@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:multicast_dns/multicast_dns.dart';
 
+import '../config/linkup_ports.dart';
 import '../models/linkup_agent.dart';
 import 'agent_discovery.dart';
 import 'lan_sweep.dart';
@@ -84,6 +86,13 @@ class LinkupDiscovery implements AgentDiscovery {
       }
     } on TimeoutException {
       // Fin de fenêtre de scan mDNS, on sort proprement.
+    } catch (e, stack) {
+      developer.log(
+        'mDNS scan failed',
+        name: 'linkup.discovery',
+        error: e,
+        stackTrace: stack,
+      );
     }
   }
 
@@ -98,8 +107,15 @@ class LinkupDiscovery implements AgentDiscovery {
           _mergeAgent(agent);
         },
       );
-    } catch (_) {
-      // Le sweep est best-effort, on n'interrompt pas le scan global.
+    } catch (e, stack) {
+      // Le sweep est best-effort, on n'interrompt pas le scan global, mais on
+      // garde une trace pour debug (adb logcat avec tag `linkup.discovery`).
+      developer.log(
+        'LAN sweep failed',
+        name: 'linkup.discovery',
+        error: e,
+        stackTrace: stack,
+      );
     }
   }
 
@@ -129,7 +145,6 @@ class LinkupDiscovery implements AgentDiscovery {
 
     final agent = LinkupAgent(
       instanceName: serviceName,
-      host: srv.target,
       address: ip,
       reverbPort: srv.port,
       bridgePort: bridgePort,
@@ -192,8 +207,8 @@ class LinkupDiscovery implements AgentDiscovery {
   @override
   LinkupAgent addManualAgent({
     required String address,
-    int bridgePort = 8765,
-    int reverbPort = 8080,
+    int bridgePort = LinkupPorts.bridge,
+    int reverbPort = LinkupPorts.reverb,
     String? label,
   }) {
     final trimmed = address.trim();
@@ -206,7 +221,6 @@ class LinkupDiscovery implements AgentDiscovery {
 
     final agent = LinkupAgent(
       instanceName: label ?? 'manual:$trimmed:$bridgePort',
-      host: trimmed,
       address: trimmed,
       reverbPort: reverbPort,
       bridgePort: bridgePort,
@@ -215,13 +229,6 @@ class LinkupDiscovery implements AgentDiscovery {
     _agents[agent.uniqueKey] = agent;
     _emit();
     return agent;
-  }
-
-  /// Vide la liste connue (sans arrêter le client).
-  @override
-  void clear() {
-    _agents.clear();
-    _emit();
   }
 
   /// Arrête le client mDNS, signale au sweep en cours de s'arrêter, libère le
@@ -256,11 +263,19 @@ class LinkupDiscovery implements AgentDiscovery {
     return cleaned;
   }
 
+  /// Custom socket factory passé au [MDnsClient] — workaround Android.
+  ///
+  /// Le package multicast_dns par défaut appelle `RawDatagramSocket.bind` avec
+  /// `reusePort: true`, ce qui plante sur Android (`SocketException: Invalid
+  /// argument`). On force `reusePort: false` en ignorant délibérément le
+  /// paramètre reçu.
+  ///
+  /// Voir https://github.com/flutter/flutter/issues/132333
   static Future<RawDatagramSocket> _socketFactory(
     dynamic host,
     int port, {
     bool reuseAddress = true,
-    bool reusePort = false,
+    bool reusePort = false, // ignoré, voir docstring
     int ttl = 1,
   }) {
     return RawDatagramSocket.bind(

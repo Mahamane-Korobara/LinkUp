@@ -16,6 +16,5 @@ abstract class AgentDiscovery {
     int reverbPort,
     String? label,
   });
-  void clear();
   Future<void> dispose();
 }

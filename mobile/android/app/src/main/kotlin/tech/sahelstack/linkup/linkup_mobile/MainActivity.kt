@@ -18,7 +18,9 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val CHANNEL = "linkup/multicast"
-        private const val LOCK_TAG = "linkup-mdns"
+        // Tag visible dans `adb shell dumpsys wifi` / `dumpsys power` pour
+        // identifier qui détient le verrou.
+        private const val LOCK_TAG = "linkup-mdns-mobile"
     }
 
     private var multicastLock: MulticastLock? = null
