@@ -6,7 +6,6 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
-use RuntimeException;
 
 /**
  * Client HTTP local vers le bridge Python (`bridge/app/...`).
@@ -75,12 +74,4 @@ class BridgeClient
     {
         return rtrim((string) config('services.linkup_bridge.base_url'), '/');
     }
-}
-
-/**
- * Levée quand le bridge Python ne répond pas. Les controllers/routes la
- * traduisent en HTTP 503 (Service Unavailable) au lieu d'une stacktrace.
- */
-class BridgeUnavailableException extends RuntimeException
-{
 }

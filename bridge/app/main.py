@@ -124,6 +124,19 @@ def require_agent_token(authorization: str | None = Header(default=None)) -> Non
 # =========================
 
 
+def _safe_username() -> str:
+    """Retourne le nom user du PC sans planter si l'env est dégradé.
+
+    `getpass.getuser()` lève `KeyError` si `LOGNAME`/`USER`/`USERNAME` sont
+    absents, et `OSError` sur Windows quand `os.getlogin()` échoue. Pas de
+    raison de catcher autre chose ici.
+    """
+    try:
+        return getpass.getuser()
+    except (KeyError, OSError):
+        return "unknown"
+
+
 @app.get("/health")
 def health(request: Request) -> dict:
     """
@@ -146,19 +159,6 @@ def health(request: Request) -> dict:
         "os_release": platform.release(),  # version OS
         "python": platform.python_version(),  # version Python
     }
-
-
-def _safe_username() -> str:
-    """Retourne le nom user du PC sans planter si l'env est dégradé.
-
-    `getpass.getuser()` lève `KeyError` si `LOGNAME`/`USER`/`USERNAME` sont
-    absents, et `OSError` sur Windows quand `os.getlogin()` échoue. Pas de
-    raison de catcher autre chose ici.
-    """
-    try:
-        return getpass.getuser()
-    except (KeyError, OSError):
-        return "unknown"
 
 
 # =========================

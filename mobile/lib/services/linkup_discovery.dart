@@ -140,8 +140,12 @@ class LinkupDiscovery implements AgentDiscovery {
     }
     if (ip == null) return;
 
+    // srv.port = port Reverb annoncé (8080), PAS le port HTTP du bridge.
+    // Si le TXT mDNS n'a pas explicitement `bridge_port`, on retombe sur la
+    // convention Linkup (`LinkupPorts.bridge`) au lieu d'utiliser srv.port —
+    // sinon bridgeHealthUri taperait sur Reverb qui ne répond pas en HTTP.
     final bridgePortRaw = txtProperties['bridge_port'];
-    final bridgePort = int.tryParse(bridgePortRaw ?? '') ?? srv.port;
+    final bridgePort = int.tryParse(bridgePortRaw ?? '') ?? LinkupPorts.bridge;
 
     final agent = LinkupAgent(
       instanceName: serviceName,
