@@ -127,5 +127,19 @@ void main() {
       );
       await discovery.dispose();
     });
+
+    test('scanOnce with empty sweep leaves agents list empty', () async {
+      final fakeSweep = _FakeLanSweep(const []);
+      final discovery = LinkupDiscovery(lanSweep: fakeSweep);
+
+      await discovery.scanOnce();
+
+      expect(discovery.agents, isEmpty,
+          reason: 'aucun agent trouvé = liste vide, pas de crash');
+      expect(fakeSweep.sweepCalls, 1,
+          reason: 'le sweep a quand même été tenté');
+
+      await discovery.dispose();
+    });
   });
 }

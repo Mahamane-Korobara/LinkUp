@@ -5,6 +5,10 @@ use App\Http\Controllers\PingController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+// `/api/health` (Laravel) est minimal par design : il n'expose pas `host` ni
+// `user` parce que le LAN sweep côté Flutter cible directement `/health` du
+// bridge Python (port 8765), cf. ADR-002. Cette route sert juste de smoke-test
+// liveness pour le pré-pairing ou un load balancer.
 Route::get('/health', function () {
     return response()->json([
         'status' => 'ok',

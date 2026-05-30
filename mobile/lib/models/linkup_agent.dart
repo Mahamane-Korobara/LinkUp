@@ -104,8 +104,7 @@ class LinkupAgent {
   int get hashCode => uniqueKey.hashCode;
 
   @override
-  String toString() =>
-      'LinkupAgent($uniqueKey, $address:$bridgePort, source=$source)';
+  String toString() => 'LinkupAgent($uniqueKey, source=${source.name})';
 }
 
 /// D'où vient un agent dans la liste de l'app.

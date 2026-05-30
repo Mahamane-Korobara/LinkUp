@@ -9,7 +9,7 @@ import os
 import pytest
 from pydantic import ValidationError
 
-from app.config import Settings
+from app.config import PLACEHOLDER_TOKEN, Settings
 
 
 def _settings_from_env(env: dict[str, str]) -> Settings:
@@ -28,8 +28,15 @@ def _settings_from_env(env: dict[str, str]) -> Settings:
 
 def test_settings_refuse_placeholder_token():
     with pytest.raises(ValidationError) as exc:
-        _settings_from_env({"LINKUP_BRIDGE_AGENT_TOKEN": "change-me-to-a-random-32-bytes-base64"})
+        _settings_from_env({"LINKUP_BRIDGE_AGENT_TOKEN": PLACEHOLDER_TOKEN})
     assert "placeholder" in str(exc.value).lower()
+
+
+def test_settings_refuse_low_entropy_token():
+    # 16 caractères mais 1 seul caractère distinct
+    with pytest.raises(ValidationError) as exc:
+        _settings_from_env({"LINKUP_BRIDGE_AGENT_TOKEN": "a" * 16})
+    assert "entropie" in str(exc.value).lower()
 
 
 def test_settings_refuse_missing_token():

@@ -3,7 +3,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Valeur sentinelle interdite : si quelqu'un copie .env.example sans changer le token,
 # le bridge refusera de démarrer plutôt que de servir un secret connu de tout GitHub.
-_PLACEHOLDER_TOKEN = "change-me-to-a-random-32-bytes-base64"
+PLACEHOLDER_TOKEN = "change-me-to-a-random-32-bytes-base64"
+
+# Seuil d'entropie minimale : refuse un token comme `aaaaaaaaaaaaaaaa` ou
+# `abcdefghijklmnop` qui passe `min_length=16` mais reste trivialement devinable.
+_MIN_UNIQUE_CHARS = 8
 
 
 class Settings(BaseSettings):
@@ -24,11 +28,17 @@ class Settings(BaseSettings):
 
     @field_validator("agent_token")
     @classmethod
-    def _refuse_placeholder_token(cls, value: str) -> str:
-        if value.strip() == _PLACEHOLDER_TOKEN:
+    def _validate_token(cls, value: str) -> str:
+        stripped = value.strip()
+        if stripped == PLACEHOLDER_TOKEN:
             raise ValueError(
                 "LINKUP_BRIDGE_AGENT_TOKEN ne peut pas être la valeur placeholder. "
                 "Génère-en un nouveau : python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+            )
+        if len(set(stripped)) < _MIN_UNIQUE_CHARS:
+            raise ValueError(
+                f"LINKUP_BRIDGE_AGENT_TOKEN doit contenir au moins {_MIN_UNIQUE_CHARS} "
+                "caractères distincts (entropie minimale)."
             )
         return value
 

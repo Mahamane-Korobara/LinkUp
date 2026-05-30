@@ -27,6 +27,9 @@ class LinkupDiscovery implements AgentDiscovery {
   bool _started = false;
   bool _scanning = false;
   bool _cancelled = false;
+  // Dernier message d'erreur loggué — évite le spam quand l'user rescanne
+  // plusieurs fois avec la même cause (logcat lisible).
+  String? _lastLoggedErrorKey;
 
   LinkupDiscovery({
     MDnsClient? client,
@@ -87,12 +90,7 @@ class LinkupDiscovery implements AgentDiscovery {
     } on TimeoutException {
       // Fin de fenêtre de scan mDNS, on sort proprement.
     } catch (e, stack) {
-      developer.log(
-        'mDNS scan failed',
-        name: 'linkup.discovery',
-        error: e,
-        stackTrace: stack,
-      );
+      _logErrorOnce('mDNS scan failed', e, stack);
     }
   }
 
@@ -110,13 +108,17 @@ class LinkupDiscovery implements AgentDiscovery {
     } catch (e, stack) {
       // Le sweep est best-effort, on n'interrompt pas le scan global, mais on
       // garde une trace pour debug (adb logcat avec tag `linkup.discovery`).
-      developer.log(
-        'LAN sweep failed',
-        name: 'linkup.discovery',
-        error: e,
-        stackTrace: stack,
-      );
+      _logErrorOnce('LAN sweep failed', e, stack);
     }
+  }
+
+  /// Logue l'erreur une seule fois par cause. Si le même type d'erreur revient
+  /// sur 5 rescans consécutifs, logcat n'a qu'une ligne au lieu de 5.
+  void _logErrorOnce(String message, Object error, StackTrace stack) {
+    final key = '$message:${error.runtimeType}:$error';
+    if (key == _lastLoggedErrorKey) return;
+    _lastLoggedErrorKey = key;
+    developer.log(message, name: 'linkup.discovery', error: error, stackTrace: stack);
   }
 
   Future<void> _resolve(String serviceName) async {

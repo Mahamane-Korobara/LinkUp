@@ -18,110 +18,54 @@ from app.config import settings
 from app.routes import mdns as mdns_routes
 from app.services.mdns import LinkupAnnouncer, LinkupBrowser
 
-# =========================
-# GESTION DU CYCLE DE VIE DU SERVEUR
-# =========================
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Gère ce qui se passe AU DÉMARRAGE et À L'ARRÊT du serveur.
-    """
-
-    # DÉMARRAGE DU SERVEUR
-    # ------------------------
-
-    # Crée un service qui annonce cette machine sur le réseau local
+    """Gère le démarrage / arrêt propre du serveur."""
     announcer = LinkupAnnouncer(
         port=settings.reverb_port, bridge_port=settings.port, version=__version__
     )
-
-    # Crée un service qui cherche d'autres machines Linkup sur le réseau
     browser = LinkupBrowser(
         heartbeat_interval_seconds=settings.mdns_heartbeat_interval_seconds,
         stale_after_seconds=settings.mdns_stale_after_seconds,
         healthcheck_timeout_seconds=settings.mdns_healthcheck_timeout_seconds,
     )
-
-    # Démarre l'annonce réseau
     await announcer.start()
-
-    # Démarre la recherche réseau
     await browser.start()
 
-    # Stocke les objets dans l'application pour pouvoir les réutiliser ailleurs
+    # `_started_at` dans app.state pour qu'un hot reload uvicorn le réinitialise
+    # avec le nouveau démarrage (au lieu d'un module-level qui peut survivre).
     app.state.mdns_announcer = announcer
     app.state.mdns_browser = browser
+    app.state.started_at = time.monotonic()
 
-    # Laisse l'application tourner ici
     try:
         yield
-
-    # ARRÊT DU SERVEUR
-    # ---------------------
     finally:
-        # Arrête proprement la recherche réseau
         await browser.stop()
-
-        # Arrête proprement l'annonce réseau
         await announcer.stop()
 
 
-# =========================
-# CRÉATION DE L'APPLICATION FASTAPI
-# =========================
-
 app = FastAPI(
-    title="Linkup Bridge",  # Nom de l'API
-    version=__version__,  # Version du projet
-    description=("Pont système pour Linkup : clipboard, fichiers, processus et média."),
-    lifespan=lifespan,  # Active le cycle de vie (start/stop mDNS)
+    title="Linkup Bridge",
+    version=__version__,
+    description="Pont système pour Linkup : clipboard, fichiers, processus et média.",
+    lifespan=lifespan,
 )
 
-# Ajoute les routes mDNS (ex: /mdns/info, /mdns/services)
 app.include_router(mdns_routes.router)
 
 
-# =========================
-# TEMPS DE DÉMARRAGE
-# =========================
-
-_started_at = time.monotonic()
-# Stocke le moment où le serveur a démarré
-# utilisé pour calculer l'uptime
-
-
-# =========================
-# SYSTÈME DE SÉCURITÉ (TOKEN INTERNE)
-# =========================
-
-
 def require_agent_token(authorization: str | None = Header(default=None)) -> None:
-    """
-    Vérifie que la requête vient d'un client autorisé.
-
-    Le client doit envoyer :
-    Authorization: Bearer <token>
-    """
-
-    # Vérifie que le header Authorization existe et est correct
+    """Vérifie le header `Authorization: Bearer <token>` contre `settings.agent_token`."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token manquant ou invalide"
         )
 
-    # Extrait le token après "Bearer "
     token = authorization.removeprefix("Bearer ").strip()
-
-    # Vérifie si le token correspond à celui configuré dans l'app
     if token != settings.agent_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token non autorisé")
-
-
-# =========================
-# ROUTE DE VÉRIFICATION (HEALTH CHECK)
-# =========================
 
 
 def _safe_username() -> str:
@@ -139,44 +83,36 @@ def _safe_username() -> str:
 
 @app.get("/health")
 def health(request: Request) -> dict:
-    """
-    Vérifie si le serveur fonctionne correctement.
-    Utilisé pour monitoring ou debug.
+    """Route publique sans token : seule information révélée volontairement au LAN.
+
+    Voir ADR-002 — utilisée par le LAN sweep côté Flutter et par le heartbeat
+    inter-PC. Ne retourne rien que mDNS ne broadcast déjà publiquement.
     """
     announcer = getattr(request.app.state, "mdns_announcer", None)
+    started_at = getattr(request.app.state, "started_at", time.monotonic())
 
     return {
-        "status": "alive",  # serveur vivant
+        "status": "alive",
         "service": "linkup-bridge",
         "agent_id": getattr(announcer, "agent_id", None),
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "version": __version__,  # version de l'API
-        "uptime_seconds": round(time.monotonic() - _started_at, 1),
-        # temps depuis le démarrage
-        "host": socket.gethostname(),  # nom de la machine (ex: mahamane-VivoBook)
-        "user": _safe_username(),  # nom de l'utilisateur connecté (ex: mahamane)
-        "os": platform.system(),  # ex: Linux / Windows
-        "os_release": platform.release(),  # version OS
-        "python": platform.python_version(),  # version Python
+        "version": __version__,
+        "uptime_seconds": round(time.monotonic() - started_at, 1),
+        "host": socket.gethostname(),
+        "user": _safe_username(),
+        "os": platform.system(),
+        "os_release": platform.release(),
+        "python": platform.python_version(),
     }
 
 
-# =========================
-# INFOS SYSTÈME (PROTÉGÉ)
-# =========================
-
-
-@app.get("/system/info", dependencies=[Depends(require_agent_token)])  # sécurité obligatoire
+@app.get("/system/info", dependencies=[Depends(require_agent_token)])
 def system_info() -> dict:
-    """
-    Retourne des informations sur la machine.
-    Accessible uniquement avec un token valide.
-    """
-
+    """Détail système. Token Bearer obligatoire (cf. ADR-002)."""
     return {
-        "os": platform.system(),  # système d'exploitation
-        "os_release": platform.release(),  # version OS
-        "machine": platform.machine(),  # architecture (x86_64 etc.)
-        "node": platform.node(),  # nom de la machine
-        "python": platform.python_version(),  # version Python
+        "os": platform.system(),
+        "os_release": platform.release(),
+        "machine": platform.machine(),
+        "node": platform.node(),
+        "python": platform.python_version(),
     }
