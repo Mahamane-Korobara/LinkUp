@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AgentInfoController;
+use App\Http\Controllers\Pairing\PairingController;
 use App\Http\Controllers\PingController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -22,6 +23,11 @@ Route::get('/agent/info', [AgentInfoController::class, 'show']);
 Route::get('/mdns/services', [AgentInfoController::class, 'services']);
 
 Route::post('/ping', [PingController::class, 'send']);
+
+// S2.J2 — endpoints de pairing (QR + OTP). Le tel scanne /qr.png, le
+// dashboard consomme /qr en JSON pour son affichage.
+Route::get('/pairing/qr.png', [PairingController::class, 'qrPng']);
+Route::get('/pairing/qr', [PairingController::class, 'qrPayload']);
 
 Route::get('/user', function (Request $request) {
     return $request->user();
