@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'models/linkup_agent.dart';
+import 'screens/agent_detail_screen.dart';
 import 'screens/agent_picker_screen.dart';
 
 void main() {
@@ -18,19 +19,18 @@ class LinkupApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: AgentPickerScreen(
-        onAgentSelected: (agent) => _showAgentSelected(context, agent),
+      home: Builder(
+        builder: (context) => AgentPickerScreen(
+          onAgentSelected: (agent) => _openDetail(context, agent),
+        ),
       ),
     );
   }
 
-  void _showAgentSelected(BuildContext context, LinkupAgent agent) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Agent sélectionné : ${agent.displayName} '
-          '(${agent.address}:${agent.bridgePort})',
-        ),
+  void _openDetail(BuildContext context, LinkupAgent agent) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AgentDetailScreen(agent: agent),
       ),
     );
   }
