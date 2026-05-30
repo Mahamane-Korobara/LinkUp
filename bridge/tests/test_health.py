@@ -40,7 +40,7 @@ def test_system_info_rejects_bad_token():
 
 
 def test_system_info_accepts_dev_token():
-    require_agent_token("Bearer dev-shared-token-change-me")
+    require_agent_token("Bearer test-token-pytest-only-do-not-use-in-prod")
 
     body = system_info()
     assert "os" in body

@@ -24,11 +24,16 @@ class LanSweepDiscovery {
 
   /// Lance le balayage. Si [onAgentFound] est fourni, chaque agent est
   /// notifie des qu'il est detecte (UX progressive). Le Future ne se resout
-  /// qu'une fois tous les tests termines.
+  /// qu'une fois tous les tests termines (ou que [isCancelled] retourne true).
+  ///
+  /// [isCancelled] est interroge entre chaque batch HTTP : permet a l'appelant
+  /// d'interrompre proprement le sweep quand le widget est dispose, sans
+  /// attendre les 254 timeouts.
   ///
   /// Si on ne peut pas determiner l'IP locale, le balayage est sans effet.
   Future<List<LinkupAgent>> sweep({
     void Function(LinkupAgent agent)? onAgentFound,
+    bool Function()? isCancelled,
   }) async {
     final localIp = await _localIPv4();
     if (localIp == null) return const [];
@@ -45,8 +50,10 @@ class LanSweepDiscovery {
     }
 
     for (int i = 0; i < ips.length; i += maxParallel) {
+      if (isCancelled?.call() == true) return discovered;
       final batch = ips.skip(i).take(maxParallel);
       final results = await Future.wait(batch.map(_probe));
+      if (isCancelled?.call() == true) return discovered;
       for (final agent in results) {
         if (agent == null) continue;
         discovered.add(agent);

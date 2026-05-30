@@ -24,6 +24,7 @@ class LinkupDiscovery implements AgentDiscovery {
 
   bool _started = false;
   bool _scanning = false;
+  bool _cancelled = false;
 
   LinkupDiscovery({
     MDnsClient? client,
@@ -89,12 +90,12 @@ class LinkupDiscovery implements AgentDiscovery {
   Future<void> _runLanSweep() async {
     try {
       await _lanSweep.sweep(
+        isCancelled: () => _cancelled,
         onAgentFound: (agent) {
           // Émission en temps réel : chaque agent trouvé apparaît tout de suite
-          // dans la liste, sans attendre la fin du balayage.
-          final added = !_agents.containsKey(agent.uniqueKey);
-          _agents.putIfAbsent(agent.uniqueKey, () => agent);
-          if (added) _emit();
+          // dans la liste, sans attendre la fin du balayage. La fusion préserve
+          // les champs déjà connus si mDNS arrive après.
+          _mergeAgent(agent);
         },
       );
     } catch (_) {
@@ -139,7 +140,29 @@ class LinkupDiscovery implements AgentDiscovery {
       source: LinkupAgentSource.mdns,
     );
 
-    _agents[agent.uniqueKey] = agent;
+    _mergeAgent(agent);
+  }
+
+  /// Fusionne un agent dans la liste sans écraser les champs déjà connus.
+  ///
+  /// Cas typique : le LAN sweep a peuplé `user` et `hostname` via le JSON du
+  /// `/health`, puis le scan mDNS revient avec un TXT plus pauvre. Sans merge,
+  /// on perdrait ces infos. Règle : on garde la valeur existante quand la
+  /// nouvelle est null/vide.
+  void _mergeAgent(LinkupAgent next) {
+    final existing = _agents[next.uniqueKey];
+    if (existing == null) {
+      _agents[next.uniqueKey] = next;
+      _emit();
+      return;
+    }
+    _agents[next.uniqueKey] = next.copyWith(
+      agentId: next.agentId ?? existing.agentId,
+      fingerprint: next.fingerprint ?? existing.fingerprint,
+      version: next.version ?? existing.version,
+      hostname: next.hostname ?? existing.hostname,
+      user: next.user ?? existing.user,
+    );
     _emit();
   }
 
@@ -201,15 +224,19 @@ class LinkupDiscovery implements AgentDiscovery {
     _emit();
   }
 
-  /// Arrête le client mDNS et libère le verrou.
+  /// Arrête le client mDNS, signale au sweep en cours de s'arrêter, libère le
+  /// verrou multicast. Idempotent.
   @override
   Future<void> dispose() async {
+    _cancelled = true;
     if (_started) {
       _client.stop();
       _started = false;
     }
     await MulticastLock.release();
-    await _controller.close();
+    if (!_controller.isClosed) {
+      await _controller.close();
+    }
   }
 
   void _emit() {

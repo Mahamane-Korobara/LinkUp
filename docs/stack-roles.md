@@ -80,7 +80,9 @@ PHP via Laravel est le cerveau du système côté PC. Il ne touche jamais direct
 
 **Rôle : Technicien système.**
 
-Python est le seul composant qui touche directement aux ressources de l'OS. Il tourne en parallèle de Laravel sur le même PC, écoute sur `127.0.0.1:8765` (jamais exposé sur le réseau), et Laravel l'appelle quand il a besoin d'une action système.
+Python est le seul composant qui touche directement aux ressources de l'OS. Il tourne en parallèle de Laravel sur le même PC.
+
+> **Mise à jour S1.J4 (cf. ADR-002) :** le bridge écoute sur `0.0.0.0:8765` (et non plus `127.0.0.1`) pour permettre (a) le heartbeat mDNS inter-PC sur le LAN et (b) le LAN sweep de découverte côté téléphone. **Seule la route `GET /health` est publique sans authentification** (elle ne révèle rien que mDNS ne broadcast déjà). Toutes les autres routes (`/system/info`, `/mdns/*`, futures `/clipboard`, `/transfer`, etc.) requièrent un token Bearer. Une fois le pairing établi, toute la communication métier passe par Laravel.
 
 PHP est très limité pour accéder aux ressources bas-niveau. Python a des bibliothèques matures pour tout ça.
 
