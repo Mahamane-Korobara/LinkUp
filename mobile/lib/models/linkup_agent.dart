@@ -40,6 +40,8 @@ class LinkupAgent {
   /// Étiquette à afficher pour l'humain.
   /// Préfère le nom user (« mahamane »), puis le nom machine
   /// (« mahamane-VivoBook »), puis l'agent_id, puis l'adresse.
+  /// Le `subtitleLine` fournit le reste (hostname, IP, version) pour
+  /// distinguer deux agents qui auraient le même `user`.
   String get displayName {
     final u = user?.trim();
     if (u != null && u.isNotEmpty && u != 'unknown') return u;
