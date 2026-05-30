@@ -39,3 +39,6 @@ target-version = ["py311"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: tests reels (zeroconf/uvicorn) plus lents, peuvent etre sautes via LINKUP_SKIP_INTEGRATION=1",
+]
