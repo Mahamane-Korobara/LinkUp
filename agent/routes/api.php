@@ -38,11 +38,19 @@ Route::get('/pairing/qr', [PairingController::class, 'qrPayload']);
 // l'OTP + signature(otp || tel_pubkey). Réponse : pc_pubkey + status.
 Route::post('/pairing/handshake', [PairingController::class, 'handshake']);
 
-// S2.J4 — gestion des devices. index/approve/reject pilotés par le dashboard,
-// poll appelé par le tel pour récupérer son statut + token persistant.
-Route::get('/pairing/devices', [DeviceController::class, 'index']);
-Route::post('/pairing/devices/{device}/approve', [DeviceController::class, 'approve']);
-Route::post('/pairing/devices/{device}/reject', [DeviceController::class, 'reject']);
+// S2.J4 — gestion des devices.
+// index/approve/reject = dashboard local UNIQUEMENT → protégés par
+// `dashboard.client` (header custom + CORS restreint, anti-CSRF). Sans ça,
+// n'importe quelle page web pouvait lister/approuver des devices.
+Route::middleware('dashboard.client')->group(function () {
+    Route::get('/pairing/devices', [DeviceController::class, 'index']);
+    Route::post('/pairing/devices/{device}/approve', [DeviceController::class, 'approve']);
+    Route::post('/pairing/devices/{device}/reject', [DeviceController::class, 'reject']);
+    Route::post('/pairing/devices/{device}/rename', [DeviceController::class, 'rename']);
+});
+
+// poll = appelé par le TEL (authentifié par signature Ed25519), pas le
+// dashboard → reste ouvert (le tel ne peut pas envoyer le header dashboard).
 Route::post('/pairing/poll', [DeviceController::class, 'poll']);
 
 Route::get('/user', function (Request $request) {

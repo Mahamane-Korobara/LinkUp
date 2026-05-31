@@ -7,6 +7,7 @@ use App\Models\Device;
 use App\Services\Crypto\KeyManager;
 use App\Services\Pairing\DeviceApprovalService;
 use App\Services\Pairing\DeviceNotApprovable;
+use App\Services\Security\SecurityAuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -22,6 +23,7 @@ class DeviceController extends Controller
     public function __construct(
         private readonly DeviceApprovalService $approval,
         private readonly KeyManager $keyManager,
+        private readonly SecurityAuditService $audit,
     ) {
     }
 
@@ -68,6 +70,20 @@ class DeviceController extends Controller
     }
 
     /**
+     * POST /api/pairing/devices/{device}/rename — renomme un device (S3.J4 T3.15).
+     */
+    public function rename(Request $request, Device $device): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        $device->forceFill(['name' => trim($validated['name'])])->save();
+
+        return response()->json($this->present($device));
+    }
+
+    /**
      * POST /api/pairing/poll — le tel demande son statut.
      *
      * Body : { device_id, signature } où signature = sign(device_id) avec la
@@ -98,6 +114,12 @@ class DeviceController extends Controller
             publicKeyB64: $device->public_key,
         );
         if (!$signatureValid) {
+            $this->audit->log(
+                SecurityAuditService::POLL_SIGNATURE_INVALID,
+                deviceId: $device->id,
+                ip: $request->ip(),
+            );
+
             return response()->json(['message' => 'Signature invalide.'], 403);
         }
 

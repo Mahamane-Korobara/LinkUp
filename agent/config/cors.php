@@ -17,9 +17,18 @@ return [
 
     'paths' => ['api/*', 'sanctum/csrf-cookie'],
 
-    'allowed_methods' => ['*'],
+    'allowed_methods' => ['GET', 'POST', 'OPTIONS'],
 
-    'allowed_origins' => ['*'],
+    // Restreint aux origines du dashboard local (pas `*`). Combiné au header
+    // `X-Linkup-Client` requis sur les routes de gestion, ça bloque le CSRF
+    // depuis un site tiers. Surchargé par LINKUP_DASHBOARD_ORIGINS (CSV) en prod.
+    'allowed_origins' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env(
+            'LINKUP_DASHBOARD_ORIGINS',
+            'http://localhost:3000,http://127.0.0.1:3000',
+        )),
+    ))),
 
     'allowed_origins_patterns' => [],
 

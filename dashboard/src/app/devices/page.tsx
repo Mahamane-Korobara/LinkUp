@@ -18,6 +18,13 @@ import { useCallback, useEffect, useState } from 'react';
 const LARAVEL_BASE = process.env.NEXT_PUBLIC_LARAVEL_URL ?? 'http://localhost:8000';
 const POLL_INTERVAL_MS = 2000;
 
+// Header exigé par l'agent sur les routes de gestion (anti-CSRF, cf.
+// RequireDashboardClient côté Laravel).
+const DASHBOARD_HEADERS = {
+  Accept: 'application/json',
+  'X-Linkup-Client': 'dashboard',
+} as const;
+
 type DeviceStatus = 'pending' | 'approved' | 'rejected';
 
 type DeviceDto = {
@@ -34,7 +41,7 @@ type DeviceDto = {
 
 async function loadDevices(): Promise<DeviceDto[]> {
   const res = await fetch(`${LARAVEL_BASE}/api/pairing/devices`, {
-    headers: { Accept: 'application/json' },
+    headers: DASHBOARD_HEADERS,
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -97,7 +104,7 @@ export default function DevicesPage() {
       try {
         const res = await fetch(
           `${LARAVEL_BASE}/api/pairing/devices/${deviceId}/${action}`,
-          { method: 'POST', headers: { Accept: 'application/json' } },
+          { method: 'POST', headers: DASHBOARD_HEADERS },
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         setDevices(await loadDevices());
@@ -110,6 +117,31 @@ export default function DevicesPage() {
     },
     [],
   );
+
+  const rename = useCallback(async (deviceId: string, current: string | null) => {
+    const input = window.prompt('Nouveau nom du téléphone', current ?? '');
+    if (input === null) return; // annulé
+    const name = input.trim();
+    if (name === '') return;
+    setBusyId(deviceId);
+    try {
+      const res = await fetch(
+        `${LARAVEL_BASE}/api/pairing/devices/${deviceId}/rename`,
+        {
+          method: 'POST',
+          headers: { ...DASHBOARD_HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        },
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setDevices(await loadDevices());
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
 
   const pending = devices.filter((d) => d.status === 'pending');
   const others = devices.filter((d) => d.status !== 'pending');
@@ -165,7 +197,17 @@ export default function DevicesPage() {
             </h2>
             <div className="space-y-3">
               {others.map((d) => (
-                <DeviceCard key={d.device_id} device={d} busy={false} />
+                <DeviceCard
+                  key={d.device_id}
+                  device={d}
+                  busy={busyId === d.device_id}
+                  onRename={() => rename(d.device_id, d.name)}
+                  onRevoke={
+                    d.status === 'approved'
+                      ? () => act(d.device_id, 'reject')
+                      : undefined
+                  }
+                />
               ))}
             </div>
           </section>
@@ -180,11 +222,15 @@ function DeviceCard({
   busy,
   onApprove,
   onReject,
+  onRename,
+  onRevoke,
 }: {
   device: DeviceDto;
   busy: boolean;
   onApprove?: () => void;
   onReject?: () => void;
+  onRename?: () => void;
+  onRevoke?: () => void;
 }) {
   const meta = STATUS_META[device.status];
   const pairedAt = formatDate(device.paired_at);
@@ -242,6 +288,29 @@ function DeviceCard({
           >
             {busy ? '…' : 'Approuver'}
           </button>
+        </div>
+      )}
+
+      {device.status !== 'pending' && (onRename || onRevoke) && (
+        <div className="flex gap-2 shrink-0">
+          {onRename && (
+            <button
+              onClick={onRename}
+              disabled={busy}
+              className="px-3 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Renommer
+            </button>
+          )}
+          {onRevoke && (
+            <button
+              onClick={onRevoke}
+              disabled={busy}
+              className="px-3 py-2 text-sm rounded-lg border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
+            >
+              {busy ? '…' : 'Révoquer'}
+            </button>
+          )}
         </div>
       )}
     </div>

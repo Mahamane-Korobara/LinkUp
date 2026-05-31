@@ -2,8 +2,10 @@
 
 use App\Events\PairingPendingApproval;
 use App\Models\Device;
+use App\Models\SecurityAudit;
 use App\Services\Crypto\KeyManager;
 use App\Services\Pairing\PairingService;
+use App\Services\Security\SecurityAuditService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 
@@ -95,8 +97,8 @@ it('stores the phone metadata and exposes it on the devices listing', function (
     expect($device->platform)->toBe('Android');
     expect($device->os_version)->toBe('Android 14');
 
-    // Le dashboard reçoit bien ces champs.
-    $this->getJson('/api/pairing/devices')
+    // Le dashboard reçoit bien ces champs (header dashboard requis).
+    $this->withHeaders(['X-Linkup-Client' => 'dashboard'])->getJson('/api/pairing/devices')
         ->assertOk()
         ->assertJsonPath('devices.0.model', 'Google Pixel 7')
         ->assertJsonPath('devices.0.platform', 'Android')
@@ -163,6 +165,11 @@ it('rejects an unknown OTP', function () {
     ])
         ->assertStatus(422)
         ->assertJsonPath('reason_code', 'otp_invalid');
+
+    // Le rejet est tracé dans l'audit sécurité (S3.J3).
+    $entry = SecurityAudit::where('event', SecurityAuditService::HANDSHAKE_REJECTED)->first();
+    expect($entry)->not->toBeNull();
+    expect($entry->payload['reason_code'])->toBe('otp_invalid');
 });
 
 it('rejects an expired OTP', function () {

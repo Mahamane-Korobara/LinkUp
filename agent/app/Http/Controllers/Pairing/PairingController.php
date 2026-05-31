@@ -10,6 +10,7 @@ use App\Services\Crypto\KeyManager;
 use App\Services\Pairing\HandshakeRejected;
 use App\Services\Pairing\PairingHandshakeService;
 use App\Services\Pairing\PairingService;
+use App\Services\Security\SecurityAuditService;
 use Endroid\QrCode\Builder\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,6 +33,7 @@ class PairingController extends Controller
         private readonly PairingHandshakeService $handshake,
         private readonly BridgeClient $bridge,
         private readonly KeyManager $keyManager,
+        private readonly SecurityAuditService $audit,
     ) {
     }
 
@@ -107,6 +109,12 @@ class PairingController extends Controller
                 ],
             );
         } catch (HandshakeRejected $e) {
+            $this->audit->log(
+                SecurityAuditService::HANDSHAKE_REJECTED,
+                payload: ['reason_code' => $e->reasonCode],
+                ip: $request->ip(),
+            );
+
             return response()->json([
                 'status' => 'rejected',
                 'reason_code' => $e->reasonCode,
