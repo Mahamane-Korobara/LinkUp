@@ -10,13 +10,17 @@ import platform
 import socket
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Request
 
 from app import __version__
 from app.config import settings
+from app.deps import require_agent_token
 from app.routes import mdns as mdns_routes
+from app.routes import transfer as transfer_routes
 from app.services.mdns import LinkupAnnouncer, LinkupBrowser
+from app.services.transfer import TransferService
 
 
 @asynccontextmanager
@@ -38,6 +42,12 @@ async def lifespan(app: FastAPI):
     app.state.mdns_announcer = announcer
     app.state.mdns_browser = browser
     app.state.started_at = time.monotonic()
+    # Chunks en staging sous ~/.linkup/transfers, fichiers finalisés dans l'inbox
+    # configurée (LINKUP_BRIDGE_TRANSFERS_DIR, défaut ~/Linkup/Inbox).
+    app.state.transfer_service = TransferService(
+        staging_dir=Path.home() / ".linkup" / "transfers",
+        inbox_dir=Path(settings.transfers_dir).expanduser(),
+    )
 
     try:
         yield
@@ -54,18 +64,7 @@ app = FastAPI(
 )
 
 app.include_router(mdns_routes.router)
-
-
-def require_agent_token(authorization: str | None = Header(default=None)) -> None:
-    """Vérifie le header `Authorization: Bearer <token>` contre `settings.agent_token`."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token manquant ou invalide"
-        )
-
-    token = authorization.removeprefix("Bearer ").strip()
-    if token != settings.agent_token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token non autorisé")
+app.include_router(transfer_routes.router)
 
 
 def _safe_username() -> str:

@@ -4,6 +4,7 @@ use App\Http\Controllers\AgentInfoController;
 use App\Http\Controllers\Pairing\DeviceController;
 use App\Http\Controllers\Pairing\PairingController;
 use App\Http\Controllers\PingController;
+use App\Http\Controllers\Transfer\TransferController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -52,6 +53,13 @@ Route::middleware('dashboard.client')->group(function () {
 // poll = appelé par le TEL (authentifié par signature Ed25519), pas le
 // dashboard → reste ouvert (le tel ne peut pas envoyer le header dashboard).
 Route::post('/pairing/poll', [DeviceController::class, 'poll']);
+
+// S4.J2 — transferts de fichiers, authentifiés par le token persistant du tel
+// (middleware auth.device : X-Device-Id + Bearer <token>).
+Route::middleware('auth.device')->group(function () {
+    Route::post('/transfers', [TransferController::class, 'store']);
+    Route::get('/transfers/{transfer}', [TransferController::class, 'show']);
+});
 
 Route::get('/user', function (Request $request) {
     return $request->user();

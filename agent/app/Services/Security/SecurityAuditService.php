@@ -19,6 +19,7 @@ class SecurityAuditService
     public const POLL_SIGNATURE_INVALID = 'poll_signature_invalid';
     public const DASHBOARD_FORBIDDEN = 'dashboard_forbidden';
     public const DEVICE_REJECTED = 'device_rejected';
+    public const DEVICE_AUTH_FAILED = 'device_auth_failed';
 
     /**
      * @param array<string, mixed> $payload

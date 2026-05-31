@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Services\Crypto\KeyManager;
+use App\Services\Transfer\TransferTokenSigner;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -17,6 +18,13 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(KeyManager::class, function ($app) {
             return new KeyManager(
                 homeDir: (string) config('services.linkup.home_dir'),
+            );
+        });
+
+        // Signe les tokens d'upload par-transfert avec le secret partagé bridge.
+        $this->app->singleton(TransferTokenSigner::class, function ($app) {
+            return new TransferTokenSigner(
+                sharedSecret: (string) config('services.linkup_bridge.token'),
             );
         });
     }
