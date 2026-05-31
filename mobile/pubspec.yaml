@@ -44,7 +44,7 @@ dependencies:
   flutter_secure_storage: ^9.2.4
 
   # Linkup S2.J3 — scan QR pour le pairing
-  mobile_scanner: ^5.2.3
+  mobile_scanner: ^7.2.0
 
   # Linkup S2 — métadonnées du tél (modèle, OS) envoyées au handshake et
   # affichées sur le dashboard PC.
