@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\Crypto\KeyManager;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
@@ -23,7 +24,12 @@ it('returns 503 when bridge is totally unreachable (ConnectionException)', funct
         ->assertJsonPath('error', fn ($msg) => str_contains((string) $msg, 'injoignable'));
 });
 
-it('proxies local mDNS agent info through Laravel', function () {
+it('proxies local mDNS agent info through Laravel with the real Ed25519 fingerprint', function () {
+    // KeyManager isolé sur un dossier temp : on ne touche pas la vraie paire ~/.linkup.
+    $home = sys_get_temp_dir() . '/linkup-test-' . uniqid();
+    $keys = new KeyManager($home);
+    $this->app->instance(KeyManager::class, $keys);
+
     Http::fake([
         'http://127.0.0.1:8765/mdns/info' => Http::response([
             'registered' => true,
@@ -43,13 +49,25 @@ it('proxies local mDNS agent info through Laravel', function () {
     $response->assertOk()
         ->assertJson([
             'name' => 'linkup-test._linkup._tcp.local.',
-            'fingerprint' => 'pending',
+            // L'empreinte renvoyée est celle du KeyManager, PAS le 'pending' du bridge.
+            'fingerprint' => $keys->fingerprint(),
             'agent_id' => 'linkup-test',
             'version' => '0.1.0',
             'reverb_port' => 8080,
             'bridge_port' => 8765,
             'source' => 'bridge',
         ]);
+
+    expect($response->json('fingerprint'))
+        ->not->toBe('pending')
+        ->toMatch('/^[0-9a-f]{8}$/');
+
+    // Nettoyage du dossier temp de clés.
+    @unlink("$home/.linkup/keys/agent_ed25519.pub");
+    @unlink("$home/.linkup/keys/agent_ed25519.sec");
+    @rmdir("$home/.linkup/keys");
+    @rmdir("$home/.linkup");
+    @rmdir($home);
 });
 
 it('proxies discovered mDNS services through Laravel', function () {

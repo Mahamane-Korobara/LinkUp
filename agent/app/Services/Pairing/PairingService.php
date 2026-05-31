@@ -3,6 +3,7 @@
 namespace App\Services\Pairing;
 
 use App\Services\Crypto\KeyManager;
+use App\Support\RandomToken;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -13,7 +14,9 @@ use Illuminate\Support\Facades\DB;
  * - Consomme un OTP exactement une fois (anti-rejeu)
  * - Construit l'URL `linkup://...` complète qui ira dans le QR
  *
- * La vraie crypto handshake Noise IK arrive en S2.J3.
+ * Note crypto : le handshake réel (cf. PairingHandshakeService) est un
+ * Ed25519 `sign(otp‖tel_pubkey)` vérifié sur HTTP, PAS le Noise IK du CDC §10
+ * (choix Phase 1 LAN — à acter en ADR). Pas de clé de session ici.
  */
 class PairingService
 {
@@ -34,7 +37,7 @@ class PairingService
      */
     public function createOtp(): PairingOtp
     {
-        $token = $this->generateToken();
+        $token = RandomToken::urlSafe(32);
         $now = new DateTimeImmutable();
         $expiresAt = $now->modify('+' . self::OTP_TTL_SECONDS . ' seconds');
 
@@ -108,16 +111,5 @@ class PairingService
             rawurlencode($publicKey),
             rawurlencode($otpToken),
         );
-    }
-
-    /**
-     * 32 octets aléatoires en base64url (43 caractères, sans `+`/`/`/`=`),
-     * URL-safe pour passer dans le QR sans échappement compliqué.
-     */
-    private function generateToken(): string
-    {
-        $raw = random_bytes(32);
-        // base64url : remplace +/=  par -_ (et trim le padding)
-        return rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
     }
 }

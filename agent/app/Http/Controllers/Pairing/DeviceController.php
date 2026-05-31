@@ -31,6 +31,9 @@ class DeviceController extends Controller
      */
     public function index(): JsonResponse
     {
+        // Révoque les pending expirés (> 2 min) avant d'afficher la liste.
+        $this->approval->expireStalePending();
+
         $devices = Device::query()
             ->orderByRaw('approved asc, revoked_at is not null asc')
             ->orderByDesc('paired_at')
@@ -98,6 +101,12 @@ class DeviceController extends Controller
             return response()->json(['message' => 'Signature invalide.'], 403);
         }
 
+        // Expiration paresseuse : un pending trop vieux est révoqué ici même,
+        // si bien que la poll suivante remonte « rejected » au tel.
+        if ($this->approval->isStalePending($device)) {
+            $this->approval->reject($device);
+        }
+
         $status = $device->status();
         if ($status !== 'approved') {
             return response()->json(['status' => $status]);
@@ -117,6 +126,9 @@ class DeviceController extends Controller
         return [
             'device_id' => $device->id,
             'name' => $device->name,
+            'model' => $device->model,
+            'platform' => $device->platform,
+            'os_version' => $device->os_version,
             'fingerprint' => $device->fingerprint_sha256,
             'status' => $device->status(),
             'paired_at' => $device->paired_at?->toIso8601String(),

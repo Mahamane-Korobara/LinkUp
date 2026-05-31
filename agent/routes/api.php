@@ -23,6 +23,10 @@ Route::get('/health', function () {
 Route::get('/agent/info', [AgentInfoController::class, 'show']);
 Route::get('/mdns/services', [AgentInfoController::class, 'services']);
 
+// Smoke-test Reverb e2e délibérément conservé (S1.J1) : prouve que le wiring
+// temps réel fonctionne tant que les events métier ne sont pas branchés côté
+// dashboard. À retirer quand DeviceApproved/PairingPendingApproval seront
+// réellement consommés.
 Route::post('/ping', [PingController::class, 'send']);
 
 // S2.J2 — endpoints de pairing (QR + OTP). Le tel scanne /qr.png, le

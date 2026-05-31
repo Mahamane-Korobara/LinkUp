@@ -154,3 +154,29 @@ it('poll returns 404 for an unknown device', function () {
         'signature' => signDeviceId('whatever', $tel['secret']),
     ])->assertStatus(404);
 });
+
+it('auto-rejects a pending device older than the approval TTL on poll', function () {
+    [$device, $tel] = pendingDevice();
+    // Appairé il y a plus de 2 min sans approbation.
+    $device->forceFill(['paired_at' => now()->subSeconds(121)])->save();
+
+    $this->postJson('/api/pairing/poll', [
+        'device_id' => $device->id,
+        'signature' => signDeviceId($device->id, $tel['secret']),
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'rejected');
+
+    expect($device->fresh()->revoked_at)->not->toBeNull();
+});
+
+it('auto-rejects stale pending devices when listing', function () {
+    [$stale] = pendingDevice();
+    $stale->forceFill(['paired_at' => now()->subSeconds(121)])->save();
+    [$fresh] = pendingDevice();
+
+    $this->getJson('/api/pairing/devices')->assertOk();
+
+    expect($stale->fresh()->status())->toBe('rejected');
+    expect($fresh->fresh()->status())->toBe('pending');
+});

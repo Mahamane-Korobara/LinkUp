@@ -3,8 +3,8 @@
 namespace App\Events;
 
 use App\Models\Device;
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -15,6 +15,9 @@ use Illuminate\Queue\SerializesModels;
  * Notifie le dashboard (retrait du popup) et, à terme (S2.J5), le canal
  * privé du device pour réveiller le tel. Le token NE transite JAMAIS dans
  * cet event : il n'est délivré qu'au tel authentifié via la poll.
+ *
+ * Canal PRIVÉ (cf. PairingPendingApproval) : souscription refusée tant que
+ * l'auth dashboard n'est pas câblée (S3).
  */
 class DeviceApproved implements ShouldBroadcastNow
 {
@@ -27,7 +30,7 @@ class DeviceApproved implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [new Channel('linkup-pairing')];
+        return [new PrivateChannel('linkup-pairing')];
     }
 
     public function broadcastAs(): string

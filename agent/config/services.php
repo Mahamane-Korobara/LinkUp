@@ -45,7 +45,14 @@ return [
         // Dossier racine où Linkup stocke ses clés Ed25519, transferts, etc.
         // Par défaut : $HOME du user qui lance Laravel. Overridable via .env
         // pour les tests, conteneurs, ou installations multi-comptes.
-        'home_dir' => env('LINKUP_HOME_DIR', $_SERVER['HOME'] ?? sys_get_temp_dir() . '/linkup'),
+        //
+        // IMPORTANT : on utilise getenv('HOME'), PAS $_SERVER['HOME'].
+        // `php artisan serve` (php -S) ne peuple PAS $_SERVER['HOME'] dans le
+        // contexte d'une requête HTTP → la valeur retombait sur sys_get_temp_dir()
+        // (/tmp), faisant générer une paire de clés DIFFÉRENTE selon le contexte
+        // (CLI vs HTTP vs pairing) → empreintes incohérentes. getenv('HOME') lit
+        // l'environnement réel du process, hérité du shell, et est stable partout.
+        'home_dir' => env('LINKUP_HOME_DIR', getenv('HOME') ?: sys_get_temp_dir() . '/linkup'),
 
         // Port HTTP Laravel mis dans le QR de pairing (cf. ADR-002 : le tel
         // attaque Laravel pour le handshake, pas le bridge).

@@ -53,11 +53,16 @@ it('accepts a valid handshake and creates a pending Device', function () {
         ->assertJsonStructure([
             'status',
             'device_id',
+            'device_fingerprint',
             'pc_public_key',
             'pc_fingerprint',
             'pc_name',
         ])
         ->assertJsonPath('status', 'pending_approval');
+
+    // L'empreinte renvoyée au tel == celle persistée (affichée par le dashboard).
+    $persisted = Device::where('public_key', $tel['public'])->first();
+    $response->assertJsonPath('device_fingerprint', $persisted->fingerprint_sha256);
 
     expect(Device::where('public_key', $tel['public'])->exists())->toBeTrue();
     $device = Device::where('public_key', $tel['public'])->first();
@@ -66,6 +71,60 @@ it('accepts a valid handshake and creates a pending Device', function () {
     expect($device->fingerprint_sha256)->toMatch('/^[0-9a-f]{8}$/');
 
     Event::assertDispatched(PairingPendingApproval::class);
+});
+
+it('stores the phone metadata and exposes it on the devices listing', function () {
+    Event::fake([PairingPendingApproval::class]);
+
+    $tel = fakeTelKeyPair();
+    $otp = freshOtp();
+    $sig = signOtpAndPubkey($otp, $tel['public'], $tel['secret']);
+
+    $this->postJson('/api/pairing/handshake', [
+        'tel_public_key' => $tel['public'],
+        'otp' => $otp,
+        'signature' => $sig,
+        'device_name' => 'Pixel 7',
+        'device_model' => 'Google Pixel 7',
+        'device_platform' => 'Android',
+        'device_os' => 'Android 14',
+    ])->assertOk();
+
+    $device = Device::where('public_key', $tel['public'])->firstOrFail();
+    expect($device->model)->toBe('Google Pixel 7');
+    expect($device->platform)->toBe('Android');
+    expect($device->os_version)->toBe('Android 14');
+
+    // Le dashboard reçoit bien ces champs.
+    $this->getJson('/api/pairing/devices')
+        ->assertOk()
+        ->assertJsonPath('devices.0.model', 'Google Pixel 7')
+        ->assertJsonPath('devices.0.platform', 'Android')
+        ->assertJsonPath('devices.0.os_version', 'Android 14');
+});
+
+it('refreshes phone metadata on re-pairing (e.g. after an OS update)', function () {
+    $tel = fakeTelKeyPair();
+
+    $otp1 = freshOtp();
+    $this->postJson('/api/pairing/handshake', [
+        'tel_public_key' => $tel['public'],
+        'otp' => $otp1,
+        'signature' => signOtpAndPubkey($otp1, $tel['public'], $tel['secret']),
+        'device_os' => 'Android 13',
+    ])->assertOk();
+
+    $otp2 = freshOtp();
+    $this->postJson('/api/pairing/handshake', [
+        'tel_public_key' => $tel['public'],
+        'otp' => $otp2,
+        'signature' => signOtpAndPubkey($otp2, $tel['public'], $tel['secret']),
+        'device_os' => 'Android 14',
+    ])->assertOk();
+
+    $device = Device::where('public_key', $tel['public'])->firstOrFail();
+    expect($device->os_version)->toBe('Android 14');
+    expect(Device::where('public_key', $tel['public'])->count())->toBe(1);
 });
 
 it('rejects a reused OTP (anti-replay)', function () {

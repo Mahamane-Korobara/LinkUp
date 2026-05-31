@@ -9,6 +9,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * @property string $id          UUID
  * @property string|null $name
+ * @property string|null $model       ex. Google Pixel 7
+ * @property string|null $platform    Android / iOS
+ * @property string|null $os_version  ex. Android 14
  * @property string $public_key  base64 Ed25519
  * @property string $fingerprint_sha256
  * @property bool $approved
@@ -22,6 +25,9 @@ class Device extends Model
 
     protected $fillable = [
         'name',
+        'model',
+        'platform',
+        'os_version',
         'public_key',
         'fingerprint_sha256',
         'approved',

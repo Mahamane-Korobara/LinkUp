@@ -3,8 +3,8 @@
 namespace App\Events;
 
 use App\Models\Device;
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -12,6 +12,10 @@ use Illuminate\Queue\SerializesModels;
 /**
  * Event Reverb broadcasté quand un téléphone vient de faire son handshake.
  * Le dashboard /devices (S2.J4) écoute pour afficher le popup d'approbation.
+ *
+ * Canal PRIVÉ : la charge contient l'empreinte du device. Sans callback
+ * d'autorisation déclaré dans channels.php, toute souscription est refusée
+ * (la fuite reste fermée tant que l'auth dashboard n'est pas câblée — S3).
  */
 class PairingPendingApproval implements ShouldBroadcastNow
 {
@@ -24,7 +28,7 @@ class PairingPendingApproval implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [new Channel('linkup-pairing')];
+        return [new PrivateChannel('linkup-pairing')];
     }
 
     public function broadcastAs(): string

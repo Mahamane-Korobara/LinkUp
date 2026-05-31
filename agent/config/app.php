@@ -17,6 +17,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Application Version
+    |--------------------------------------------------------------------------
+    |
+    | Version de l'agent Linkup, exposée par /api/health, /api/agent/info et
+    | l'event Ping. Source unique : évite le '0.1.0' hardcodé en fallback à
+    | plusieurs endroits. Aligner avec le tag GitHub à chaque release.
+    |
+    */
+
+    'version' => env('APP_VERSION', '0.1.0'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |

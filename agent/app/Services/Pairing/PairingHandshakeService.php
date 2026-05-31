@@ -26,11 +26,16 @@ class PairingHandshakeService
      *
      * @throws HandshakeRejected
      */
+    /**
+     * @param array{model?: ?string, platform?: ?string, os_version?: ?string} $metadata
+     *        Infos d'affichage du tél (device_info_plus). Purement informatif.
+     */
     public function handshake(
         string $telPublicKeyBase64,
         string $otp,
         string $signatureBase64,
         ?string $deviceName = null,
+        array $metadata = [],
     ): Device {
         $this->validatePublicKey($telPublicKeyBase64);
 
@@ -52,8 +57,12 @@ class PairingHandshakeService
             ->whereNull('revoked_at')
             ->first();
 
+        $meta = $this->sanitizeMetadata($metadata);
+
         if ($existing !== null) {
-            $existing->forceFill(['paired_at' => now()])->save();
+            // Re-pairing : on rafraîchit l'horodatage ET les métadonnées (le tel
+            // a pu changer d'OS / de nom depuis le dernier appairage).
+            $existing->forceFill(['paired_at' => now(), ...$meta])->save();
             return $existing;
         }
 
@@ -63,7 +72,27 @@ class PairingHandshakeService
             'fingerprint_sha256' => $this->fingerprintOf($telPublicKeyBase64),
             'approved' => false,
             'paired_at' => now(),
+            ...$meta,
         ]);
+    }
+
+    /**
+     * Ne garde que les clés de métadonnées connues, tronquées, sans valeurs
+     * vides → on n'écrase pas un champ existant avec du null au re-pairing.
+     *
+     * @param array<string, mixed> $metadata
+     * @return array<string, string>
+     */
+    private function sanitizeMetadata(array $metadata): array
+    {
+        $out = [];
+        foreach (['model', 'platform', 'os_version'] as $key) {
+            $value = $metadata[$key] ?? null;
+            if (is_string($value) && trim($value) !== '') {
+                $out[$key] = mb_substr(trim($value), 0, 255);
+            }
+        }
+        return $out;
     }
 
     /**

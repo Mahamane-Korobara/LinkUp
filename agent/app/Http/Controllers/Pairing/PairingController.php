@@ -14,6 +14,7 @@ use Endroid\QrCode\Builder\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Endpoints S2.J2 — génération QR de pairing.
@@ -88,6 +89,9 @@ class PairingController extends Controller
             'otp' => 'required|string|max:64',
             'signature' => 'required|string|max:128',
             'device_name' => 'sometimes|nullable|string|max:255',
+            'device_model' => 'sometimes|nullable|string|max:255',
+            'device_platform' => 'sometimes|nullable|string|max:255',
+            'device_os' => 'sometimes|nullable|string|max:255',
         ]);
 
         try {
@@ -96,6 +100,11 @@ class PairingController extends Controller
                 otp: $validated['otp'],
                 signatureBase64: $validated['signature'],
                 deviceName: $validated['device_name'] ?? null,
+                metadata: [
+                    'model' => $validated['device_model'] ?? null,
+                    'platform' => $validated['device_platform'] ?? null,
+                    'os_version' => $validated['device_os'] ?? null,
+                ],
             );
         } catch (HandshakeRejected $e) {
             return response()->json([
@@ -105,11 +114,21 @@ class PairingController extends Controller
             ], 422);
         }
 
-        PairingPendingApproval::dispatch($device);
+        // Notification temps-réel best-effort : le dashboard fonctionne aussi
+        // en polling, donc un Reverb indisponible ne doit PAS faire échouer le
+        // pairing. On log et on continue.
+        try {
+            PairingPendingApproval::dispatch($device);
+        } catch (\Throwable $e) {
+            Log::warning('Broadcast PairingPendingApproval échoué (pairing OK quand même): ' . $e->getMessage());
+        }
 
         return response()->json([
             'status' => $device->approved ? 'approved' : 'pending_approval',
             'device_id' => $device->id,
+            // Empreinte DU TÉL : c'est elle que le dashboard affiche, le tel
+            // montre la même pour que l'utilisateur compare les deux écrans.
+            'device_fingerprint' => $device->fingerprint_sha256,
             'pc_public_key' => $this->keyManager->publicKey(),
             'pc_fingerprint' => $this->keyManager->fingerprint(),
             'pc_name' => gethostname() ?: 'PC Linkup',
