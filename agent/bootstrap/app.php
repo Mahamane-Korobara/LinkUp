@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AuthenticateDevice;
 use App\Http\Middleware\RequireDashboardClient;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -16,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'dashboard.client' => RequireDashboardClient::class,
+            'auth.device' => AuthenticateDevice::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
