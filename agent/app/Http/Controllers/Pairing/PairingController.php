@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers\Pairing;
 
+use App\Events\PairingPendingApproval;
 use App\Http\Controllers\Controller;
 use App\Services\BridgeClient;
 use App\Services\BridgeUnavailableException;
+use App\Services\Crypto\KeyManager;
+use App\Services\Pairing\HandshakeRejected;
+use App\Services\Pairing\PairingHandshakeService;
 use App\Services\Pairing\PairingService;
 use Endroid\QrCode\Builder\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
@@ -23,7 +28,9 @@ class PairingController extends Controller
 {
     public function __construct(
         private readonly PairingService $pairing,
+        private readonly PairingHandshakeService $handshake,
         private readonly BridgeClient $bridge,
+        private readonly KeyManager $keyManager,
     ) {
     }
 
@@ -64,6 +71,48 @@ class PairingController extends Controller
             'otp' => $otp->token,
             'expires_at' => $otp->expiresAt->format('c'),
             'ttl_seconds' => PairingService::OTP_TTL_SECONDS,
+        ]);
+    }
+
+    /**
+     * S2.J3 — POST /api/pairing/handshake
+     *
+     * Le tel envoie sa clé publique + l'OTP scanné + la signature de
+     * (otp || tel_pubkey). On valide, créé un Device pending, et broadcast
+     * un event Reverb pour le popup d'approbation du dashboard.
+     */
+    public function handshake(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'tel_public_key' => 'required|string|max:88',
+            'otp' => 'required|string|max:64',
+            'signature' => 'required|string|max:128',
+            'device_name' => 'sometimes|nullable|string|max:255',
+        ]);
+
+        try {
+            $device = $this->handshake->handshake(
+                telPublicKeyBase64: $validated['tel_public_key'],
+                otp: $validated['otp'],
+                signatureBase64: $validated['signature'],
+                deviceName: $validated['device_name'] ?? null,
+            );
+        } catch (HandshakeRejected $e) {
+            return response()->json([
+                'status' => 'rejected',
+                'reason_code' => $e->reasonCode,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+
+        PairingPendingApproval::dispatch($device);
+
+        return response()->json([
+            'status' => $device->approved ? 'approved' : 'pending_approval',
+            'device_id' => $device->id,
+            'pc_public_key' => $this->keyManager->publicKey(),
+            'pc_fingerprint' => $this->keyManager->fingerprint(),
+            'pc_name' => gethostname() ?: 'PC Linkup',
         ]);
     }
 

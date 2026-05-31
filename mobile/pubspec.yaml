@@ -43,6 +43,9 @@ dependencies:
   cryptography: ^2.7.0
   flutter_secure_storage: ^9.2.4
 
+  # Linkup S2.J3 — scan QR pour le pairing
+  mobile_scanner: ^5.2.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

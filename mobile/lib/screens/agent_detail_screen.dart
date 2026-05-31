@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/linkup_agent.dart';
 import '../services/agent_info_client.dart';
+import 'pairing/pairing_flow_screen.dart';
 
 /// Écran T1.19 : affiche les infos riches d'un agent sélectionné en appelant
 /// `/api/agent/info` côté Laravel du PC distant.
@@ -157,10 +158,8 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
   }
 
   void _showPairingPlaceholder(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Pairing arrivera en S2. Pour l\'instant, agent visible.'),
-      ),
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const PairingFlowScreen()),
     );
   }
 }
