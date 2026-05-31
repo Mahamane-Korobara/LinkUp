@@ -23,11 +23,37 @@ type DeviceStatus = 'pending' | 'approved' | 'rejected';
 type DeviceDto = {
   device_id: string;
   name: string | null;
+  model: string | null;
+  platform: string | null;
+  os_version: string | null;
   fingerprint: string;
   status: DeviceStatus;
   paired_at: string | null;
   approved_at: string | null;
 };
+
+async function loadDevices(): Promise<DeviceDto[]> {
+  const res = await fetch(`${LARAVEL_BASE}/api/pairing/devices`, {
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return (data.devices ?? []) as DeviceDto[];
+}
+
+function formatDate(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 const STATUS_META: Record<DeviceStatus, { label: string; className: string }> = {
   pending: { label: 'En attente', className: 'bg-amber-100 text-amber-800' },
@@ -41,28 +67,29 @@ export default function DevicesPage() {
   const [loadedOnce, setLoadedOnce] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const fetchDevices = useCallback(async () => {
-    try {
-      const res = await fetch(`${LARAVEL_BASE}/api/pairing/devices`, {
-        headers: { Accept: 'application/json' },
-        cache: 'no-store',
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setDevices(data.devices ?? []);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoadedOnce(true);
-    }
-  }, []);
-
+  // Poll inliné dans l'effet : setState n'est appelé qu'APRÈS le `await`, jamais
+  // de façon synchrone (règle react-hooks/set-state-in-effect).
   useEffect(() => {
-    fetchDevices();
-    const id = setInterval(fetchDevices, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [fetchDevices]);
+    let active = true;
+    const tick = async () => {
+      try {
+        const list = await loadDevices();
+        if (!active) return;
+        setDevices(list);
+        setError(null);
+      } catch (e) {
+        if (active) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (active) setLoadedOnce(true);
+      }
+    };
+    tick();
+    const id = setInterval(tick, POLL_INTERVAL_MS);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, []);
 
   const act = useCallback(
     async (deviceId: string, action: 'approve' | 'reject') => {
@@ -73,14 +100,15 @@ export default function DevicesPage() {
           { method: 'POST', headers: { Accept: 'application/json' } },
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        await fetchDevices();
+        setDevices(await loadDevices());
+        setError(null);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {
         setBusyId(null);
       }
     },
-    [fetchDevices],
+    [],
   );
 
   const pending = devices.filter((d) => d.status === 'pending');
@@ -159,6 +187,9 @@ function DeviceCard({
   onReject?: () => void;
 }) {
   const meta = STATUS_META[device.status];
+  const pairedAt = formatDate(device.paired_at);
+  const approvedAt = formatDate(device.approved_at);
+  const osLine = [device.platform, device.os_version].filter(Boolean).join(' • ');
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-4">
       <div className="min-w-0">
@@ -170,12 +201,29 @@ function DeviceCard({
             {meta.label}
           </span>
         </div>
+
+        {device.model && (
+          <div className="text-sm text-slate-600 mt-0.5 truncate">
+            📱 {device.model}
+          </div>
+        )}
+        {osLine && (
+          <div className="text-xs text-slate-500 mt-0.5">{osLine}</div>
+        )}
+
         <div className="text-sm text-slate-500 mt-1">
           Empreinte&nbsp;:{' '}
           <code className="font-mono font-semibold text-slate-800 tracking-widest">
             {device.fingerprint}
           </code>
         </div>
+
+        {(pairedAt || approvedAt) && (
+          <div className="text-xs text-slate-400 mt-1 space-x-3">
+            {pairedAt && <span>Appairé&nbsp;: {pairedAt}</span>}
+            {approvedAt && <span>Approuvé&nbsp;: {approvedAt}</span>}
+          </div>
+        )}
       </div>
 
       {device.status === 'pending' && onApprove && onReject && (

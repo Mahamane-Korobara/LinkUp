@@ -53,6 +53,10 @@ class KeyManager {
   }
 
   /// Vérifie une signature contre une clé publique base64 (signature détachée).
+  ///
+  /// Réservé S3 : pas encore appelé dans `lib/` (le pairing valide l'identité
+  /// du PC par égalité de clé publique, pas par signature). Servira à vérifier
+  /// les messages broadcast Reverb signés par le PC. Couvert par les tests.
   Future<bool> verify({
     required List<int> message,
     required String signatureB64,
@@ -72,7 +76,12 @@ class KeyManager {
     }
   }
 
-  /// Empreinte SHA-256 courte (8 hex chars) de la clé publique — affichage popup.
+  /// Empreinte SHA-256 courte (8 hex chars) de la clé publique du tél.
+  ///
+  /// Réservé : pas encore appelé dans `lib/` (l'empreinte du tél affichée vient
+  /// de la réponse serveur `device_fingerprint`). Gardé pour un affichage local
+  /// futur de sa propre empreinte. Couvert par les tests. Même algo que le PC
+  /// (`KeyManager::fingerprint` côté Laravel) → valeurs comparables.
   Future<String> fingerprint() async {
     final pub = await _readPublicKey();
     final hash = await Sha256().hash(pub.bytes);

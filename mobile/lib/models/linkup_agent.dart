@@ -61,9 +61,9 @@ class LinkupAgent {
     return parts.join('  •  ');
   }
 
-  /// URL HTTP du bridge Python, utilisée pour `/health` et `/api/agent/info`
-  /// (le bridge expose les deux ; Laravel parle sur un port différent, ici on
-  /// vise le bridge directement pour la vérification de présence).
+  /// URL HTTP `/health` du **bridge Python** (port bridge), pour la simple
+  /// vérification de présence du LAN sweep. NB : `/api/agent/info` n'est PAS
+  /// servi ici mais par **Laravel** (cf. [agentInfoUri], port différent).
   Uri get bridgeHealthUri => Uri.parse('http://$address:$bridgePort/health');
 
   /// URL HTTP de l'agent Laravel, pour appeler `/api/agent/info`.

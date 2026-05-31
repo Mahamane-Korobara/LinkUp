@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../crypto/key_manager.dart';
+import 'device_metadata.dart';
 import 'pairing_url.dart';
 
 /// Résultat d'un handshake de pairing réussi (statut `pending_approval`
@@ -12,6 +13,9 @@ import 'pairing_url.dart';
 class HandshakeResult {
   final String status;
   final String deviceId;
+
+  /// Empreinte SHA-256 du tel (la même que celle affichée par le dashboard).
+  final String deviceFingerprint;
   final String pcPublicKey;
   final String pcFingerprint;
   final String pcName;
@@ -19,6 +23,7 @@ class HandshakeResult {
   const HandshakeResult({
     required this.status,
     required this.deviceId,
+    required this.deviceFingerprint,
     required this.pcPublicKey,
     required this.pcFingerprint,
     required this.pcName,
@@ -69,7 +74,7 @@ class PairingHandshakeClient {
   /// Throws [HandshakeRejected] (422 métier) ou [HandshakeNetworkException].
   Future<HandshakeResult> handshake(
     PairingUrl pairing, {
-    String? deviceName,
+    DeviceMetadata? metadata,
   }) async {
     // Charge ou génère la paire tel.
     final telPubB64 = await _keyManager.publicKeyBase64();
@@ -91,8 +96,7 @@ class PairingHandshakeClient {
               'tel_public_key': telPubB64,
               'otp': pairing.otp,
               'signature': signature,
-              if (deviceName != null && deviceName.isNotEmpty)
-                'device_name': deviceName,
+              if (metadata != null) ...metadata.toHandshakeFields(),
             }),
           )
           .timeout(timeout);
@@ -140,6 +144,7 @@ class PairingHandshakeClient {
     return HandshakeResult(
       status: payload['status'] as String? ?? 'unknown',
       deviceId: payload['device_id'] as String? ?? '',
+      deviceFingerprint: payload['device_fingerprint'] as String? ?? '',
       pcPublicKey: pcPubReceived,
       pcFingerprint: payload['pc_fingerprint'] as String? ?? '',
       pcName: payload['pc_name'] as String? ?? 'PC',

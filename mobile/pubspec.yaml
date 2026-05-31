@@ -46,6 +46,10 @@ dependencies:
   # Linkup S2.J3 — scan QR pour le pairing
   mobile_scanner: ^5.2.3
 
+  # Linkup S2 — métadonnées du tél (modèle, OS) envoyées au handshake et
+  # affichées sur le dashboard PC.
+  device_info_plus: ^11.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

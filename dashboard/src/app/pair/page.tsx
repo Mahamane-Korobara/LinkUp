@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 /**
  * Page S2.J2 T2.8 — affiche le QR de pairing du PC.
@@ -23,23 +24,31 @@ type PairingPayload = {
   ttl_seconds: number;
 };
 
+async function fetchQrPayload(): Promise<PairingPayload> {
+  const res = await fetch(`${LARAVEL_BASE}/api/pairing/qr`, {
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()) as PairingPayload;
+}
+
 export default function PairPage() {
+  const router = useRouter();
   const [payload, setPayload] = useState<PairingPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [remaining, setRemaining] = useState(0);
   const [qrTimestamp, setQrTimestamp] = useState<number>(() => Date.now());
 
+  // Utilisée par le bouton Réessayer et l'auto-refresh du countdown (contextes
+  // event/callback : setState synchrone autorisé). L'effet de montage, lui,
+  // inline le fetch ci-dessous pour respecter set-state-in-effect.
   const fetchPairing = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${LARAVEL_BASE}/api/pairing/qr`, {
-        headers: { Accept: 'application/json' },
-        cache: 'no-store',
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: PairingPayload = await res.json();
+      const data = await fetchQrPayload();
       setPayload(data);
       setRemaining(data.ttl_seconds);
       setQrTimestamp(Date.now());
@@ -51,8 +60,26 @@ export default function PairPage() {
   }, []);
 
   useEffect(() => {
-    fetchPairing();
-  }, [fetchPairing]);
+    let active = true;
+    (async () => {
+      try {
+        const data = await fetchQrPayload();
+        if (!active) return;
+        setPayload(data);
+        setRemaining(data.ttl_seconds);
+        setQrTimestamp(Date.now());
+        setError(null);
+        setLoading(false);
+      } catch (e) {
+        if (!active) return;
+        setError(e instanceof Error ? e.message : String(e));
+        setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Countdown + auto-refresh à expiration
   useEffect(() => {
@@ -68,6 +95,43 @@ export default function PairPage() {
     }, 1000);
     return () => clearInterval(interval);
   }, [remaining, fetchPairing]);
+
+  // Détecte qu'un téléphone a scanné (nouveau device pending) et redirige vers
+  // l'écran d'approbation. On ignore les pending déjà présents à l'ouverture
+  // pour ne rediriger que sur un scan effectué pendant qu'on regarde le QR.
+  const baselinePendingIds = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`${LARAVEL_BASE}/api/pairing/devices`, {
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const pendingIds: string[] = (data.devices ?? [])
+          .filter((d: { status: string }) => d.status === 'pending')
+          .map((d: { device_id: string }) => d.device_id);
+
+        // Premier passage : on mémorise les pending existants sans rediriger.
+        if (baselinePendingIds.current === null) {
+          baselinePendingIds.current = new Set(pendingIds);
+          return;
+        }
+        const fresh = pendingIds.some((id) => !baselinePendingIds.current!.has(id));
+        if (fresh && !cancelled) router.push('/devices');
+      } catch {
+        // réseau indisponible : on retentera au prochain tick
+      }
+    };
+    poll();
+    const id = setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [router]);
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-50 p-8">

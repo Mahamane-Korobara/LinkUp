@@ -38,16 +38,4 @@ class MulticastLock {
       return;
     }
   }
-
-  /// Vrai si le verrou est actuellement tenu.
-  static Future<bool> isHeld() async {
-    try {
-      final result = await _channel.invokeMethod<bool>('isHeld');
-      return result ?? false;
-    } on MissingPluginException {
-      return false;
-    } on PlatformException {
-      return false;
-    }
-  }
 }

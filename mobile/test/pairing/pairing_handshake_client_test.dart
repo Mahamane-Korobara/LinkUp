@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:linkup_mobile/services/crypto/key_manager.dart';
+import 'package:linkup_mobile/services/pairing/device_metadata.dart';
 import 'package:linkup_mobile/services/pairing/pairing_handshake_client.dart';
 import 'package:linkup_mobile/services/pairing/pairing_url.dart';
 
@@ -91,6 +92,68 @@ void main() {
       expect(sentBody!['otp'], 'OTPABC');
       expect(sentBody!['signature'], isA<String>());
       expect(sentBody!['tel_public_key'], isA<String>());
+    });
+
+    test('sends device metadata fields when provided', () async {
+      const pcPub = 'PCKEYBASE64';
+      final keyManager = KeyManager(storage: _MemoryStorage());
+
+      Map<String, dynamic>? sentBody;
+      final mock = MockClient((req) async {
+        sentBody = jsonDecode(req.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'status': 'pending_approval',
+            'device_id': 'abc-123',
+            'pc_public_key': pcPub,
+            'pc_fingerprint': 'deadbeef',
+            'pc_name': 'pc',
+          }),
+          200,
+        );
+      });
+
+      final client = PairingHandshakeClient(keyManager: keyManager, httpClient: mock);
+      await client.handshake(
+        _fakeUrl(pcPub: pcPub),
+        metadata: const DeviceMetadata(
+          name: 'Pixel 7',
+          model: 'Google Pixel 7',
+          platform: 'Android',
+          osVersion: 'Android 14',
+        ),
+      );
+
+      expect(sentBody!['device_name'], 'Pixel 7');
+      expect(sentBody!['device_model'], 'Google Pixel 7');
+      expect(sentBody!['device_platform'], 'Android');
+      expect(sentBody!['device_os'], 'Android 14');
+    });
+
+    test('omits device metadata fields when not provided', () async {
+      const pcPub = 'PCKEYBASE64';
+      final keyManager = KeyManager(storage: _MemoryStorage());
+
+      Map<String, dynamic>? sentBody;
+      final mock = MockClient((req) async {
+        sentBody = jsonDecode(req.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'status': 'pending_approval',
+            'device_id': 'abc-123',
+            'pc_public_key': pcPub,
+            'pc_fingerprint': 'deadbeef',
+            'pc_name': 'pc',
+          }),
+          200,
+        );
+      });
+
+      final client = PairingHandshakeClient(keyManager: keyManager, httpClient: mock);
+      await client.handshake(_fakeUrl(pcPub: pcPub));
+
+      expect(sentBody!.containsKey('device_model'), isFalse);
+      expect(sentBody!.containsKey('device_name'), isFalse);
     });
 
     test('throws HandshakeRejected on 422 with reason_code', () async {

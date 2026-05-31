@@ -274,6 +274,9 @@ class LinkupBrowser:
         self._heartbeat_task: asyncio.Task[None] | None = None
         self._client: httpx.AsyncClient | None = None
         self._agents: dict[str, DiscoveredAgent] = {}
+        # Garde une reference forte sur les taches de resolution en cours : sans
+        # ca, asyncio peut les GC avant la fin (cf. doc asyncio.create_task).
+        self._resolve_tasks: set[asyncio.Task[None]] = set()
 
     async def start(self) -> None:
         """
@@ -302,6 +305,14 @@ class LinkupBrowser:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._heartbeat_task
             self._heartbeat_task = None
+
+        # Annule les resolutions en vol avant de fermer zeroconf.
+        for task in list(self._resolve_tasks):
+            task.cancel()
+        for task in list(self._resolve_tasks):
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        self._resolve_tasks.clear()
 
         if self._browser is not None:
             await self._browser.async_cancel()
@@ -334,7 +345,9 @@ class LinkupBrowser:
             logger.info("Agent supprime : %s", name)
             return
 
-        asyncio.create_task(self._resolve(service_type, name))
+        task = asyncio.create_task(self._resolve(service_type, name))
+        self._resolve_tasks.add(task)
+        task.add_done_callback(self._resolve_tasks.discard)
 
     async def _resolve(self, service_type: str, name: str) -> None:
         """

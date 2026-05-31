@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:linkup_mobile/models/linkup_agent.dart';
 import 'package:linkup_mobile/screens/agent_detail_screen.dart';
 import 'package:linkup_mobile/services/agent_info_client.dart';
+import 'package:linkup_mobile/services/pairing/paired_device_store.dart';
 
 /// Fake injectable qui ne fait aucune requête réseau.
 class _FakeClient implements AgentInfoFetcher {
@@ -24,6 +28,18 @@ class _FakeClient implements AgentInfoFetcher {
   @override
   void close() {
     closeCount++;
+  }
+}
+
+/// Compte les routes poussées pour vérifier une navigation sans rendre la
+/// destination (qui ouvre la caméra).
+class _PushObserver extends NavigatorObserver {
+  int pushCount = 0;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    pushCount++;
+    super.didPush(route, previousRoute);
   }
 }
 
@@ -67,37 +83,49 @@ void main() {
           source: 'bridge',
         ),
       );
+      // Pas de store appairé injecté → non appairé → l'empreinte du PC est
+      // masquée tant que la confiance n'est pas établie.
+      FlutterSecureStorage.setMockInitialValues({});
       await tester.pumpWidget(MaterialApp(
-        home: AgentDetailScreen(agent: _agent, client: client),
+        home: AgentDetailScreen(
+          agent: _agent,
+          client: client,
+          pairedStore: PairedDeviceStore(),
+        ),
       ));
       await tester.pumpAndSettle();
 
-      expect(find.text('abc12345'), findsOneWidget);
+      expect(find.text('abc12345'), findsNothing,
+          reason: 'empreinte masquée tant que non appairé');
+      expect(find.text('Disponible après appairage'), findsOneWidget);
       expect(find.text('linkup-abc'), findsWidgets); // appbar + ligne
       expect(find.text('Appairer'), findsOneWidget);
     });
 
-    testWidgets('displays placeholder text when fingerprint is "pending"',
+    testWidgets('hides the PC fingerprint until the phone is paired',
         (tester) async {
+      FlutterSecureStorage.setMockInitialValues({});
       final client = _FakeClient.success(
         const AgentInfo(
           name: 'x',
-          fingerprint: 'pending',
+          fingerprint: 'abc12345',
           version: '0.1.0',
           source: 'bridge',
         ),
       );
       await tester.pumpWidget(MaterialApp(
-        home: AgentDetailScreen(agent: _agent, client: client),
+        home: AgentDetailScreen(
+          agent: _agent,
+          client: client,
+          pairedStore: PairedDeviceStore(),
+        ),
       ));
       await tester.pumpAndSettle();
 
-      // Fix P0 audit pass3 : on n'affiche pas 'pending' brut
+      // Ni l'empreinte ni 'pending' brut ne fuitent avant appairage.
+      expect(find.text('abc12345'), findsNothing);
       expect(find.text('pending'), findsNothing);
-      expect(
-        find.text('Pas encore générée (pairing S2)'),
-        findsOneWidget,
-      );
+      expect(find.text('Disponible après appairage'), findsOneWidget);
     });
 
     testWidgets('shows error UI + retry button on AgentInfoUnavailable',
@@ -117,7 +145,8 @@ void main() {
           reason: 'pas de FAB tant qu\'on n\'a pas d\'info');
     });
 
-    testWidgets('tap on FAB shows S2 placeholder snackbar', (tester) async {
+    testWidgets('tap on FAB navigates to the pairing flow', (tester) async {
+      final observer = _PushObserver();
       final client = _FakeClient.success(
         const AgentInfo(
           name: 'x',
@@ -127,17 +156,79 @@ void main() {
         ),
       );
       await tester.pumpWidget(MaterialApp(
+        navigatorObservers: [observer],
         home: AgentDetailScreen(agent: _agent, client: client),
       ));
       await tester.pumpAndSettle();
+      final pushesBefore = observer.pushCount;
 
       await tester.tap(find.text('Appairer'));
       await tester.pump();
 
-      expect(
-        find.textContaining('Pairing arrivera en S2'),
-        findsOneWidget,
+      // Une nouvelle route (le flow de pairing) a bien été poussée. On ne rend
+      // pas PairingFlowScreen en profondeur car il auto-lance le scanner caméra.
+      expect(observer.pushCount, greaterThan(pushesBefore));
+    });
+
+    testWidgets('shows "Appairé" badge when a stored device matches the agent',
+        (tester) async {
+      FlutterSecureStorage.setMockInitialValues({
+        'linkup.paired_device': jsonEncode(const PairedDevice(
+          deviceId: 'd1',
+          host: '192.168.1.42',
+          port: 8000,
+          token: 'tok',
+          pcPublicKey: 'pk',
+          pcFingerprint: 'abc12345',
+          pcName: 'pc',
+        ).toJson()),
+      });
+      addTearDown(() => FlutterSecureStorage.setMockInitialValues({}));
+
+      final client = _FakeClient.success(
+        const AgentInfo(
+          name: 'x',
+          fingerprint: 'abc12345',
+          version: '0.1.0',
+          source: 'bridge',
+        ),
       );
+      await tester.pumpWidget(MaterialApp(
+        home: AgentDetailScreen(
+          agent: _agent,
+          client: client,
+          pairedStore: PairedDeviceStore(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Appairé — appareil approuvé'), findsOneWidget);
+      // Une fois appairé, l'empreinte du PC devient visible.
+      expect(find.text('abc12345'), findsOneWidget);
+    });
+
+    testWidgets('shows "Non appairé" badge when no device is stored',
+        (tester) async {
+      FlutterSecureStorage.setMockInitialValues({});
+
+      final client = _FakeClient.success(
+        const AgentInfo(
+          name: 'x',
+          fingerprint: 'abc12345',
+          version: '0.1.0',
+          source: 'bridge',
+        ),
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: AgentDetailScreen(
+          agent: _agent,
+          client: client,
+          pairedStore: PairedDeviceStore(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Non appairé — appareil non approuvé'), findsOneWidget);
     });
 
     testWidgets('disposing the screen closes the owned client', (tester) async {
