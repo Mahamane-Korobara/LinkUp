@@ -13,8 +13,11 @@ Layout disque :
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 # transfer_id : on n'accepte qu'un token sûr (UUID/hex/base64url), jamais de
@@ -26,6 +29,73 @@ _CHUNK_GLOB = "chunk_*"
 
 class TransferError(Exception):
     """Erreur métier de transfert (checksum, chunk manquant, id invalide)."""
+
+
+# Variables d'environnement qui, quand elles pointent vers un snap, cassent les
+# applis GTK/snap qu'on lance pour ouvrir un fichier. Cas réel : le bridge
+# démarré depuis le terminal intégré de VS Code (lui-même un snap) hérite de
+# `GTK_PATH=/snap/code/.../gtk-3.0`, et la visionneuse `eog` (un snap) plante
+# alors sur « __libc_pthread_init … GLIBC_PRIVATE » — xdg-open a déjà rendu 0,
+# donc l'échec passait inaperçu (« {"ok":true} » mais rien à l'écran). On les
+# retire avant de lancer la visionneuse pour que « Ouvrir sur le PC » marche
+# même quand le bridge tourne dans un shell confiné snap.
+_SNAP_POLLUTING_ENV = (
+    "LD_LIBRARY_PATH",
+    "GTK_PATH",
+    "GTK_EXE_PREFIX",
+    "GTK_IM_MODULE_FILE",
+    "GIO_MODULE_DIR",
+    "GDK_PIXBUF_MODULE_FILE",
+    "GSETTINGS_SCHEMA_DIR",
+    "LOCPATH",
+)
+
+
+def _desktop_env() -> dict[str, str]:
+    """Copie de l'environnement sans les variables snap qui cassent GTK."""
+    env = dict(os.environ)
+    for key in _SNAP_POLLUTING_ENV:
+        value = env.get(key)
+        if value and "/snap/" in value:
+            del env[key]
+    return env
+
+
+def _open_with_os(path: Path) -> None:
+    """Ouvre un fichier avec l'application par défaut de l'OS.
+
+    On attend brièvement la fin du lanceur (`xdg-open`/`open`) pour détecter un
+    échec IMMÉDIAT — typiquement : pas de session graphique (DISPLAY/Wayland
+    absent quand le bridge tourne sans bureau), aucune application associée, ou
+    l'outil lui-même manquant. Sans ça, `Popen` rendait la main aussitôt et le
+    endpoint répondait 200 même quand rien ne s'ouvrait (snackbar « ouvert »
+    trompeur côté tél/dashboard). Le lanceur fork l'appli et sort en 0 quand
+    tout va bien ; s'il reste vivant au-delà du court délai, c'est qu'il a
+    exec() l'appli en place → on considère ça comme un succès.
+    """
+    if sys.platform.startswith("win"):
+        os.startfile(str(path))  # type: ignore[attr-defined]  # noqa: S606
+        return
+
+    cmd = ["open", str(path)] if sys.platform == "darwin" else ["xdg-open", str(path)]
+    try:
+        proc = subprocess.Popen(  # noqa: S603
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, env=_desktop_env()
+        )
+    except FileNotFoundError as exc:
+        raise TransferError(f"Lanceur « {cmd[0]} » introuvable sur ce PC.") from exc
+
+    try:
+        _, stderr = proc.communicate(timeout=3)
+    except subprocess.TimeoutExpired:
+        return  # toujours vivant = l'appli tourne, succès
+
+    if proc.returncode != 0:
+        detail = stderr.decode(errors="replace").strip() or f"code {proc.returncode}"
+        raise TransferError(
+            f"Le PC n'a pas pu ouvrir le fichier ({detail}). "
+            "Le bridge a-t-il accès à la session graphique (DISPLAY) ?"
+        )
 
 
 class TransferService:
@@ -126,6 +196,28 @@ class TransferService:
     def cleanup(self, transfer_id: str) -> None:
         """Supprime le dossier de staging du transfert. Idempotent."""
         shutil.rmtree(self._chunk_dir(transfer_id), ignore_errors=True)
+
+    # -------------------------------------------------------------------- open
+
+    def open_in_inbox(self, name: str) -> Path:
+        """Ouvre un fichier de l'inbox dans l'app par défaut de l'OS.
+
+        Sécurité : on réduit au basename et on vérifie que le chemin résolu
+        reste DANS l'inbox (anti-traversal). Throws TransferError sinon.
+        """
+        safe = Path(name).name.strip()
+        if not safe:
+            raise TransferError("nom de fichier vide")
+
+        inbox = self._inbox.resolve()
+        target = (inbox / safe).resolve()
+        if target != inbox and inbox not in target.parents:
+            raise TransferError("chemin hors de l'inbox")
+        if not target.is_file():
+            raise TransferError(f"fichier introuvable : {safe}")
+
+        _open_with_os(target)
+        return target
 
     # ------------------------------------------------------------------ helpers
 

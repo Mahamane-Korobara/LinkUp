@@ -50,6 +50,13 @@ dependencies:
   # affichées sur le dashboard PC.
   device_info_plus: ^11.2.0
 
+  # Linkup S4 — sélection de fichiers à transférer vers le PC.
+  file_picker: ^8.1.6
+
+  # Linkup S4 — ouvrir sur le tél un fichier re-téléchargé du PC.
+  path_provider: ^2.1.5
+  open_filex: ^4.5.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AgentInfoController;
+use App\Http\Controllers\Dashboard\FilesController;
 use App\Http\Controllers\Pairing\DeviceController;
 use App\Http\Controllers\Pairing\PairingController;
 use App\Http\Controllers\PingController;
@@ -48,17 +49,40 @@ Route::middleware('dashboard.client')->group(function () {
     Route::post('/pairing/devices/{device}/approve', [DeviceController::class, 'approve']);
     Route::post('/pairing/devices/{device}/reject', [DeviceController::class, 'reject']);
     Route::post('/pairing/devices/{device}/rename', [DeviceController::class, 'rename']);
+
+    // S4 — fichiers reçus, vus depuis le dashboard (ouverture sur le PC).
+    Route::get('/files', [FilesController::class, 'index']);
+    Route::post('/files/{transfer}/open', [FilesController::class, 'open']);
 });
 
 // poll = appelé par le TEL (authentifié par signature Ed25519), pas le
 // dashboard → reste ouvert (le tel ne peut pas envoyer le header dashboard).
 Route::post('/pairing/poll', [DeviceController::class, 'poll']);
 
-// S4.J2 — transferts de fichiers, authentifiés par le token persistant du tel
-// (middleware auth.device : X-Device-Id + Bearer <token>).
+// Endpoints authentifiés par le token persistant du tel (middleware
+// auth.device : X-Device-Id + Bearer <token>).
 Route::middleware('auth.device')->group(function () {
+    // Vérif d'appairage : le tel l'appelle pour savoir si le PC le connaît
+    // ENCORE (après un migrate:fresh / une révocation, son token est invalide
+    // → 401 → le tel sait qu'il doit ré-appairer).
+    Route::get('/me', function (Request $request) {
+        $device = $request->attributes->get(\App\Http\Middleware\AuthenticateDevice::ATTRIBUTE);
+
+        return response()->json([
+            'device_id' => $device->id,
+            'name' => $device->name,
+            'approved' => $device->approved,
+            'fingerprint' => $device->fingerprint_sha256,
+        ]);
+    });
+
+    // S4.J2 — transferts de fichiers.
+    Route::get('/transfers', [TransferController::class, 'index']);
     Route::post('/transfers', [TransferController::class, 'store']);
     Route::get('/transfers/{transfer}', [TransferController::class, 'show']);
+    Route::get('/transfers/{transfer}/download', [TransferController::class, 'download']);
+    Route::post('/transfers/{transfer}/complete', [TransferController::class, 'complete']);
+    Route::post('/transfers/{transfer}/open', [TransferController::class, 'open']);
 });
 
 Route::get('/user', function (Request $request) {

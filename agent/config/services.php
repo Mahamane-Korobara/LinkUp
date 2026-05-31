@@ -57,6 +57,11 @@ return [
         // Port HTTP Laravel mis dans le QR de pairing (cf. ADR-002 : le tel
         // attaque Laravel pour le handshake, pas le bridge).
         'pairing_port' => env('LINKUP_PAIRING_PORT', 8000),
+
+        // Dossier des fichiers reçus (= LINKUP_BRIDGE_TRANSFERS_DIR côté bridge).
+        // Laravel et le bridge tournent sur le MÊME PC/user, donc Laravel peut
+        // lire l'inbox directement pour servir un fichier au tél (download).
+        'inbox' => env('LINKUP_INBOX_DIR', (getenv('HOME') ?: sys_get_temp_dir()) . '/Linkup/Inbox'),
     ],
 
 ];

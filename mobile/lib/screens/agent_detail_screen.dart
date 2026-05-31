@@ -4,7 +4,9 @@ import '../config/linkup_ports.dart';
 import '../models/linkup_agent.dart';
 import '../services/agent_info_client.dart';
 import '../services/pairing/paired_device_store.dart';
+import '../services/pairing/pairing_verifier.dart';
 import 'pairing/pairing_flow_screen.dart';
+import 'transfer/transfers_screen.dart';
 
 /// Écran T1.19 : affiche les infos riches d'un agent sélectionné en appelant
 /// `/api/agent/info` côté Laravel du PC distant.
@@ -19,11 +21,15 @@ class AgentDetailScreen extends StatefulWidget {
   /// secure storage pour savoir si CE téléphone est déjà appairé à ce PC.
   final PairedDeviceStore? pairedStore;
 
+  /// Vérifie côté serveur que l'appairage tient encore. Injectable (tests).
+  final PairingVerifier? verifier;
+
   const AgentDetailScreen({
     super.key,
     required this.agent,
     this.client,
     this.pairedStore,
+    this.verifier,
   });
 
   @override
@@ -43,11 +49,19 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
   /// `false` tant que la lecture du secure storage n'a pas abouti.
   bool _pairedChecked = false;
 
+  late final PairingVerifier _verifier;
+  late final bool _ownsVerifier;
+
+  /// Validité de l'appairage confirmée par le PC (null = pas encore vérifié).
+  PairingValidity? _pairingValid;
+
   @override
   void initState() {
     super.initState();
     _ownsClient = widget.client == null;
     _client = widget.client ?? AgentInfoClient();
+    _ownsVerifier = widget.verifier == null;
+    _verifier = widget.verifier ?? HttpPairingVerifier();
     _load();
     _loadPaired();
   }
@@ -55,6 +69,10 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
   @override
   void dispose() {
     if (_ownsClient) _client.close();
+    final verifier = _verifier;
+    if (_ownsVerifier && verifier is HttpPairingVerifier) {
+      verifier.close();
+    }
     super.dispose();
   }
 
@@ -81,18 +99,27 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
   /// Lit le PC appairé depuis le secure storage. Toute erreur plateforme (ex.
   /// en widget test sans plugin) est avalée : on retombe sur « non appairé ».
   Future<void> _loadPaired() async {
+    PairedDevice? paired;
     try {
       final store = widget.pairedStore ?? PairedDeviceStore();
-      final paired = await store.load();
-      if (!mounted) return;
-      setState(() {
-        _paired = paired;
-        _pairedChecked = true;
-      });
+      paired = await store.load();
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _pairedChecked = true);
+      paired = null; // secure storage indispo (ex. widget test)
     }
+    if (!mounted) return;
+    setState(() {
+      _paired = paired;
+      _pairedChecked = true;
+      _pairingValid = null;
+    });
+    if (paired == null) return;
+
+    // Vérifie auprès du PC que l'appairage tient encore (token valide). Si le PC
+    // a oublié ce tél (migrate:fresh / révocation), on bascule en « non appairé »
+    // → le FAB redevient « Appairer ».
+    final validity = await _verifier.verify(paired);
+    if (!mounted) return;
+    setState(() => _pairingValid = validity);
   }
 
   /// Statut d'appairage de CE téléphone avec l'agent affiché.
@@ -101,13 +128,19 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
   /// empreinte correspond à celle renvoyée par l'agent ; `false` sinon.
   bool? get _isPaired {
     if (!_pairedChecked) return null;
-    final info = _info;
     final paired = _paired;
     if (paired == null) return false;
+
+    // Le serveur fait autorité dès qu'il a répondu.
+    if (_pairingValid == PairingValidity.stale) return false; // PC a oublié le tél
+    if (_pairingValid == PairingValidity.valid) return true;
+    if (_pairingValid == null) return null; // vérification en cours
+
+    // unknown (PC injoignable pour /api/me) → repli sur l'empreinte locale.
+    final info = _info;
     if (info != null && info.fingerprint != 'pending') {
       return paired.pcFingerprint == info.fingerprint;
     }
-    // Pas d'empreinte fraîche à comparer : on s'appuie sur l'adresse du PC.
     return paired.host == widget.agent.address;
   }
 
@@ -117,6 +150,15 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
       appBar: AppBar(
         title: Text(widget.agent.displayName),
         actions: [
+          // Toujours dispo (même « appairé ») : si le PC a oublié ce tél (ex.
+          // migrate:fresh, révocation), le token local est invalide et il faut
+          // re-scanner un QR pour repartir avec un device + token frais.
+          if (_info != null)
+            IconButton(
+              tooltip: 'Ré-appairer',
+              onPressed: () => _openPairingFlow(context),
+              icon: const Icon(Icons.qr_code),
+            ),
           IconButton(
             tooltip: 'Recharger',
             onPressed: _loading ? null : _load,
@@ -125,13 +167,28 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
         ],
       ),
       body: _buildBody(),
-      floatingActionButton: _info == null
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => _openPairingFlow(context),
-              icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Appairer'),
-            ),
+      floatingActionButton: _buildFab(context),
+    );
+  }
+
+  /// Appairé → bouton d'envoi de fichier ; sinon → bouton d'appairage.
+  Widget? _buildFab(BuildContext context) {
+    if (_info == null) return null;
+    if (_isPaired == true && _paired != null) {
+      return FloatingActionButton.extended(
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TransfersScreen(device: _paired!),
+          ),
+        ),
+        icon: const Icon(Icons.swap_vert),
+        label: const Text('Transferts'),
+      );
+    }
+    return FloatingActionButton.extended(
+      onPressed: () => _openPairingFlow(context),
+      icon: const Icon(Icons.qr_code_scanner),
+      label: const Text('Appairer'),
     );
   }
 

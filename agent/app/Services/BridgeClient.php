@@ -44,6 +44,33 @@ class BridgeClient
         return $this->safeGet('/mdns/services');
     }
 
+    /**
+     * Demande au bridge d'ouvrir un fichier de l'inbox dans l'app par défaut
+     * du PC (S4 — « Ouvrir sur le PC »).
+     *
+     * @throws BridgeUnavailableException
+     */
+    public function openInbox(string $filename): array
+    {
+        try {
+            return $this->request()
+                ->withHeaders(['X-Filename' => $filename])
+                ->post('/transfer/open')
+                ->throw()
+                ->json();
+        } catch (ConnectionException $e) {
+            throw new BridgeUnavailableException(
+                "Bridge Python injoignable sur {$this->baseUrl()}. Est-il démarré ?",
+                previous: $e,
+            );
+        } catch (RequestException $e) {
+            throw new BridgeUnavailableException(
+                "Le PC n'a pas pu ouvrir le fichier ({$e->response->status()}).",
+                previous: $e,
+            );
+        }
+    }
+
     private function safeGet(string $path): array
     {
         try {
