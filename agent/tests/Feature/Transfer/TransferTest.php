@@ -9,6 +9,7 @@ use App\Services\Security\SecurityAuditService;
 use App\Services\Transfer\TransferService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Http;
 
 uses(RefreshDatabase::class);
 
@@ -34,6 +35,23 @@ function deviceHeaders(string $deviceId, string $token): array
 {
     return ['X-Device-Id' => $deviceId, 'Authorization' => "Bearer {$token}"];
 }
+
+it('GET /api/me confirms a still-valid pairing, 401 otherwise', function () {
+    [$device, $token] = approvedDeviceWithToken();
+
+    // Token valide → 200 + infos device (le tél sait qu'il est encore appairé).
+    $this->withHeaders(deviceHeaders($device->id, $token))
+        ->getJson('/api/me')
+        ->assertOk()
+        ->assertJsonPath('device_id', $device->id)
+        ->assertJsonPath('approved', true);
+
+    // Device oublié côté PC (ex. migrate:fresh) → token invalide → 401.
+    $device->delete();
+    $this->withHeaders(deviceHeaders($device->id, $token))
+        ->getJson('/api/me')
+        ->assertStatus(401);
+});
 
 it('initiates a transfer with a valid device token', function () {
     Event::fake([FileTransferRequested::class]);
@@ -121,6 +139,25 @@ it('shows a transfer status with received chunks (resume)', function () {
         ->assertJsonPath('received_chunks', [0, 2]);
 });
 
+it('lists only the calling device transfers, recent first', function () {
+    [$owner, $token] = approvedDeviceWithToken();
+    [$other] = approvedDeviceWithToken();
+    $service = app(TransferService::class);
+
+    $old = $service->initiate($owner, Transfer::TO_PC, 'old.txt', 10);
+    $old->forceFill(['created_at' => now()->subMinutes(5)])->save();
+    $recent = $service->initiate($owner, Transfer::TO_PC, 'recent.txt', 20);
+    $service->initiate($other, Transfer::TO_PC, 'secret.txt', 30); // autre device
+
+    $this->withHeaders(deviceHeaders($owner->id, $token))
+        ->getJson('/api/transfers')
+        ->assertOk()
+        ->assertJsonCount(2, 'transfers')
+        ->assertJsonPath('transfers.0.transfer_id', $recent->id) // récent d'abord
+        ->assertJsonPath('transfers.1.transfer_id', $old->id)
+        ->assertJsonMissing(['filename' => 'secret.txt']);
+});
+
 it('prevents seeing another device transfer (IDOR → 404)', function () {
     [$owner] = approvedDeviceWithToken();
     [$other, $otherToken] = approvedDeviceWithToken();
@@ -129,6 +166,85 @@ it('prevents seeing another device transfer (IDOR → 404)', function () {
     $this->withHeaders(deviceHeaders($other->id, $otherToken))
         ->getJson("/api/transfers/{$transfer->id}")
         ->assertStatus(404);
+});
+
+it('marks a transfer completed when the phone confirms (fixes pending status)', function () {
+    [$device, $token] = approvedDeviceWithToken();
+    $transfer = app(TransferService::class)->initiate($device, Transfer::TO_PC, 'pic.jpg', 100, null, 1);
+    expect($transfer->status)->toBe(Transfer::PENDING);
+
+    $this->withHeaders(deviceHeaders($device->id, $token))
+        ->postJson("/api/transfers/{$transfer->id}/complete", ['stored_name' => 'pic.jpg'])
+        ->assertOk()
+        ->assertJsonPath('status', 'completed');
+
+    $fresh = $transfer->fresh();
+    expect($fresh->status)->toBe(Transfer::COMPLETED);
+    expect($fresh->completed_at)->not->toBeNull();
+    expect($fresh->stored_name)->toBe('pic.jpg');
+});
+
+it('opens a completed transfer file on the PC via the bridge', function () {
+    Http::fake(['http://127.0.0.1:8765/transfer/open' => Http::response(['ok' => true], 200)]);
+    [$device, $token] = approvedDeviceWithToken();
+    $transfer = app(TransferService::class)->initiate($device, Transfer::TO_PC, 'pic.jpg', 100, null, 1);
+    app(TransferService::class)->complete($transfer, 'pic.jpg');
+
+    $this->withHeaders(deviceHeaders($device->id, $token))
+        ->postJson("/api/transfers/{$transfer->id}/open")
+        ->assertOk()
+        ->assertJsonPath('ok', true);
+
+    Http::assertSent(fn ($req) => $req->url() === 'http://127.0.0.1:8765/transfer/open'
+        && $req->header('X-Filename')[0] === 'pic.jpg');
+});
+
+it('downloads a completed transfer file from the inbox', function () {
+    $inbox = sys_get_temp_dir() . '/linkup-inbox-' . bin2hex(random_bytes(4));
+    mkdir($inbox, 0700, true);
+    file_put_contents("$inbox/pic.jpg", 'IMAGEBYTES');
+    config(['services.linkup.inbox' => $inbox]);
+
+    [$device, $token] = approvedDeviceWithToken();
+    $t = app(TransferService::class)->initiate($device, Transfer::TO_PC, 'pic.jpg', 10, null, 1);
+    app(TransferService::class)->complete($t, 'pic.jpg');
+
+    $res = $this->withHeaders(deviceHeaders($device->id, $token))
+        ->get("/api/transfers/{$t->id}/download");
+    $res->assertOk();
+    expect($res->streamedContent())->toBe('IMAGEBYTES');
+
+    @unlink("$inbox/pic.jpg");
+    @rmdir($inbox);
+});
+
+it('refuses to download a not-completed transfer (409)', function () {
+    [$device, $token] = approvedDeviceWithToken();
+    $t = app(TransferService::class)->initiate($device, Transfer::TO_PC, 'pic.jpg', 10, null, 1);
+
+    $this->withHeaders(deviceHeaders($device->id, $token))
+        ->getJson("/api/transfers/{$t->id}/download")
+        ->assertStatus(409);
+});
+
+it('prevents downloading another device file (IDOR → 404)', function () {
+    [$owner] = approvedDeviceWithToken();
+    [$other, $otherToken] = approvedDeviceWithToken();
+    $t = app(TransferService::class)->initiate($owner, Transfer::TO_PC, 'pic.jpg', 10, null, 1);
+    app(TransferService::class)->complete($t, 'pic.jpg');
+
+    $this->withHeaders(deviceHeaders($other->id, $otherToken))
+        ->getJson("/api/transfers/{$t->id}/download")
+        ->assertStatus(404);
+});
+
+it('refuses to open a not-yet-completed transfer (409)', function () {
+    [$device, $token] = approvedDeviceWithToken();
+    $transfer = app(TransferService::class)->initiate($device, Transfer::TO_PC, 'pic.jpg', 100, null, 1);
+
+    $this->withHeaders(deviceHeaders($device->id, $token))
+        ->postJson("/api/transfers/{$transfer->id}/open")
+        ->assertStatus(409);
 });
 
 it('records chunks idempotently and transitions to terminal states', function () {

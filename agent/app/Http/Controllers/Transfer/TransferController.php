@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Middleware\AuthenticateDevice;
 use App\Models\Device;
 use App\Models\Transfer;
+use App\Services\BridgeClient;
+use App\Services\BridgeUnavailableException;
 use App\Services\Transfer\TransferService;
 use App\Services\Transfer\TransferTokenSigner;
 use Illuminate\Http\JsonResponse;
@@ -53,6 +55,21 @@ class TransferController extends Controller
     }
 
     /**
+     * GET /api/transfers — historique des transferts de CE tél (récents d'abord).
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $transfers = Transfer::query()
+            ->where('device_id', $this->device($request)->id)
+            ->latest()
+            ->limit(100)
+            ->get()
+            ->map(fn (Transfer $t) => $this->present($t));
+
+        return response()->json(['transfers' => $transfers]);
+    }
+
+    /**
      * GET /api/transfers/{transfer} — statut + chunks reçus (reprise).
      */
     public function show(Request $request, Transfer $transfer): JsonResponse
@@ -65,6 +82,73 @@ class TransferController extends Controller
                 'received_chunks' => $this->transfers->receivedChunkIndices($transfer),
             ],
         );
+    }
+
+    /**
+     * POST /api/transfers/{transfer}/complete — le tél confirme la fin du
+     * transfert (le finalize s'est fait DIRECTEMENT sur le bridge, donc Laravel
+     * ne le sait pas autrement). Stocke le nom final du fichier dans l'inbox.
+     */
+    public function complete(Request $request, Transfer $transfer): JsonResponse
+    {
+        abort_unless($transfer->device_id === $this->device($request)->id, 404);
+
+        $validated = $request->validate([
+            'stored_name' => 'sometimes|nullable|string|max:255',
+        ]);
+
+        $this->transfers->complete($transfer, $validated['stored_name'] ?? null);
+
+        return response()->json($this->present($transfer->fresh()));
+    }
+
+    /**
+     * GET /api/transfers/{transfer}/download — sert le fichier reçu au tél, pour
+     * qu'il l'ouvre LOCALEMENT (Laravel lit l'inbox, même PC/user que le bridge).
+     */
+    public function download(Request $request, Transfer $transfer): \Symfony\Component\HttpFoundation\Response
+    {
+        abort_unless($transfer->device_id === $this->device($request)->id, 404);
+
+        $name = $transfer->stored_name ?: $transfer->filename;
+        if ($transfer->status !== Transfer::COMPLETED || $name === null) {
+            return response()->json(['message' => 'Transfert non terminé.'], 409);
+        }
+
+        $inbox = realpath((string) config('services.linkup.inbox'));
+        $path = $inbox !== false
+            ? realpath($inbox . DIRECTORY_SEPARATOR . basename($name))
+            : false;
+
+        // Anti-traversal : le fichier résolu DOIT être dans l'inbox.
+        abort_unless(
+            $path !== false && str_starts_with($path, $inbox . DIRECTORY_SEPARATOR) && is_file($path),
+            404,
+        );
+
+        return response()->download($path, $name);
+    }
+
+    /**
+     * POST /api/transfers/{transfer}/open — ouvre le fichier reçu dans l'app
+     * par défaut du PC (le user n'a pas à fouiller dans ~/Linkup/Inbox).
+     */
+    public function open(Request $request, Transfer $transfer, BridgeClient $bridge): JsonResponse
+    {
+        abort_unless($transfer->device_id === $this->device($request)->id, 404);
+
+        $name = $transfer->stored_name ?: $transfer->filename;
+        if ($transfer->status !== Transfer::COMPLETED || $name === null) {
+            return response()->json(['message' => 'Transfert non terminé.'], 409);
+        }
+
+        try {
+            $bridge->openInbox($name);
+        } catch (BridgeUnavailableException $e) {
+            return response()->json(['message' => $e->getMessage()], 503);
+        }
+
+        return response()->json(['ok' => true]);
     }
 
     private function device(Request $request): Device
@@ -90,6 +174,8 @@ class TransferController extends Controller
             'status' => $transfer->status,
             'total_chunks' => $transfer->total_chunks,
             'sha256' => $transfer->sha256,
+            'created_at' => $transfer->created_at?->toIso8601String(),
+            'completed_at' => $transfer->completed_at?->toIso8601String(),
         ];
     }
 }

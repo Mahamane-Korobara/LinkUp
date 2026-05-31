@@ -38,6 +38,7 @@ class Transfer extends Model
     protected $fillable = [
         'device_id',
         'filename',
+        'stored_name',
         'size',
         'sha256',
         'direction',

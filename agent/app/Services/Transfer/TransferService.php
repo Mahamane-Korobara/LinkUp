@@ -75,12 +75,16 @@ class TransferService
             ->all();
     }
 
-    public function complete(Transfer $transfer): Transfer
+    public function complete(Transfer $transfer, ?string $storedName = null): Transfer
     {
-        $transfer->forceFill([
+        $attrs = [
             'status' => Transfer::COMPLETED,
             'completed_at' => now(),
-        ])->save();
+        ];
+        if ($storedName !== null && trim($storedName) !== '') {
+            $attrs['stored_name'] = trim($storedName);
+        }
+        $transfer->forceFill($attrs)->save();
 
         return $transfer;
     }

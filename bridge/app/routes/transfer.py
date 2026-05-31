@@ -68,6 +68,19 @@ def finalize_transfer(
     return {"ok": True, "path": str(dest), "filename": dest.name, "size": dest.stat().st_size}
 
 
+@router.post("/open")
+def open_file(
+    service: ServiceDep,
+    filename: Annotated[str, Header(alias="X-Filename")],
+) -> dict:
+    """Ouvre un fichier de l'inbox sur le PC (appelé par Laravel, token agent)."""
+    try:
+        target = service.open_in_inbox(filename)
+    except TransferError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"ok": True, "path": str(target)}
+
+
 @router.delete("/{transfer_id}")
 def cancel_transfer(transfer_id: str, service: ServiceDep) -> dict:
     try:

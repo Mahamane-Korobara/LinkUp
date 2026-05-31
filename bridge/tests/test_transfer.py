@@ -1,6 +1,7 @@
 """Tests S4.J1 — transfert de fichiers chunké (service + routes)."""
 
 import hashlib
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -8,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.deps import get_transfer_service, require_transfer_auth, transfer_token
 from app.routes import transfer as transfer_routes
+from app.services import transfer as transfer_module
 from app.services.transfer import TransferError, TransferService
 
 DEV_TOKEN = "test-token-pytest-only-do-not-use-in-prod"
@@ -75,6 +77,97 @@ def test_received_chunks_supports_resume(service):
 def test_rejects_path_traversal_transfer_id(service):
     with pytest.raises(TransferError, match="transfer_id invalide"):
         service.save_chunk("../evil", 0, b"x", sha(b"x"))
+
+
+def test_open_in_inbox_opens_existing_file(service, monkeypatch):
+    opened = []
+    monkeypatch.setattr(transfer_module, "_open_with_os", lambda p: opened.append(p))
+
+    service._inbox.mkdir(parents=True, exist_ok=True)
+    (service._inbox / "photo.jpg").write_bytes(b"img")
+
+    result = service.open_in_inbox("photo.jpg")
+    assert result.name == "photo.jpg"
+    assert opened == [result]
+
+
+def test_open_in_inbox_rejects_unknown_file(service, monkeypatch):
+    monkeypatch.setattr(transfer_module, "_open_with_os", lambda p: None)
+    service._inbox.mkdir(parents=True, exist_ok=True)
+    with pytest.raises(TransferError, match="introuvable"):
+        service.open_in_inbox("nope.txt")
+
+
+def test_open_in_inbox_neutralizes_traversal(service, monkeypatch):
+    # `../../etc/passwd` → basename `passwd` → cherché DANS l'inbox uniquement.
+    monkeypatch.setattr(transfer_module, "_open_with_os", lambda p: None)
+    service._inbox.mkdir(parents=True, exist_ok=True)
+    with pytest.raises(TransferError):
+        service.open_in_inbox("../../etc/passwd")
+
+
+def test_open_with_os_raises_on_launcher_failure(monkeypatch):
+    """Régression : `xdg-open`/`open` qui échoue (pas de session graphique,
+    aucune appli associée…) doit lever TransferError. Avant, Popen sans check
+    rendait la main aussitôt → le endpoint répondait 200 et le tél affichait
+    « ouvert » alors que RIEN ne s'ouvrait sur le PC."""
+
+    class _FakeProc:
+        returncode = 3
+
+        def communicate(self, timeout=None):
+            return (b"", b"cannot open display")
+
+    monkeypatch.setattr(transfer_module.subprocess, "Popen", lambda *a, **k: _FakeProc())
+    with pytest.raises(TransferError, match="n'a pas pu ouvrir"):
+        transfer_module._open_with_os(Path("/tmp/whatever.jpg"))
+
+
+def test_open_with_os_succeeds_when_launcher_exits_zero(monkeypatch):
+    """Le lanceur fork l'appli et sort en 0 → succès, pas d'exception."""
+
+    class _FakeProc:
+        returncode = 0
+
+        def communicate(self, timeout=None):
+            return (b"", b"")
+
+    monkeypatch.setattr(transfer_module.subprocess, "Popen", lambda *a, **k: _FakeProc())
+    transfer_module._open_with_os(Path("/tmp/whatever.jpg"))  # ne lève pas
+
+
+def test_open_with_os_treats_long_running_viewer_as_success(monkeypatch):
+    """Si le lanceur reste vivant au-delà du délai (il a exec() l'appli en
+    place), on considère ça comme un succès plutôt que d'attendre indéfiniment."""
+
+    class _FakeProc:
+        returncode = None
+
+        def communicate(self, timeout=None):
+            raise transfer_module.subprocess.TimeoutExpired(cmd="xdg-open", timeout=timeout)
+
+    monkeypatch.setattr(transfer_module.subprocess, "Popen", lambda *a, **k: _FakeProc())
+    transfer_module._open_with_os(Path("/tmp/whatever.jpg"))  # ne lève pas
+
+
+def test_desktop_env_strips_snap_polluting_vars(monkeypatch):
+    """Variables GTK/GIO pointant vers un snap (ex. terminal VS Code) retirées —
+    sinon la visionneuse snap (eog…) plante au lancement (régression dashboard
+    « {"ok":true} mais rien ne s'ouvre »)."""
+    monkeypatch.setenv("GTK_PATH", "/snap/code/241/usr/lib/x86_64-linux-gnu/gtk-3.0")
+    monkeypatch.setenv("GIO_MODULE_DIR", "/home/u/snap/code/common/.cache/gio-modules")
+    monkeypatch.setenv("DISPLAY", ":0")  # non-snap → conservée
+
+    env = transfer_module._desktop_env()
+
+    assert "GTK_PATH" not in env
+    assert "GIO_MODULE_DIR" not in env
+    assert env["DISPLAY"] == ":0"
+
+
+def test_desktop_env_keeps_non_snap_vars(monkeypatch):
+    monkeypatch.setenv("GTK_PATH", "/usr/lib/x86_64-linux-gnu/gtk-3.0")
+    assert transfer_module._desktop_env()["GTK_PATH"] == "/usr/lib/x86_64-linux-gnu/gtk-3.0"
 
 
 def test_finalize_sanitizes_filename_and_avoids_collision(service):

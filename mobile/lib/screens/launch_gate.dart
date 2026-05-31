@@ -5,6 +5,7 @@ import '../models/linkup_agent.dart';
 import '../services/agent_discovery.dart';
 import '../services/agent_info_client.dart';
 import '../services/pairing/paired_device_store.dart';
+import '../services/pairing/pairing_verifier.dart';
 import 'agent_detail_screen.dart';
 import 'agent_picker_screen.dart';
 
@@ -20,12 +21,14 @@ class LaunchGate extends StatefulWidget {
   final PairedDeviceStore? pairedStore;
   final AgentDiscovery? discovery;
   final AgentInfoFetcher? detailClient;
+  final PairingVerifier? verifier;
 
   const LaunchGate({
     super.key,
     this.pairedStore,
     this.discovery,
     this.detailClient,
+    this.verifier,
   });
 
   @override
@@ -76,6 +79,7 @@ class _LaunchGateState extends State<LaunchGate> {
             agent: agentFromPaired(paired!),
             client: widget.detailClient,
             pairedStore: widget.pairedStore,
+            verifier: widget.verifier,
           ),
         ),
       );
@@ -97,6 +101,7 @@ class _LaunchGateState extends State<LaunchGate> {
             agent: agent,
             client: widget.detailClient,
             pairedStore: widget.pairedStore,
+            verifier: widget.verifier,
           ),
         ),
       ),

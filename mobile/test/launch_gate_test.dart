@@ -7,8 +7,16 @@ import 'package:linkup_mobile/models/linkup_agent.dart';
 import 'package:linkup_mobile/screens/launch_gate.dart';
 import 'package:linkup_mobile/services/agent_info_client.dart';
 import 'package:linkup_mobile/services/pairing/paired_device_store.dart';
+import 'package:linkup_mobile/services/pairing/pairing_verifier.dart';
 
 import 'fakes/fake_discovery.dart';
+
+class _FakeVerifier implements PairingVerifier {
+  final PairingValidity result;
+  const _FakeVerifier(this.result);
+  @override
+  Future<PairingValidity> verify(PairedDevice device) async => result;
+}
 
 /// Fetcher d'info agent qui ne touche pas au réseau.
 class _FakeInfoClient implements AgentInfoFetcher {
@@ -59,6 +67,7 @@ void main() {
         home: LaunchGate(
           pairedStore: PairedDeviceStore(),
           discovery: FakeDiscovery(),
+          verifier: const _FakeVerifier(PairingValidity.valid),
           detailClient: _FakeInfoClient(const AgentInfo(
             name: 'mon-pc',
             fingerprint: '5307611f',

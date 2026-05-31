@@ -46,6 +46,12 @@ export default function RootLayout({
             >
               Téléphones
             </Link>
+            <Link
+              href="/files"
+              className="text-sm text-slate-600 hover:text-slate-900"
+            >
+              Fichiers
+            </Link>
           </nav>
         </header>
         <div className="flex-1">{children}</div>

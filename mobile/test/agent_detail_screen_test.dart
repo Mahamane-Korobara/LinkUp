@@ -7,6 +7,16 @@ import 'package:linkup_mobile/models/linkup_agent.dart';
 import 'package:linkup_mobile/screens/agent_detail_screen.dart';
 import 'package:linkup_mobile/services/agent_info_client.dart';
 import 'package:linkup_mobile/services/pairing/paired_device_store.dart';
+import 'package:linkup_mobile/services/pairing/pairing_verifier.dart';
+
+/// Verifier injectable : renvoie une validité fixe sans réseau.
+class _FakeVerifier implements PairingVerifier {
+  final PairingValidity result;
+  const _FakeVerifier(this.result);
+
+  @override
+  Future<PairingValidity> verify(PairedDevice device) async => result;
+}
 
 /// Fake injectable qui ne fait aucune requête réseau.
 class _FakeClient implements AgentInfoFetcher {
@@ -198,6 +208,7 @@ void main() {
           agent: _agent,
           client: client,
           pairedStore: PairedDeviceStore(),
+          verifier: const _FakeVerifier(PairingValidity.valid),
         ),
       ));
       await tester.pumpAndSettle();
@@ -205,6 +216,47 @@ void main() {
       expect(find.text('Appairé — appareil approuvé'), findsOneWidget);
       // Une fois appairé, l'empreinte du PC devient visible.
       expect(find.text('abc12345'), findsOneWidget);
+      // FAB d'accès aux transferts disponible.
+      expect(find.text('Transferts'), findsOneWidget);
+    });
+
+    testWidgets('treats a stored device as NOT paired when the PC rejects it (stale token)',
+        (tester) async {
+      // L'empreinte locale correspond, MAIS le PC a oublié le device (401) :
+      // → on ne doit PAS afficher « Appairé » ni le bouton d'envoi.
+      FlutterSecureStorage.setMockInitialValues({
+        'linkup.paired_device': jsonEncode(const PairedDevice(
+          deviceId: 'd1',
+          host: '192.168.1.42',
+          port: 8000,
+          token: 'stale-token',
+          pcPublicKey: 'pk',
+          pcFingerprint: 'abc12345',
+          pcName: 'pc',
+        ).toJson()),
+      });
+      addTearDown(() => FlutterSecureStorage.setMockInitialValues({}));
+
+      final client = _FakeClient.success(const AgentInfo(
+        name: 'x',
+        fingerprint: 'abc12345',
+        version: '0.1.0',
+        source: 'bridge',
+      ));
+      await tester.pumpWidget(MaterialApp(
+        home: AgentDetailScreen(
+          agent: _agent,
+          client: client,
+          pairedStore: PairedDeviceStore(),
+          verifier: const _FakeVerifier(PairingValidity.stale),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Non appairé — appareil non approuvé'), findsOneWidget);
+      expect(find.text('Transferts'), findsNothing); // pas d'accès transferts
+      expect(find.text('Appairer'), findsOneWidget); // FAB de ré-appairage
+      expect(find.text('abc12345'), findsNothing); // empreinte masquée
     });
 
     testWidgets('shows "Non appairé" badge when no device is stored',
