@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'models/linkup_agent.dart';
-import 'screens/agent_detail_screen.dart';
-import 'screens/agent_picker_screen.dart';
+import 'screens/launch_gate.dart';
 
 void main() {
   runApp(const LinkupApp());
@@ -19,19 +17,8 @@ class LinkupApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: Builder(
-        builder: (context) => AgentPickerScreen(
-          onAgentSelected: (agent) => _openDetail(context, agent),
-        ),
-      ),
-    );
-  }
-
-  void _openDetail(BuildContext context, LinkupAgent agent) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AgentDetailScreen(agent: agent),
-      ),
+      // S2.J5 : reconnexion auto si un PC est déjà appairé (cf. LaunchGate).
+      home: const LaunchGate(),
     );
   }
 }

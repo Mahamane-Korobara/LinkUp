@@ -3,6 +3,8 @@
 use App\Events\DeviceApproved;
 use App\Models\Device;
 use App\Models\DeviceToken;
+use App\Models\SecurityAudit;
+use App\Services\Security\SecurityAuditService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
@@ -41,10 +43,57 @@ function signDeviceId(string $deviceId, string $secret): string
     return base64_encode(sodium_crypto_sign_detached($deviceId, $secret));
 }
 
+/** Header exigé par RequireDashboardClient sur les routes de gestion. */
+function dashboardHeaders(): array
+{
+    return ['X-Linkup-Client' => 'dashboard'];
+}
+
+it('rejects device management routes without the dashboard header (403)', function () {
+    [$device] = pendingDevice();
+
+    // Sans header → 403 (anti-CSRF), aucune mutation.
+    $this->getJson('/api/pairing/devices')->assertStatus(403);
+    $this->postJson("/api/pairing/devices/{$device->id}/approve")->assertStatus(403);
+    $this->postJson("/api/pairing/devices/{$device->id}/reject")->assertStatus(403);
+    expect($device->fresh()->approved)->toBeFalse();
+    expect($device->fresh()->revoked_at)->toBeNull();
+
+    // Et chaque rejet est tracé dans l'audit sécurité (S3.J3).
+    expect(SecurityAudit::where('event', SecurityAuditService::DASHBOARD_FORBIDDEN)->count())
+        ->toBe(3);
+});
+
+it('renames a device', function () {
+    [$device] = pendingDevice();
+
+    $this->withHeaders(dashboardHeaders())
+        ->postJson("/api/pairing/devices/{$device->id}/rename", ['name' => '  Pixel de Mahamane  '])
+        ->assertOk()
+        ->assertJsonPath('name', 'Pixel de Mahamane'); // trimmé
+
+    expect($device->fresh()->name)->toBe('Pixel de Mahamane');
+});
+
+it('logs a security_audit entry on a forged poll signature', function () {
+    [$device] = pendingDevice();
+    $device->forceFill(['approved' => true, 'approved_at' => now()])->save();
+    $attacker = makeTelKeyPair();
+
+    $this->postJson('/api/pairing/poll', [
+        'device_id' => $device->id,
+        'signature' => signDeviceId($device->id, $attacker['secret']),
+    ])->assertStatus(403);
+
+    $entry = SecurityAudit::where('event', SecurityAuditService::POLL_SIGNATURE_INVALID)->first();
+    expect($entry)->not->toBeNull();
+    expect($entry->device_id)->toBe($device->id);
+});
+
 it('lists devices with their status', function () {
     [$pending] = pendingDevice();
 
-    $this->getJson('/api/pairing/devices')
+    $this->withHeaders(dashboardHeaders())->getJson('/api/pairing/devices')
         ->assertOk()
         ->assertJsonPath('devices.0.device_id', $pending->id)
         ->assertJsonPath('devices.0.status', 'pending');
@@ -54,7 +103,7 @@ it('approves a pending device and broadcasts DeviceApproved', function () {
     Event::fake([DeviceApproved::class]);
     [$device] = pendingDevice();
 
-    $this->postJson("/api/pairing/devices/{$device->id}/approve")
+    $this->withHeaders(dashboardHeaders())->postJson("/api/pairing/devices/{$device->id}/approve")
         ->assertOk()
         ->assertJsonPath('status', 'approved');
 
@@ -66,7 +115,7 @@ it('approves a pending device and broadcasts DeviceApproved', function () {
 it('rejects a device and marks it revoked', function () {
     [$device] = pendingDevice();
 
-    $this->postJson("/api/pairing/devices/{$device->id}/reject")
+    $this->withHeaders(dashboardHeaders())->postJson("/api/pairing/devices/{$device->id}/reject")
         ->assertOk()
         ->assertJsonPath('status', 'rejected');
 
@@ -78,7 +127,7 @@ it('refuses to approve a revoked device (409)', function () {
     [$device] = pendingDevice();
     $device->forceFill(['revoked_at' => now()])->save();
 
-    $this->postJson("/api/pairing/devices/{$device->id}/approve")
+    $this->withHeaders(dashboardHeaders())->postJson("/api/pairing/devices/{$device->id}/approve")
         ->assertStatus(409);
 });
 
@@ -175,7 +224,7 @@ it('auto-rejects stale pending devices when listing', function () {
     $stale->forceFill(['paired_at' => now()->subSeconds(121)])->save();
     [$fresh] = pendingDevice();
 
-    $this->getJson('/api/pairing/devices')->assertOk();
+    $this->withHeaders(dashboardHeaders())->getJson('/api/pairing/devices')->assertOk();
 
     expect($stale->fresh()->status())->toBe('rejected');
     expect($fresh->fresh()->status())->toBe('pending');

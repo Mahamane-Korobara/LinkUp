@@ -115,4 +115,4 @@ class LinkupAgent {
 /// - [lanSweep] : trouvé en frappant `/health` sur le sous-réseau /24.
 ///   Utile quand le multicast est bloqué (hotspot, Wi-Fi public).
 /// - [manual] : saisi par l'utilisateur dans le dialog IP.
-enum LinkupAgentSource { mdns, lanSweep, manual }
+enum LinkupAgentSource { mdns, lanSweep, manual, paired }

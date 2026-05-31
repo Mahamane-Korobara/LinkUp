@@ -105,7 +105,7 @@ export default function PairPage() {
     const poll = async () => {
       try {
         const res = await fetch(`${LARAVEL_BASE}/api/pairing/devices`, {
-          headers: { Accept: 'application/json' },
+          headers: { Accept: 'application/json', 'X-Linkup-Client': 'dashboard' },
           cache: 'no-store',
         });
         if (!res.ok) return;
