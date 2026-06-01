@@ -12,6 +12,32 @@ cp .env.example .env
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8765
 ```
 
+## Dépendances système (runtime)
+
+Le bridge **shell-out** vers des outils natifs pour toucher l'OS. Côté
+**utilisateur final, l'installeur (S6.5) les fournit automatiquement** — rien à
+faire à la main (cf. `packaging/system-dependencies.md`). En **dev** (lancement
+depuis les sources), installe-les une fois.
+
+| Fonction | Linux | Windows | macOS |
+|---|---|---|---|
+| Ouvrir fichier / lien | `xdg-open` (paquet `xdg-utils`, ~toujours présent) | intégré (`start`) | intégré (`open`) |
+| Presse-papier | **un** parmi `wl-clipboard` (Wayland) / `xclip` / `xsel` | intégré (`clip` + PowerShell) | intégré (`pbcopy`/`pbpaste`) |
+
+→ **Windows : rien à installer.** **Linux en dev :**
+
+```bash
+# Debian / Ubuntu
+sudo apt install -y wl-clipboard xdg-utils      # (ou xclip à la place sur X11)
+# Fedora
+sudo dnf install -y wl-clipboard xdg-utils
+# Arch
+sudo pacman -S --needed wl-clipboard xdg-utils
+```
+
+Le bridge essaie les outils dans l'ordre et renvoie une **erreur claire**
+(« installe wl-clipboard ») si aucun n'est présent — il ne plante pas.
+
 ## Endpoints
 
 | Méthode | URL | Auth | Description |
@@ -20,6 +46,12 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8765
 | GET | `/system/info` | Bearer | Infos système détaillées |
 | GET | `/mdns/info` | — | Ce que CET agent annonce sur le LAN |
 | GET | `/mdns/services` | — | Liste des agents Linkup découverts sur le LAN |
+| POST | `/transfer/upload` | Bearer/scopé | Reçoit un chunk de fichier (S4) |
+| POST | `/transfer/{id}/finalize` | Bearer/scopé | Recompose + vérifie le SHA-256 (S4) |
+| POST | `/transfer/open` | Bearer | Ouvre un fichier de l'inbox sur le PC (S4) |
+| GET | `/clipboard/read` | Bearer | Lit le presse-papier du PC (S5) |
+| POST | `/clipboard/write` | Bearer | Écrit dans le presse-papier du PC (S5) |
+| POST | `/link/open` | Bearer | Ouvre un lien http(s) dans le navigateur (S5) |
 
 ## Tests
 
