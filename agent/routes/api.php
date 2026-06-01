@@ -4,8 +4,6 @@ use App\Http\Controllers\AgentInfoController;
 use App\Http\Controllers\Clipboard\ClipboardController;
 use App\Http\Controllers\Dashboard\ClipboardController as DashboardClipboardController;
 use App\Http\Controllers\Dashboard\FilesController;
-use App\Http\Controllers\Dashboard\GalleryController as DashboardGalleryController;
-use App\Http\Controllers\Gallery\GalleryController;
 use App\Http\Controllers\Pairing\DeviceController;
 use App\Http\Controllers\Pairing\PairingController;
 use App\Http\Controllers\PingController;
@@ -60,12 +58,6 @@ Route::middleware('dashboard.client')->group(function () {
 
     // S5 — historique presse-papier vu depuis le dashboard.
     Route::get('/clipboard/history', [DashboardClipboardController::class, 'index']);
-
-    // S6 — galerie distante : parcours de l'index + service des vignettes.
-    Route::get('/gallery', [DashboardGalleryController::class, 'index']);
-    Route::get('/gallery/{item}/thumb', [DashboardGalleryController::class, 'thumb']);
-    // S6.J4 — demande d'import des originaux (sélection dashboard).
-    Route::post('/gallery/import', [DashboardGalleryController::class, 'requestImport']);
 });
 
 // poll = appelé par le TEL (authentifié par signature Ed25519), pas le
@@ -103,12 +95,8 @@ Route::middleware('auth.device')->group(function () {
     Route::get('/clipboard/pc', [ClipboardController::class, 'pc']);
     Route::post('/link/open', [ClipboardController::class, 'openLink']);
 
-    // S6 — galerie distante : le tél pousse l'index + les vignettes.
-    Route::post('/gallery/sync', [GalleryController::class, 'sync']);
-    Route::post('/gallery/thumb', [GalleryController::class, 'thumb']);
-    // S6.J4 — le tél récupère les demandes d'import puis les marque honorées.
-    Route::get('/gallery/imports', [GalleryController::class, 'pendingImports']);
-    Route::post('/gallery/imports/{import}/done', [GalleryController::class, 'markImported']);
+    // S6 — l'envoi des photos passe par le module transfert (/transfers) : le tél
+    // choisit les médias et les pousse comme des fichiers normaux (pas d'index).
 });
 
 Route::get('/user', function (Request $request) {
