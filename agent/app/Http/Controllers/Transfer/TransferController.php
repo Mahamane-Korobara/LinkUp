@@ -34,7 +34,8 @@ class TransferController extends Controller
             'filename' => 'required|string|max:255',
             'size' => 'required|integer|min:0',
             'sha256' => 'sometimes|nullable|string|size:64',
-            'direction' => 'required|in:to_pc,to_phone',
+            // PC→tél (to_phone) pas encore implémenté → on n'accepte que to_pc.
+            'direction' => 'required|in:to_pc',
             'total_chunks' => 'sometimes|nullable|integer|min:1',
         ]);
 
@@ -77,11 +78,7 @@ class TransferController extends Controller
         // Anti-IDOR : un device ne voit QUE ses propres transferts.
         abort_unless($transfer->device_id === $this->device($request)->id, 404);
 
-        return response()->json(
-            $this->present($transfer) + [
-                'received_chunks' => $this->transfers->receivedChunkIndices($transfer),
-            ],
-        );
+        return response()->json($this->present($transfer));
     }
 
     /**

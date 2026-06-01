@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * S4.J2 — un transfert de fichier orchestré côté Laravel.
@@ -56,11 +55,6 @@ class Transfer extends Model
     public function device(): BelongsTo
     {
         return $this->belongsTo(Device::class);
-    }
-
-    public function chunks(): HasMany
-    {
-        return $this->hasMany(FileChunk::class);
     }
 
     public function isTerminal(): bool

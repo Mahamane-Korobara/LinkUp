@@ -110,11 +110,25 @@ class KeyManager
         }
     }
 
-    /** Empreinte SHA-256 courte (8 hex chars) de la clé publique — affichage QR popup. */
+    /** Empreinte SHA-256 courte (8 hex chars) de la clé publique locale — affichage QR popup. */
     public function fingerprint(): string
     {
-        $pub = base64_decode($this->publicKey(), true);
-        return substr(hash('sha256', (string) $pub), 0, 8);
+        return $this->fingerprintOf($this->publicKey());
+    }
+
+    /**
+     * Empreinte SHA-256 courte (8 hex chars) d'une clé publique Ed25519 base64.
+     *
+     * Calcul centralisé du fingerprint (évite la duplication avec
+     * PairingHandshakeService, qui délègue ici). Throws si base64 invalide.
+     */
+    public function fingerprintOf(string $publicKeyBase64): string
+    {
+        $raw = base64_decode($publicKeyBase64, true);
+        if ($raw === false) {
+            throw new RuntimeException('Clé publique non décodable (base64 invalide).');
+        }
+        return substr(hash('sha256', $raw), 0, 8);
     }
 
     public function exists(): bool

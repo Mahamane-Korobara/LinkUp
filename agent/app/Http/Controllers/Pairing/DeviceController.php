@@ -62,9 +62,14 @@ class DeviceController extends Controller
     /**
      * POST /api/pairing/devices/{device}/reject
      */
-    public function reject(Device $device): JsonResponse
+    public function reject(Request $request, Device $device): JsonResponse
     {
         $this->approval->reject($device);
+        $this->audit->log(
+            SecurityAuditService::DEVICE_REJECTED,
+            deviceId: $device->id,
+            ip: $request->ip(),
+        );
 
         return response()->json($this->present($device));
     }

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { LARAVEL_BASE } from '../../lib/api';
+
 /**
  * Page S2.J2 T2.8 — affiche le QR de pairing du PC.
  *
@@ -14,8 +16,6 @@ import { useRouter } from 'next/navigation';
  * Une fois le tel scanné le QR, S2.J4 va ajouter le popup d'approbation
  * via Reverb event `PairingPendingApproval`.
  */
-
-const LARAVEL_BASE = process.env.NEXT_PUBLIC_LARAVEL_URL ?? 'http://localhost:8000';
 
 type PairingPayload = {
   url: string;

@@ -54,27 +54,6 @@ class TransferService
         return $transfer;
     }
 
-    /** Enregistre un chunk validé (idempotent sur (transfer, index)). */
-    public function recordChunk(Transfer $transfer, int $index, string $sha256): void
-    {
-        $transfer->chunks()->updateOrCreate(
-            ['chunk_index' => $index],
-            ['sha256' => $sha256, 'received_at' => now()],
-        );
-        if ($transfer->status === Transfer::PENDING) {
-            $transfer->forceFill(['status' => Transfer::UPLOADING])->save();
-        }
-    }
-
-    /** Index des chunks déjà reçus, triés (reprise). */
-    public function receivedChunkIndices(Transfer $transfer): array
-    {
-        return $transfer->chunks()
-            ->orderBy('chunk_index')
-            ->pluck('chunk_index')
-            ->all();
-    }
-
     public function complete(Transfer $transfer, ?string $storedName = null): Transfer
     {
         $attrs = [
@@ -85,22 +64,6 @@ class TransferService
             $attrs['stored_name'] = trim($storedName);
         }
         $transfer->forceFill($attrs)->save();
-
-        return $transfer;
-    }
-
-    public function fail(Transfer $transfer): Transfer
-    {
-        $transfer->forceFill(['status' => Transfer::FAILED])->save();
-
-        return $transfer;
-    }
-
-    public function cancel(Transfer $transfer): Transfer
-    {
-        if (!$transfer->isTerminal()) {
-            $transfer->forceFill(['status' => Transfer::CANCELLED])->save();
-        }
 
         return $transfer;
     }
