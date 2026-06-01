@@ -122,3 +122,22 @@ it('requires device auth for clipboard endpoints (401)', function () {
     $this->getJson('/api/clipboard')->assertStatus(401);
     $this->postJson('/api/link/open', ['url' => 'https://x.com'])->assertStatus(401);
 });
+
+it('surfaces the bridge error and logs nothing when the PC write fails', function () {
+    // Le bridge renvoie 422 « aucun outil » → Laravel relaie CE message en 503
+    // et ne journalise AUCUNE entrée fantôme (write-then-log).
+    Http::fake([
+        'http://127.0.0.1:8765/clipboard/write' => Http::response(
+            ['detail' => 'Aucun outil presse-papier trouvé. Installe wl-clipboard.'],
+            422,
+        ),
+    ]);
+    [$device, $token] = clipApprovedDevice();
+
+    $this->withHeaders(clipHeaders($device->id, $token))
+        ->postJson('/api/clipboard', ['content' => 'boom'])
+        ->assertStatus(503)
+        ->assertJsonPath('message', 'Aucun outil presse-papier trouvé. Installe wl-clipboard.');
+
+    expect(ClipboardEntry::where('content', 'boom')->exists())->toBeFalse();
+});

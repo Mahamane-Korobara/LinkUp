@@ -35,6 +35,14 @@ class ClipboardController extends Controller
             'content' => 'required|string|max:1048576', // 1 Mo
         ]);
 
+        // On écrit D'ABORD sur le presse-papier du PC : si ça échoue (ex. aucun
+        // outil installé), on renvoie l'erreur SANS journaliser d'entrée fantôme.
+        try {
+            $bridge->writeClipboard($validated['content']);
+        } catch (BridgeUnavailableException $e) {
+            return response()->json(['message' => $e->getMessage()], 503);
+        }
+
         $entry = $this->clipboard->receive(
             $this->device($request),
             $validated['content'],
@@ -43,12 +51,6 @@ class ClipboardController extends Controller
 
         if ($entry === null) {
             return response()->json(['ok' => true, 'deduped' => true]);
-        }
-
-        try {
-            $bridge->writeClipboard($validated['content']);
-        } catch (BridgeUnavailableException $e) {
-            return response()->json(['message' => $e->getMessage()], 503);
         }
 
         return response()->json(['ok' => true, 'id' => $entry->id]);

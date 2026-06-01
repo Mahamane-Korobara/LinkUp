@@ -166,6 +166,33 @@ void main() {
     expect(opened, isTrue);
   });
 
+  testWidgets('shows the server error message when the PC write fails', (tester) async {
+    final mock = MockClient((req) async {
+      if (req.method == 'GET' && req.url.path == '/api/clipboard') {
+        return http.Response(jsonEncode({'items': []}), 200);
+      }
+      // Le PC n'a pas d'outil presse-papier → 503 avec le message utile.
+      return http.Response(
+        jsonEncode({'message': 'Aucun outil presse-papier trouvé. Installe wl-clipboard.'}),
+        503,
+      );
+    });
+    await tester.pumpWidget(MaterialApp(
+      home: ClipboardScreen(
+        device: _device,
+        client: ClipboardClient(httpClient: mock),
+        readPhoneClipboard: () async => 'du texte',
+        writePhoneClipboard: (_) async {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Envoyer'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Installe wl-clipboard'), findsOneWidget);
+  });
+
   testWidgets('auto mode pushes to the PC on a phone clipboard change', (tester) async {
     var pushed = false;
     final watcher = _FakeWatcher();
