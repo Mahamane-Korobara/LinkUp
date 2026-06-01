@@ -5,6 +5,7 @@ import '../models/linkup_agent.dart';
 import '../services/agent_info_client.dart';
 import '../services/pairing/paired_device_store.dart';
 import '../services/pairing/pairing_verifier.dart';
+import 'clipboard/clipboard_screen.dart';
 import 'pairing/pairing_flow_screen.dart';
 import 'transfer/transfers_screen.dart';
 
@@ -150,6 +151,18 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
       appBar: AppBar(
         title: Text(widget.agent.displayName),
         actions: [
+          // Presse-papier partagé : seulement quand l'appairage est confirmé
+          // (l'écran appelle l'API authentifiée par le token device).
+          if (_isPaired == true && _paired != null)
+            IconButton(
+              tooltip: 'Presse-papier',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ClipboardScreen(device: _paired!),
+                ),
+              ),
+              icon: const Icon(Icons.content_paste),
+            ),
           // Toujours dispo (même « appairé ») : si le PC a oublié ce tél (ex.
           // migrate:fresh, révocation), le token local est invalide et il faut
           // re-scanner un QR pour repartir avec un device + token frais.
