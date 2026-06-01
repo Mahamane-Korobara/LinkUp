@@ -52,6 +52,12 @@ export default function RootLayout({
             >
               Fichiers
             </Link>
+            <Link
+              href="/clipboard"
+              className="text-sm text-slate-600 hover:text-slate-900"
+            >
+              Presse-papier
+            </Link>
           </nav>
         </header>
         <div className="flex-1">{children}</div>

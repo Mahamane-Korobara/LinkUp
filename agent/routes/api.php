@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AgentInfoController;
 use App\Http\Controllers\Clipboard\ClipboardController;
+use App\Http\Controllers\Dashboard\ClipboardController as DashboardClipboardController;
 use App\Http\Controllers\Dashboard\FilesController;
 use App\Http\Controllers\Pairing\DeviceController;
 use App\Http\Controllers\Pairing\PairingController;
@@ -54,6 +55,9 @@ Route::middleware('dashboard.client')->group(function () {
     // S4 — fichiers reçus, vus depuis le dashboard (ouverture sur le PC).
     Route::get('/files', [FilesController::class, 'index']);
     Route::post('/files/{transfer}/open', [FilesController::class, 'open']);
+
+    // S5 — historique presse-papier vu depuis le dashboard.
+    Route::get('/clipboard/history', [DashboardClipboardController::class, 'index']);
 });
 
 // poll = appelé par le TEL (authentifié par signature Ed25519), pas le

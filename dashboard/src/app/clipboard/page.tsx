@@ -1,0 +1,115 @@
+'use client';
+
+import { useState } from 'react';
+
+import { DASHBOARD_HEADERS, LARAVEL_BASE, formatDate } from '../../lib/api';
+import { usePolling } from '../../hooks/usePolling';
+
+/**
+ * Page « Presse-papier » (S5) — historique des contenus synchronisés entre le
+ * téléphone et ce PC, avec copy-back (un clic = recopié dans le presse-papier
+ * du navigateur). Les liens http(s) sont ouvrables directement.
+ */
+
+const POLL_INTERVAL_MS = 3000;
+
+type ClipItem = {
+  id: string;
+  content: string;
+  origin: string; // 'phone' | 'pc'
+  device_id: string | null;
+  created_at: string | null;
+};
+
+async function loadClipboard(): Promise<ClipItem[]> {
+  const res = await fetch(`${LARAVEL_BASE}/api/clipboard/history`, {
+    headers: DASHBOARD_HEADERS,
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return (data.items ?? []) as ClipItem[];
+}
+
+function isUrl(s: string): boolean {
+  return /^https?:\/\//i.test(s.trim());
+}
+
+export default function ClipboardPage() {
+  const { data: items, error, loadedOnce } = usePolling<ClipItem[]>(
+    loadClipboard,
+    POLL_INTERVAL_MS,
+    [],
+  );
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copy = async (item: ClipItem) => {
+    try {
+      await navigator.clipboard.writeText(item.content);
+      setCopiedId(item.id);
+      setTimeout(() => setCopiedId((c) => (c === item.id ? null : c)), 1500);
+    } catch {
+      // navigator.clipboard indisponible (contexte non sécurisé) — ignoré.
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-50 p-8">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-2xl font-bold mb-1">Presse-papier</h1>
+        <p className="text-slate-600 text-sm mb-6">
+          Les textes synchronisés avec ton téléphone. Clique pour recopier sur ce PC.
+        </p>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm mb-4">
+            {error} — Laravel doit tourner sur <code>{LARAVEL_BASE}</code>.
+          </div>
+        )}
+
+        {loadedOnce && items.length === 0 && !error && (
+          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
+            Aucun contenu partagé pour l&apos;instant.
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {items.map((item) => (
+            <div
+              key={item.id}
+              className="bg-white rounded-xl border border-slate-200 p-4 flex items-start justify-between gap-4"
+            >
+              <div className="min-w-0">
+                <div className="font-mono text-sm break-words whitespace-pre-wrap line-clamp-3">
+                  {item.content}
+                </div>
+                <div className="text-xs text-slate-500 mt-1 space-x-3">
+                  <span>{item.origin === 'pc' ? '🖥️ depuis le PC' : '📱 depuis le téléphone'}</span>
+                  {formatDate(item.created_at) && <span>{formatDate(item.created_at)}</span>}
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 shrink-0">
+                <button
+                  onClick={() => copy(item)}
+                  className="px-3 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                >
+                  {copiedId === item.id ? 'Copié ✓' : 'Copier'}
+                </button>
+                {isUrl(item.content) && (
+                  <a
+                    href={item.content.trim()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-2 text-sm text-center rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+                  >
+                    Ouvrir
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </main>
+  );
+}

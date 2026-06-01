@@ -73,4 +73,17 @@ class ClipboardService
             ->limit($limit)
             ->get();
     }
+
+    /**
+     * Historique récent, tous devices confondus (vue dashboard du PC).
+     *
+     * @return Collection<int, ClipboardEntry>
+     */
+    public function recentAll(int $limit = 100): Collection
+    {
+        return ClipboardEntry::query()
+            ->latest()
+            ->limit($limit)
+            ->get();
+    }
 }
