@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:linkup_mobile/screens/clipboard/clipboard_screen.dart';
 import 'package:linkup_mobile/services/clipboard/clipboard_client.dart';
+import 'package:linkup_mobile/services/clipboard/clipboard_watcher.dart';
 import 'package:linkup_mobile/services/pairing/paired_device_store.dart';
 
 const _device = PairedDevice(
@@ -17,6 +19,23 @@ const _device = PairedDevice(
   pcFingerprint: 'fp',
   pcName: 'mon-pc',
 );
+
+/// Watcher injectable : on déclenche `fire()` pour simuler une copie sur le tél.
+class _FakeWatcher implements ClipboardWatcher {
+  final StreamController<void> _c = StreamController<void>.broadcast();
+  bool started = false;
+
+  @override
+  Stream<void> get onChanged => _c.stream;
+
+  @override
+  Future<void> start() async => started = true;
+
+  @override
+  Future<void> stop() async {}
+
+  void fire() => _c.add(null);
+}
 
 MockClient _backend({
   List<Map<String, dynamic>>? items,
@@ -68,7 +87,7 @@ void main() {
 
     expect(find.text('hello from phone'), findsOneWidget);
     expect(find.text('https://example.com'), findsOneWidget);
-    expect(find.text('Ouvrir sur PC'), findsOneWidget); // sur l'item URL
+    expect(find.text('Ouvrir sur PC'), findsOneWidget);
   });
 
   testWidgets('« Envoyer » pushes the phone clipboard to the PC', (tester) async {
@@ -145,5 +164,37 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(opened, isTrue);
+  });
+
+  testWidgets('auto mode pushes to the PC on a phone clipboard change', (tester) async {
+    var pushed = false;
+    final watcher = _FakeWatcher();
+    await tester.pumpWidget(MaterialApp(
+      home: ClipboardScreen(
+        device: _device,
+        client: ClipboardClient(httpClient: _backend(onPush: () => pushed = true)),
+        watcher: watcher,
+        readPhoneClipboard: () async => 'auto copied',
+        writePhoneClipboard: (_) async {},
+        // Intervalle volontairement long : le timer périodique ne se déclenche
+        // pas pendant le test (on teste le push sur événement, pas le poll).
+        autoPollInterval: const Duration(minutes: 5),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // Active le mode auto (abonne le watcher).
+    await tester.tap(find.text('Sync auto'));
+    await tester.pumpAndSettle();
+    expect(watcher.started, isTrue);
+
+    // Simule une copie sur le téléphone → push auto.
+    watcher.fire();
+    await tester.pumpAndSettle();
+    expect(pushed, isTrue);
+
+    // Dispose l'écran pour annuler le timer périodique (sinon « pending timer »).
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
   });
 }
