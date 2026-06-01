@@ -33,6 +33,8 @@ class Transfer extends Model
     public const COMPLETED = 'completed';
     public const FAILED = 'failed';
     public const CANCELLED = 'cancelled';
+    // S6 — sens to_phone : le tél a récupéré et enregistré le fichier.
+    public const DELIVERED = 'delivered';
 
     protected $fillable = [
         'device_id',

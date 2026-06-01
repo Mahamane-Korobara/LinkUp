@@ -8,6 +8,7 @@ import '../services/pairing/pairing_verifier.dart';
 import 'clipboard/clipboard_screen.dart';
 import 'gallery/gallery_send_screen.dart';
 import 'pairing/pairing_flow_screen.dart';
+import 'transfer/incoming_screen.dart';
 import 'transfer/transfers_screen.dart';
 
 /// Écran T1.19 : affiche les infos riches d'un agent sélectionné en appelant
@@ -173,6 +174,16 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
                 ),
               ),
               icon: const Icon(Icons.photo_library),
+            ),
+          if (_isPaired == true && _paired != null)
+            IconButton(
+              tooltip: 'Récupérer les fichiers du PC',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => IncomingScreen(device: _paired!),
+                ),
+              ),
+              icon: const Icon(Icons.move_to_inbox),
             ),
           // Toujours dispo (même « appairé ») : si le PC a oublié ce tél (ex.
           // migrate:fresh, révocation), le token local est invalide et il faut
