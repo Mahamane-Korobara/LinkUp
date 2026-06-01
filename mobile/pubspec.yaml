@@ -48,7 +48,7 @@ dependencies:
 
   # Linkup S2 — métadonnées du tél (modèle, OS) envoyées au handshake et
   # affichées sur le dashboard PC.
-  device_info_plus: ^11.2.0
+  device_info_plus: ^12.4.0
 
   # Linkup S4 — sélection de fichiers à transférer vers le PC.
   file_picker: ^8.1.6
