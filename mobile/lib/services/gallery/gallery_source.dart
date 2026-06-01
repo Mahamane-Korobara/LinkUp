@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-/// Métadonnées d'un média de la galerie (envoyées à l'index du PC, S6).
+/// Métadonnées d'affichage d'un média de la galerie (S6 — picker d'envoi).
 class GalleryMeta {
   final String mediaId;
   final String mime;
@@ -18,18 +18,11 @@ class GalleryMeta {
     this.height,
   });
 
-  Map<String, dynamic> toSyncJson() => {
-        'media_id': mediaId,
-        'mime': mime,
-        'size': size,
-        if (takenAt != null) 'taken_at': takenAt!.toUtc().toIso8601String(),
-        if (width != null) 'width': width,
-        if (height != null) 'height': height,
-      };
+  bool get isVideo => mime.startsWith('video/');
 }
 
 /// Un asset de la galerie : métadonnées + accès PARESSEUX à sa vignette (on ne
-/// génère la vignette que pour les médias que le PC n'a pas encore).
+/// charge la vignette que des assets réellement affichés à l'écran).
 class GalleryAsset {
   final GalleryMeta meta;
   final Future<Uint8List?> Function() loadThumbnail;
@@ -37,9 +30,9 @@ class GalleryAsset {
   const GalleryAsset({required this.meta, required this.loadThumbnail});
 }
 
-/// L'original d'un média (octets + nom de fichier), chargé à la demande lors d'un
-/// import (S6.J4). Séparé de [GalleryAsset] car on ne lit JAMAIS l'original au
-/// fil de l'indexation — seulement quand le PC le réclame explicitement.
+/// L'original d'un média (octets + nom de fichier), chargé à la demande au moment
+/// de l'envoi. Séparé de [GalleryAsset] : on ne lit JAMAIS l'original pour la
+/// grille, seulement pour les médias que l'utilisateur choisit d'envoyer.
 class GalleryOriginal {
   final Uint8List bytes;
   final String filename;

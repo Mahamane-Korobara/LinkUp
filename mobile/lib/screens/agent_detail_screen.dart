@@ -6,7 +6,7 @@ import '../services/agent_info_client.dart';
 import '../services/pairing/paired_device_store.dart';
 import '../services/pairing/pairing_verifier.dart';
 import 'clipboard/clipboard_screen.dart';
-import 'gallery/gallery_screen.dart';
+import 'gallery/gallery_send_screen.dart';
 import 'pairing/pairing_flow_screen.dart';
 import 'transfer/transfers_screen.dart';
 
@@ -166,10 +166,10 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
             ),
           if (_isPaired == true && _paired != null)
             IconButton(
-              tooltip: 'Galerie',
+              tooltip: 'Envoyer des photos au PC',
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => GalleryScreen(device: _paired!),
+                  builder: (_) => GallerySendScreen(device: _paired!),
                 ),
               ),
               icon: const Icon(Icons.photo_library),
