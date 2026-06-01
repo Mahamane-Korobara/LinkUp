@@ -56,6 +56,38 @@ class TransferController extends Controller
     }
 
     /**
+     * GET /api/transfers/incoming — fichiers que le PC a envoyés à CE tél
+     * (sens to_phone, prêts), pas encore récupérés. Le tél poll cet endpoint.
+     */
+    public function incoming(Request $request): JsonResponse
+    {
+        $transfers = Transfer::query()
+            ->where('device_id', $this->device($request)->id)
+            ->where('direction', Transfer::TO_PHONE)
+            ->where('status', Transfer::COMPLETED)
+            ->latest()
+            ->limit(100)
+            ->get()
+            ->map(fn (Transfer $t) => $this->present($t));
+
+        return response()->json(['transfers' => $transfers]);
+    }
+
+    /**
+     * POST /api/transfers/{transfer}/delivered — le tél confirme avoir récupéré
+     * et enregistré un fichier to_phone (→ disparaît de incoming).
+     */
+    public function delivered(Request $request, Transfer $transfer): JsonResponse
+    {
+        abort_unless($transfer->device_id === $this->device($request)->id, 404);
+        abort_unless($transfer->direction === Transfer::TO_PHONE, 422);
+
+        $transfer->forceFill(['status' => Transfer::DELIVERED])->save();
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
      * GET /api/transfers — historique des transferts de CE tél (récents d'abord).
      */
     public function index(Request $request): JsonResponse
@@ -108,22 +140,34 @@ class TransferController extends Controller
         abort_unless($transfer->device_id === $this->device($request)->id, 404);
 
         $name = $transfer->stored_name ?: $transfer->filename;
-        if ($transfer->status !== Transfer::COMPLETED || $name === null) {
-            return response()->json(['message' => 'Transfert non terminé.'], 409);
+
+        // to_phone : sert depuis l'outbox (fichier déposé par le PC). Sinon (to_pc)
+        // : sert depuis l'inbox (re-téléchargement de ce que le tél a envoyé).
+        $isToPhone = $transfer->direction === Transfer::TO_PHONE;
+        $okStatuses = $isToPhone
+            ? [Transfer::COMPLETED, Transfer::DELIVERED]
+            : [Transfer::COMPLETED];
+
+        if (! in_array($transfer->status, $okStatuses, true) || $name === null) {
+            return response()->json(['message' => 'Transfert non disponible.'], 409);
         }
 
-        $inbox = realpath((string) config('services.linkup.inbox'));
-        $path = $inbox !== false
-            ? realpath($inbox . DIRECTORY_SEPARATOR . basename($name))
+        $baseDir = $isToPhone
+            ? (string) config('services.linkup.outbox')
+            : (string) config('services.linkup.inbox');
+        $base = realpath($baseDir);
+        $path = $base !== false
+            ? realpath($base . DIRECTORY_SEPARATOR . basename($name))
             : false;
 
-        // Anti-traversal : le fichier résolu DOIT être dans l'inbox.
+        // Anti-traversal : le fichier résolu DOIT être dans le dossier attendu.
         abort_unless(
-            $path !== false && str_starts_with($path, $inbox . DIRECTORY_SEPARATOR) && is_file($path),
+            $path !== false && str_starts_with($path, $base . DIRECTORY_SEPARATOR) && is_file($path),
             404,
         );
 
-        return response()->download($path, $name);
+        // Pour to_phone, on présente le nom d'origine (lisible), pas le storedName.
+        return response()->download($path, $isToPhone ? $transfer->filename : $name);
     }
 
     /**

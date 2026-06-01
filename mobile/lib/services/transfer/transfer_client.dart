@@ -202,6 +202,38 @@ class TransferClient {
         .toList();
   }
 
+  /// Fichiers que le PC a envoyés à ce tél (sens to_phone), pas encore récupérés.
+  Future<List<TransferSummary>> listIncoming(PairedDevice device) async {
+    final uri = device.baseUri.replace(path: '/api/transfers/incoming');
+    final http.Response res;
+    try {
+      res = await _http.get(uri, headers: _deviceHeaders(device)).timeout(requestTimeout);
+    } on TimeoutException {
+      throw const TransferException('Pas de réponse du PC.');
+    } on SocketException catch (e) {
+      throw TransferException('Connexion refusée : ${e.message}');
+    }
+    if (res.statusCode == 401) {
+      throw const TransferException('Appairage expiré : re-scanne le QR.');
+    }
+    if (res.statusCode != 200) {
+      throw TransferException('Le PC a répondu ${res.statusCode}.');
+    }
+    final list = (_decode(res.body)['transfers'] as List?) ?? const [];
+    return list.map((e) => TransferSummary.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Confirme au PC qu'un fichier reçu a été enregistré (→ sort des entrants).
+  /// Best-effort : un échec ici ne reperd pas le fichier (déjà enregistré).
+  Future<void> markDelivered(PairedDevice device, String transferId) async {
+    final uri = device.baseUri.replace(path: '/api/transfers/$transferId/delivered');
+    try {
+      await _http.post(uri, headers: _deviceHeaders(device)).timeout(requestTimeout);
+    } catch (_) {
+      // tant pis : le fichier est enregistré, seul le statut côté PC reste à jour.
+    }
+  }
+
   // ----------------------------------------------------------------- steps
 
   Future<_InitiateResult> _initiate(

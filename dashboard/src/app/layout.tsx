@@ -53,6 +53,12 @@ export default function RootLayout({
               Fichiers
             </Link>
             <Link
+              href="/send"
+              className="text-sm text-slate-600 hover:text-slate-900"
+            >
+              Envoyer
+            </Link>
+            <Link
               href="/clipboard"
               className="text-sm text-slate-600 hover:text-slate-900"
             >

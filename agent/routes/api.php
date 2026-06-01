@@ -4,6 +4,7 @@ use App\Http\Controllers\AgentInfoController;
 use App\Http\Controllers\Clipboard\ClipboardController;
 use App\Http\Controllers\Dashboard\ClipboardController as DashboardClipboardController;
 use App\Http\Controllers\Dashboard\FilesController;
+use App\Http\Controllers\Dashboard\OutboxController;
 use App\Http\Controllers\Pairing\DeviceController;
 use App\Http\Controllers\Pairing\PairingController;
 use App\Http\Controllers\PingController;
@@ -58,6 +59,9 @@ Route::middleware('dashboard.client')->group(function () {
 
     // S5 — historique presse-papier vu depuis le dashboard.
     Route::get('/clipboard/history', [DashboardClipboardController::class, 'index']);
+
+    // S6 — envoi PC → tél : le dashboard dépose un fichier pour un tél.
+    Route::post('/outbox/{device}', [OutboxController::class, 'send']);
 });
 
 // poll = appelé par le TEL (authentifié par signature Ed25519), pas le
@@ -83,11 +87,16 @@ Route::middleware('auth.device')->group(function () {
 
     // S4.J2 — transferts de fichiers.
     Route::get('/transfers', [TransferController::class, 'index']);
+    // S6 — fichiers entrants (PC → tél), AVANT /{transfer} pour ne pas matcher
+    // « incoming » comme un id.
+    Route::get('/transfers/incoming', [TransferController::class, 'incoming']);
     Route::post('/transfers', [TransferController::class, 'store']);
     Route::get('/transfers/{transfer}', [TransferController::class, 'show']);
     Route::get('/transfers/{transfer}/download', [TransferController::class, 'download']);
     Route::post('/transfers/{transfer}/complete', [TransferController::class, 'complete']);
     Route::post('/transfers/{transfer}/open', [TransferController::class, 'open']);
+    // S6 — le tél confirme avoir enregistré un fichier reçu du PC.
+    Route::post('/transfers/{transfer}/delivered', [TransferController::class, 'delivered']);
 
     // S5 — presse-papier + lien rapide.
     Route::get('/clipboard', [ClipboardController::class, 'index']);
