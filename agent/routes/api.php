@@ -4,6 +4,8 @@ use App\Http\Controllers\AgentInfoController;
 use App\Http\Controllers\Clipboard\ClipboardController;
 use App\Http\Controllers\Dashboard\ClipboardController as DashboardClipboardController;
 use App\Http\Controllers\Dashboard\FilesController;
+use App\Http\Controllers\Dashboard\GalleryController as DashboardGalleryController;
+use App\Http\Controllers\Gallery\GalleryController;
 use App\Http\Controllers\Pairing\DeviceController;
 use App\Http\Controllers\Pairing\PairingController;
 use App\Http\Controllers\PingController;
@@ -58,6 +60,10 @@ Route::middleware('dashboard.client')->group(function () {
 
     // S5 — historique presse-papier vu depuis le dashboard.
     Route::get('/clipboard/history', [DashboardClipboardController::class, 'index']);
+
+    // S6 — galerie distante : parcours de l'index + service des vignettes.
+    Route::get('/gallery', [DashboardGalleryController::class, 'index']);
+    Route::get('/gallery/{item}/thumb', [DashboardGalleryController::class, 'thumb']);
 });
 
 // poll = appelé par le TEL (authentifié par signature Ed25519), pas le
@@ -94,6 +100,10 @@ Route::middleware('auth.device')->group(function () {
     Route::post('/clipboard', [ClipboardController::class, 'push']);
     Route::get('/clipboard/pc', [ClipboardController::class, 'pc']);
     Route::post('/link/open', [ClipboardController::class, 'openLink']);
+
+    // S6 — galerie distante : le tél pousse l'index + les vignettes.
+    Route::post('/gallery/sync', [GalleryController::class, 'sync']);
+    Route::post('/gallery/thumb', [GalleryController::class, 'thumb']);
 });
 
 Route::get('/user', function (Request $request) {
