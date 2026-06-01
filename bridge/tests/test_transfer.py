@@ -284,3 +284,13 @@ def test_scoped_transfer_token_only_authorizes_its_own_id(service):
         headers={"Authorization": f"Bearer {scoped}"},
     )
     assert r.status_code == 401
+
+
+def test_transfer_token_matches_cross_language_vector(monkeypatch):
+    """Parité cross-langage avec Laravel TransferTokenSigner::sign() : un même
+    (secret, transfer_id) DOIT produire le même token des deux côtés. Cf. le test
+    'shared cross-language HMAC vector' côté agent."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "agent_token", "linkup-shared-secret")
+    assert transfer_token("tx-vector-001") == "e63NlNJ4QLrsy7kuevHeTZsG9_ryAd2rya-K8uq0RwA"

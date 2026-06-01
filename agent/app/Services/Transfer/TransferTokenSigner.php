@@ -22,9 +22,18 @@ class TransferTokenSigner
 
     public function sign(string $transferId): string
     {
+        if ($this->sharedSecret === '') {
+            throw new \RuntimeException(
+                'LINKUP_BRIDGE_AGENT_TOKEN non configuré : impossible de signer un '
+                . "token d'upload (doit être identique au secret du bridge)."
+            );
+        }
+
         $mac = hash_hmac('sha256', $transferId, $this->sharedSecret, true);
 
-        // base64url sans padding — identique à l'encodage Python côté bridge.
+        // base64url sans padding — DOIT rester identique à
+        // bridge/app/deps.py::transfer_token() (parité cross-langage, couverte
+        // par un test de vecteur partagé des deux côtés).
         return rtrim(strtr(base64_encode($mac), '+/', '-_'), '=');
     }
 }

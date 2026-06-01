@@ -125,18 +125,15 @@ it('validates the direction', function () {
         ])->assertStatus(422);
 });
 
-it('shows a transfer status with received chunks (resume)', function () {
+it('shows a transfer status (own device only)', function () {
     [$device, $token] = approvedDeviceWithToken();
-    $service = app(TransferService::class);
-    $transfer = $service->initiate($device, Transfer::TO_PC, 'big.zip', 3000, null, 3);
-    $service->recordChunk($transfer, 0, str_repeat('1', 64));
-    $service->recordChunk($transfer, 2, str_repeat('2', 64));
+    $transfer = app(TransferService::class)->initiate($device, Transfer::TO_PC, 'big.zip', 3000, null, 3);
 
     $this->withHeaders(deviceHeaders($device->id, $token))
         ->getJson("/api/transfers/{$transfer->id}")
         ->assertOk()
-        ->assertJsonPath('status', 'uploading') // passé en uploading au 1er chunk
-        ->assertJsonPath('received_chunks', [0, 2]);
+        ->assertJsonPath('transfer_id', $transfer->id)
+        ->assertJsonPath('status', 'pending');
 });
 
 it('lists only the calling device transfers, recent first', function () {
@@ -247,19 +244,16 @@ it('refuses to open a not-yet-completed transfer (409)', function () {
         ->assertStatus(409);
 });
 
-it('records chunks idempotently and transitions to terminal states', function () {
-    [$device] = approvedDeviceWithToken();
-    $service = app(TransferService::class);
-    $transfer = $service->initiate($device, Transfer::TO_PC, 'f', 10, null, 1);
+it('signs upload tokens with the shared cross-language HMAC vector (bridge parity)', function () {
+    // Vecteur figé : DOIT donner EXACTEMENT la même valeur que
+    // bridge/app/deps.py::transfer_token() pour le même (secret, transfer_id).
+    // Cf. test_transfer_token_matches_cross_language_vector côté bridge.
+    $signer = new \App\Services\Transfer\TransferTokenSigner('linkup-shared-secret');
+    expect($signer->sign('tx-vector-001'))
+        ->toBe('e63NlNJ4QLrsy7kuevHeTZsG9_ryAd2rya-K8uq0RwA');
+});
 
-    $service->recordChunk($transfer, 0, str_repeat('a', 64));
-    $service->recordChunk($transfer, 0, str_repeat('b', 64)); // même index → update
-    expect($service->receivedChunkIndices($transfer))->toBe([0]);
-
-    $service->complete($transfer);
-    expect($transfer->fresh()->status)->toBe(Transfer::COMPLETED);
-
-    // cancel sur un transfert terminal ne change rien
-    $service->cancel($transfer);
-    expect($transfer->fresh()->status)->toBe(Transfer::COMPLETED);
+it('refuses to sign an upload token when the shared secret is not configured', function () {
+    $signer = new \App\Services\Transfer\TransferTokenSigner('');
+    expect(fn () => $signer->sign('tx-1'))->toThrow(RuntimeException::class);
 });

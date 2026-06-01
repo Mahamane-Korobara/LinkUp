@@ -1,6 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+
+import { DASHBOARD_HEADERS, LARAVEL_BASE, formatDate } from '../../lib/api';
+import { usePolling } from '../../hooks/usePolling';
 
 /**
  * Page S2.J4 (T2.17) — approbation des téléphones appairés.
@@ -15,15 +18,7 @@ import { useCallback, useEffect, useState } from 'react';
  * approuvé (S2.J5 côté Flutter).
  */
 
-const LARAVEL_BASE = process.env.NEXT_PUBLIC_LARAVEL_URL ?? 'http://localhost:8000';
 const POLL_INTERVAL_MS = 2000;
-
-// Header exigé par l'agent sur les routes de gestion (anti-CSRF, cf.
-// RequireDashboardClient côté Laravel).
-const DASHBOARD_HEADERS = {
-  Accept: 'application/json',
-  'X-Linkup-Client': 'dashboard',
-} as const;
 
 type DeviceStatus = 'pending' | 'approved' | 'rejected';
 
@@ -49,19 +44,6 @@ async function loadDevices(): Promise<DeviceDto[]> {
   return (data.devices ?? []) as DeviceDto[];
 }
 
-function formatDate(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 const STATUS_META: Record<DeviceStatus, { label: string; className: string }> = {
   pending: { label: 'En attente', className: 'bg-amber-100 text-amber-800' },
   approved: { label: 'Approuvé', className: 'bg-green-100 text-green-800' },
@@ -69,34 +51,13 @@ const STATUS_META: Record<DeviceStatus, { label: string; className: string }> = 
 };
 
 export default function DevicesPage() {
-  const [devices, setDevices] = useState<DeviceDto[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loadedOnce, setLoadedOnce] = useState(false);
+  const { data: devices, error, loadedOnce, setData } = usePolling<DeviceDto[]>(
+    loadDevices,
+    POLL_INTERVAL_MS,
+    [],
+  );
   const [busyId, setBusyId] = useState<string | null>(null);
-
-  // Poll inliné dans l'effet : setState n'est appelé qu'APRÈS le `await`, jamais
-  // de façon synchrone (règle react-hooks/set-state-in-effect).
-  useEffect(() => {
-    let active = true;
-    const tick = async () => {
-      try {
-        const list = await loadDevices();
-        if (!active) return;
-        setDevices(list);
-        setError(null);
-      } catch (e) {
-        if (active) setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (active) setLoadedOnce(true);
-      }
-    };
-    tick();
-    const id = setInterval(tick, POLL_INTERVAL_MS);
-    return () => {
-      active = false;
-      clearInterval(id);
-    };
-  }, []);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const act = useCallback(
     async (deviceId: string, action: 'approve' | 'reject') => {
@@ -107,42 +68,46 @@ export default function DevicesPage() {
           { method: 'POST', headers: DASHBOARD_HEADERS },
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        setDevices(await loadDevices());
-        setError(null);
+        setData(await loadDevices());
+        setActionError(null);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setActionError(e instanceof Error ? e.message : String(e));
       } finally {
         setBusyId(null);
       }
     },
-    [],
+    [setData],
   );
 
-  const rename = useCallback(async (deviceId: string, current: string | null) => {
-    const input = window.prompt('Nouveau nom du téléphone', current ?? '');
-    if (input === null) return; // annulé
-    const name = input.trim();
-    if (name === '') return;
-    setBusyId(deviceId);
-    try {
-      const res = await fetch(
-        `${LARAVEL_BASE}/api/pairing/devices/${deviceId}/rename`,
-        {
-          method: 'POST',
-          headers: { ...DASHBOARD_HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-        },
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setDevices(await loadDevices());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusyId(null);
-    }
-  }, []);
+  const rename = useCallback(
+    async (deviceId: string, current: string | null) => {
+      const input = window.prompt('Nouveau nom du téléphone', current ?? '');
+      if (input === null) return; // annulé
+      const name = input.trim();
+      if (name === '') return;
+      setBusyId(deviceId);
+      try {
+        const res = await fetch(
+          `${LARAVEL_BASE}/api/pairing/devices/${deviceId}/rename`,
+          {
+            method: 'POST',
+            headers: { ...DASHBOARD_HEADERS, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name }),
+          },
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setData(await loadDevices());
+        setActionError(null);
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [setData],
+  );
 
+  const shownError = actionError ?? error;
   const pending = devices.filter((d) => d.status === 'pending');
   const others = devices.filter((d) => d.status !== 'pending');
 
@@ -155,9 +120,9 @@ export default function DevicesPage() {
           téléphone avant d&apos;approuver.
         </p>
 
-        {error && (
+        {shownError && (
           <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm mb-4">
-            {error} — Laravel doit tourner sur <code>{LARAVEL_BASE}</code>.
+            {shownError} — Laravel doit tourner sur <code>{LARAVEL_BASE}</code>.
           </div>
         )}
 
@@ -233,8 +198,8 @@ function DeviceCard({
   onRevoke?: () => void;
 }) {
   const meta = STATUS_META[device.status];
-  const pairedAt = formatDate(device.paired_at);
-  const approvedAt = formatDate(device.approved_at);
+  const pairedAt = formatDate(device.paired_at, { year: true });
+  const approvedAt = formatDate(device.approved_at, { year: true });
   const osLine = [device.platform, device.os_version].filter(Boolean).join(' • ');
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-4">

@@ -136,11 +136,11 @@ class PairingHandshakeService
      */
     public function fingerprintOf(string $publicKeyBase64): string
     {
-        $raw = base64_decode($publicKeyBase64, true);
-        if ($raw === false) {
+        if (base64_decode($publicKeyBase64, true) === false) {
             throw new HandshakeRejected('public_key_invalid', 'Clé publique non décodable.');
         }
-        return substr(hash('sha256', $raw), 0, 8);
+        // Calcul centralisé dans KeyManager → même algo PC↔tél, une seule source.
+        return $this->keyManager->fingerprintOf($publicKeyBase64);
     }
 
     private function defaultDeviceName(): string
