@@ -15,6 +15,22 @@ class GalleryException implements Exception {
   String toString() => 'GalleryException: $message';
 }
 
+/// Une demande d'import émise par le PC (S6.J4) : le tél doit uploader l'original
+/// de [mediaId] puis confirmer la demande [id].
+class GalleryImport {
+  final String id;
+  final String mediaId;
+  final String? mime;
+
+  const GalleryImport({required this.id, required this.mediaId, this.mime});
+
+  factory GalleryImport.fromJson(Map<String, dynamic> j) => GalleryImport(
+        id: j['id'] as String? ?? '',
+        mediaId: j['media_id'] as String? ?? '',
+        mime: j['mime'] as String?,
+      );
+}
+
 /// Client galerie : pousse l'index + les vignettes vers le Laravel du PC (S6).
 class GalleryClient {
   final http.Client _http;
@@ -78,6 +94,48 @@ class GalleryClient {
 
     if (res.statusCode != 200) {
       throw GalleryException('Envoi de la vignette refusé (${res.statusCode}).');
+    }
+  }
+
+  /// Récupère les demandes d'import en attente émises par le PC. Throws
+  /// [GalleryException].
+  Future<List<GalleryImport>> pendingImports(PairedDevice device) async {
+    final uri = device.baseUri.replace(path: '/api/gallery/imports');
+    final http.Response res;
+    try {
+      res = await _http.get(uri, headers: _headers(device)).timeout(requestTimeout);
+    } on TimeoutException {
+      throw const GalleryException('Pas de réponse du PC.');
+    } on SocketException catch (e) {
+      throw GalleryException('Connexion refusée : ${e.message}');
+    }
+
+    if (res.statusCode == 401) {
+      throw const GalleryException('Appairage expiré : re-scanne le QR.');
+    }
+    if (res.statusCode != 200) {
+      throw GalleryException('Lecture des imports refusée (${res.statusCode}).');
+    }
+
+    final decoded = jsonDecode(res.body);
+    final list = (decoded is Map<String, dynamic> ? decoded['imports'] as List? : null) ?? const [];
+    return list.map((e) => GalleryImport.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Confirme au PC qu'un import a été honoré (en pointant le transfert produit).
+  /// Best-effort : un échec ici ne reperd pas l'original (déjà sur le PC).
+  Future<void> markImported(PairedDevice device, String importId, String? transferId) async {
+    final uri = device.baseUri.replace(path: '/api/gallery/imports/$importId/done');
+    try {
+      await _http
+          .post(
+            uri,
+            headers: {..._headers(device), 'Content-Type': 'application/json'},
+            body: jsonEncode({'transfer_id': transferId}),
+          )
+          .timeout(requestTimeout);
+    } catch (_) {
+      // tant pis : l'original est arrivé, seul le statut côté PC reste à jour.
     }
   }
 

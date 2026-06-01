@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
 
 import '../../services/gallery/gallery_client.dart';
+import '../../services/gallery/gallery_importer.dart';
 import '../../services/gallery/gallery_indexer.dart';
 import '../../services/gallery/photo_manager_source.dart';
+import '../../services/transfer/transfer_client.dart';
 import '../../services/pairing/paired_device_store.dart';
 
 /// Écran d'indexation de la galerie vers le PC (S6).
 ///
 /// Consentement explicite : l'utilisateur tape « Indexer ». On envoie au PC les
 /// métadonnées + une vignette par média ; les originaux restent sur le tél.
+/// Un second geste (« Importer les médias demandés ») honore les demandes
+/// d'originaux émises depuis le dashboard (S6.J4).
 class GalleryScreen extends StatefulWidget {
   final PairedDevice device;
   final GalleryIndexer? indexer;
+  final GalleryImporter? importer;
 
-  const GalleryScreen({super.key, required this.device, this.indexer});
+  const GalleryScreen({super.key, required this.device, this.indexer, this.importer});
 
   @override
   State<GalleryScreen> createState() => _GalleryScreenState();
@@ -23,12 +28,16 @@ enum _Phase { idle, running, done, error }
 
 class _GalleryScreenState extends State<GalleryScreen> {
   late final GalleryIndexer _indexer;
+  late final GalleryImporter _importer;
   late final bool _ownsIndexer;
+  late final bool _ownsImporter;
+  TransferClient? _ownTransfers;
 
   _Phase _phase = _Phase.idle;
   GalleryProgress _progress = const GalleryProgress(indexed: 0, thumbsSent: 0);
   String? _error;
   bool _cancel = false;
+  bool _importing = false;
 
   @override
   void initState() {
@@ -36,12 +45,28 @@ class _GalleryScreenState extends State<GalleryScreen> {
     _ownsIndexer = widget.indexer == null;
     _indexer = widget.indexer ??
         GalleryIndexer(source: PhotoManagerAssetSource(), client: GalleryClient());
+
+    _ownsImporter = widget.importer == null;
+    if (widget.importer != null) {
+      _importer = widget.importer!;
+    } else {
+      _ownTransfers = TransferClient();
+      _importer = GalleryImporter(
+        source: PhotoManagerAssetSource(),
+        client: GalleryClient(),
+        transfers: _ownTransfers!,
+      );
+    }
   }
 
   @override
   void dispose() {
     _cancel = true;
     if (_ownsIndexer) _indexer.client.close();
+    if (_ownsImporter) {
+      _importer.client.close();
+      _ownTransfers?.close();
+    }
     super.dispose();
   }
 
@@ -78,6 +103,39 @@ class _GalleryScreenState extends State<GalleryScreen> {
   }
 
   void _stop() => setState(() => _cancel = true);
+
+  /// Honore les demandes d'import émises depuis le dashboard. Affiche le bilan
+  /// dans un SnackBar (best-effort : ne casse pas l'écran en cas d'échec).
+  Future<void> _runImports() async {
+    if (_importing) return;
+    setState(() => _importing = true);
+    try {
+      final result = await _importer.run(widget.device);
+      if (!mounted) return;
+      final msg = result.isEmpty
+          ? 'Aucun import demandé par le PC.'
+          : '${result.imported} original(aux) envoyé(s)'
+              '${result.failed > 0 ? ', ${result.failed} échec(s)' : ''}.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } on GalleryException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur import : $e')));
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
+
+  /// Bouton « importer les médias demandés », partagé entre les phases idle/done.
+  Widget _importButton() => OutlinedButton.icon(
+        onPressed: _importing ? null : _runImports,
+        icon: _importing
+            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.download),
+        label: Text(_importing ? 'Import en cours…' : 'Importer les médias demandés par le PC'),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -116,6 +174,8 @@ class _GalleryScreenState extends State<GalleryScreen> {
               icon: const Icon(Icons.cloud_sync),
               label: const Text('Indexer ma galerie'),
             ),
+            const SizedBox(height: 12),
+            _importButton(),
           ],
         );
 
@@ -153,6 +213,8 @@ class _GalleryScreenState extends State<GalleryScreen> {
               icon: const Icon(Icons.refresh),
               label: const Text('Ré-indexer'),
             ),
+            const SizedBox(height: 12),
+            _importButton(),
           ],
         );
 

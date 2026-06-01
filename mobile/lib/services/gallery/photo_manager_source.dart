@@ -38,4 +38,19 @@ class PhotoManagerAssetSource implements GalleryAssetSource {
             ))
         .toList();
   }
+
+  @override
+  Future<GalleryOriginal?> loadOriginal(String mediaId) async {
+    final entity = await AssetEntity.fromId(mediaId);
+    if (entity == null) return null;
+
+    final bytes = await entity.originBytes;
+    if (bytes == null) return null;
+
+    final title = await entity.titleAsync;
+    return GalleryOriginal(
+      bytes: bytes,
+      filename: title.isNotEmpty ? title : mediaId,
+    );
+  }
 }

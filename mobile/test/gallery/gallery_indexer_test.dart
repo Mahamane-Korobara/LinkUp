@@ -35,6 +35,9 @@ class _FakeSource implements GalleryAssetSource {
   @override
   Future<List<GalleryAsset>> list({int page = 0, int size = 100}) async =>
       page < pages.length ? pages[page] : const [];
+
+  @override
+  Future<GalleryOriginal?> loadOriginal(String mediaId) async => null;
 }
 
 void main() {

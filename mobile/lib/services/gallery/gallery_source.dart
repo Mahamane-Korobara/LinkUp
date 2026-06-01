@@ -37,6 +37,16 @@ class GalleryAsset {
   const GalleryAsset({required this.meta, required this.loadThumbnail});
 }
 
+/// L'original d'un média (octets + nom de fichier), chargé à la demande lors d'un
+/// import (S6.J4). Séparé de [GalleryAsset] car on ne lit JAMAIS l'original au
+/// fil de l'indexation — seulement quand le PC le réclame explicitement.
+class GalleryOriginal {
+  final Uint8List bytes;
+  final String filename;
+
+  const GalleryOriginal({required this.bytes, required this.filename});
+}
+
 /// Source d'assets de la galerie. Abstraite pour injecter un faux en test sans
 /// toucher au plugin natif (`PhotoManagerAssetSource` en prod).
 abstract class GalleryAssetSource {
@@ -45,4 +55,8 @@ abstract class GalleryAssetSource {
 
   /// Page d'assets (0-based). Liste vide = fin.
   Future<List<GalleryAsset>> list({int page = 0, int size = 100});
+
+  /// Charge l'original d'un média par son `media_id` (pour l'import). `null` si
+  /// le média n'existe plus sur le tél.
+  Future<GalleryOriginal?> loadOriginal(String mediaId);
 }
