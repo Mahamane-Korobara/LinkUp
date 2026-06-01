@@ -50,7 +50,7 @@ it('pushes phone clipboard to the PC and logs it', function () {
     Event::assertDispatched(ClipboardUpdated::class);
 });
 
-it('dedups an identical clipboard push within the TTL (anti-loop)', function () {
+it('dedups a clipboard push identical to the last entry (anti-loop)', function () {
     Http::fake(['http://127.0.0.1:8765/clipboard/write' => Http::response(['ok' => true], 200)]);
     [$device, $token] = clipApprovedDevice();
 
@@ -140,4 +140,19 @@ it('surfaces the bridge error and logs nothing when the PC write fails', functio
         ->assertJsonPath('message', 'Aucun outil presse-papier trouvé. Installe wl-clipboard.');
 
     expect(ClipboardEntry::where('content', 'boom')->exists())->toBeFalse();
+});
+
+it('does not duplicate when the same PC clipboard is pulled repeatedly (auto poll)', function () {
+    // Reproduit le bug : en mode auto, le tél tire le presse-papier du PC toutes
+    // les ~3s ; le contenu ne change pas → on ne doit PAS empiler des doublons.
+    Http::fake(['http://127.0.0.1:8765/clipboard/read' => Http::response(['text' => 'inchangé'], 200)]);
+    [$device, $token] = clipApprovedDevice();
+
+    for ($i = 0; $i < 4; $i++) {
+        $this->withHeaders(clipHeaders($device->id, $token))
+            ->getJson('/api/clipboard/pc')
+            ->assertOk();
+    }
+
+    expect(ClipboardEntry::where('content', 'inchangé')->count())->toBe(1);
 });
