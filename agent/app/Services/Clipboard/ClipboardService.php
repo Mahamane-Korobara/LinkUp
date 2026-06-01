@@ -6,7 +6,6 @@ use App\Events\ClipboardUpdated;
 use App\Models\ClipboardEntry;
 use App\Models\Device;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -21,25 +20,18 @@ class ClipboardService
     public const ORIGIN_PC = 'pc';
 
     /**
-     * Fenêtre anti-boucle : un MÊME contenu revu dans ce délai est ignoré, pour
-     * éviter qu'un aller-retour tél↔PC ne fasse boucler le même texte.
-     */
-    private const DEDUP_TTL_SECONDS = 2;
-
-    /**
      * Journalise un contenu de presse-papier et le diffuse.
      *
-     * Anti-boucle : si le même contenu (hash) a déjà été vu il y a moins de
-     * {@see DEDUP_TTL_SECONDS} secondes, on l'ignore et on retourne `null`.
+     * Anti-boucle / anti-doublon : si la DERNIÈRE entrée a déjà ce contenu, on
+     * ne re-journalise pas (retourne `null`). Indispensable car le presse-papier
+     * du PC est tiré en boucle en mode auto (poll) sans forcément changer —
+     * sinon l'historique se remplirait du même texte indéfiniment.
      */
     public function receive(?Device $device, string $content, string $origin): ?ClipboardEntry
     {
         $hash = hash('sha256', $content);
 
-        // Cache::add est atomique : retourne false si la clé existe déjà → le
-        // contenu a été vu il y a moins du TTL, on coupe la boucle.
-        $fresh = Cache::add("clipboard:seen:{$hash}", true, now()->addSeconds(self::DEDUP_TTL_SECONDS));
-        if (! $fresh) {
+        if (ClipboardEntry::query()->latest()->value('hash') === $hash) {
             return null;
         }
 
