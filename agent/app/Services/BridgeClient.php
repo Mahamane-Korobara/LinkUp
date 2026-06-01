@@ -111,10 +111,7 @@ class BridgeClient
                 previous: $e,
             );
         } catch (RequestException $e) {
-            throw new BridgeUnavailableException(
-                "Bridge a répondu en erreur ({$e->response->status()}) pour {$path}.",
-                previous: $e,
-            );
+            throw $this->bridgeError($e, $path);
         }
     }
 
@@ -133,11 +130,23 @@ class BridgeClient
                 previous: $e,
             );
         } catch (RequestException $e) {
-            throw new BridgeUnavailableException(
-                "Bridge a répondu en erreur ({$e->response->status()}) pour {$path}.",
-                previous: $e,
-            );
+            throw $this->bridgeError($e, $path);
         }
+    }
+
+    /**
+     * Traduit une erreur HTTP du bridge en BridgeUnavailableException, en
+     * remontant le `detail` du bridge (ex. « installe wl-clipboard ») quand il
+     * est présent, plutôt qu'un code brut — message bien plus utile au tél.
+     */
+    private function bridgeError(RequestException $e, string $path): BridgeUnavailableException
+    {
+        $detail = $e->response->json('detail');
+        $message = is_string($detail) && trim($detail) !== ''
+            ? $detail
+            : "Bridge a répondu en erreur ({$e->response->status()}) pour {$path}.";
+
+        return new BridgeUnavailableException($message, previous: $e);
     }
 
     private function request(): PendingRequest

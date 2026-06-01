@@ -64,7 +64,9 @@ class ClipboardClient {
       throw const ClipboardException('Appairage expiré : re-scanne le QR.');
     }
     if (res.statusCode != 200) {
-      throw ClipboardException('Le PC a refusé l\'envoi (${res.statusCode}).');
+      throw ClipboardException(
+        _serverMessage(res) ?? 'Le PC a refusé l\'envoi (${res.statusCode}).',
+      );
     }
   }
 
@@ -75,7 +77,9 @@ class ClipboardClient {
       throw const ClipboardException('Appairage expiré : re-scanne le QR.');
     }
     if (res.statusCode != 200) {
-      throw ClipboardException('Lecture du presse-papier PC refusée (${res.statusCode}).');
+      throw ClipboardException(
+        _serverMessage(res) ?? 'Lecture du presse-papier PC refusée (${res.statusCode}).',
+      );
     }
     return _decode(res.body)['text'] as String? ?? '';
   }
@@ -102,7 +106,9 @@ class ClipboardClient {
       throw const ClipboardException('Lien refusé (seuls http/https sont autorisés).');
     }
     if (res.statusCode != 200) {
-      throw ClipboardException('Ouverture du lien refusée (${res.statusCode}).');
+      throw ClipboardException(
+        _serverMessage(res) ?? 'Ouverture du lien refusée (${res.statusCode}).',
+      );
     }
   }
 
@@ -152,6 +158,20 @@ class ClipboardClient {
       throw const ClipboardException('Réponse JSON inattendue.');
     }
     return decoded;
+  }
+
+  /// Message d'erreur renvoyé par Laravel (`{"message": …}`), si présent.
+  String? _serverMessage(http.Response res) {
+    try {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map<String, dynamic>) {
+        final m = decoded['message'];
+        if (m is String && m.trim().isNotEmpty) return m;
+      }
+    } catch (_) {
+      // corps non-JSON → pas de message exploitable
+    }
+    return null;
   }
 
   void close() {
