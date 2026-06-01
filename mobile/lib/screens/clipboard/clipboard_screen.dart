@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../services/clipboard/clipboard_client.dart';
+import '../../services/clipboard/clipboard_watcher.dart';
 import '../../services/pairing/paired_device_store.dart';
 
 /// Lit le presse-papier du téléphone (injectable pour les widget tests).
@@ -12,25 +15,30 @@ typedef PhoneClipboardWriter = Future<void> Function(String text);
 
 /// Écran presse-papier + lien rapide (S5).
 ///
-/// - « Envoyer » : lit le presse-papier du tél et le pousse sur le PC. Android
-///   impose une action utilisateur (lecture du presse-papier interdite en
-///   arrière-plan depuis Android 10) — d'où le bouton plutôt qu'un auto-sync.
-/// - « Coller depuis le PC » : récupère le presse-papier du PC et le met dans
-///   celui du tél.
-/// - Historique : derniers contenus échangés ; tap = recopier sur le tél, et
-///   un lien http(s) peut être ouvert directement sur le PC.
+/// - Manuel : « Envoyer » (lit le presse-papier du tél au tap), « Coller depuis
+///   le PC », et tap sur un item = recopier.
+/// - **Auto** (interrupteur) : tant que l'app est au 1er plan, chaque copie sur
+///   le tél est poussée sur le PC, et le presse-papier du PC est tiré
+///   périodiquement vers le tél. Android interdit l'arrière-plan → auto = 1er
+///   plan uniquement, comme KDE Connect. Un anti-rebond partagé évite la boucle.
 class ClipboardScreen extends StatefulWidget {
   final PairedDevice device;
   final ClipboardClient? client;
+  final ClipboardWatcher? watcher;
   final PhoneClipboardReader? readPhoneClipboard;
   final PhoneClipboardWriter? writePhoneClipboard;
+
+  /// Intervalle de tirage du presse-papier PC en mode auto.
+  final Duration autoPollInterval;
 
   const ClipboardScreen({
     super.key,
     required this.device,
     this.client,
+    this.watcher,
     this.readPhoneClipboard,
     this.writePhoneClipboard,
+    this.autoPollInterval = const Duration(seconds: 3),
   });
 
   @override
@@ -40,6 +48,8 @@ class ClipboardScreen extends StatefulWidget {
 class _ClipboardScreenState extends State<ClipboardScreen> {
   late final ClipboardClient _client;
   late final bool _ownsClient;
+  late final ClipboardWatcher _watcher;
+  late final bool _ownsWatcher;
   late final PhoneClipboardReader _read;
   late final PhoneClipboardWriter _write;
 
@@ -48,11 +58,22 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
   bool _loading = true;
   bool _busy = false;
 
+  // Mode auto (1er plan).
+  bool _auto = false;
+  StreamSubscription<void>? _watchSub;
+  Timer? _autoTimer;
+
+  /// Dernier contenu synchronisé (dans un sens OU l'autre) — anti-rebond : on
+  /// ne re-pousse pas / ne ré-applique pas un texte qu'on vient d'échanger.
+  String? _lastSynced;
+
   @override
   void initState() {
     super.initState();
     _ownsClient = widget.client == null;
     _client = widget.client ?? ClipboardClient();
+    _ownsWatcher = widget.watcher == null;
+    _watcher = widget.watcher ?? NativeClipboardWatcher();
     _read = widget.readPhoneClipboard ?? _defaultRead;
     _write = widget.writePhoneClipboard ?? _defaultWrite;
     _load();
@@ -60,6 +81,7 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
 
   @override
   void dispose() {
+    _disableAuto();
     if (_ownsClient) _client.close();
     super.dispose();
   }
@@ -90,7 +112,59 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
     }
   }
 
-  /// Lit le presse-papier du tél (action utilisateur) et le pousse sur le PC.
+  // --------------------------------------------------------------------- auto
+
+  void _toggleAuto(bool on) {
+    setState(() => _auto = on);
+    if (on) {
+      _enableAuto();
+    } else {
+      _disableAuto();
+    }
+  }
+
+  Future<void> _enableAuto() async {
+    await _watcher.start();
+    _watchSub = _watcher.onChanged.listen((_) => _autoPush());
+    _autoTimer = Timer.periodic(widget.autoPollInterval, (_) => _autoPull());
+  }
+
+  void _disableAuto() {
+    _watchSub?.cancel();
+    _watchSub = null;
+    _autoTimer?.cancel();
+    _autoTimer = null;
+    if (_ownsWatcher) _watcher.stop();
+  }
+
+  /// Le tél vient de copier quelque chose → on le pousse sur le PC.
+  Future<void> _autoPush() async {
+    final text = (await _read())?.trim();
+    if (text == null || text.isEmpty || text == _lastSynced) return;
+    _lastSynced = text;
+    try {
+      await _client.push(widget.device, text);
+      if (mounted) await _load();
+    } on ClipboardException {
+      // best-effort : un échec ponctuel ne casse pas le mode auto.
+    }
+  }
+
+  /// Tire le presse-papier du PC et l'applique au tél (s'il a changé).
+  Future<void> _autoPull() async {
+    try {
+      final text = (await _client.pullFromPc(widget.device)).trim();
+      if (text.isEmpty || text == _lastSynced) return;
+      _lastSynced = text;
+      await _write(text);
+      if (mounted) await _load();
+    } on ClipboardException {
+      // best-effort
+    }
+  }
+
+  // ------------------------------------------------------------------- manuel
+
   Future<void> _sendPhoneClipboard() async {
     final messenger = ScaffoldMessenger.of(context);
     final text = (await _read())?.trim();
@@ -102,6 +176,7 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
     }
     setState(() => _busy = true);
     try {
+      _lastSynced = text;
       await _client.push(widget.device, text);
       messenger.showSnackBar(const SnackBar(content: Text('Envoyé sur le PC ✓')));
       await _load();
@@ -118,7 +193,6 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
     }
   }
 
-  /// Récupère le presse-papier du PC et le met dans celui du tél.
   Future<void> _pasteFromPc() async {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _busy = true);
@@ -130,6 +204,7 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
         );
         return;
       }
+      _lastSynced = text.trim();
       await _write(text);
       messenger.showSnackBar(const SnackBar(content: Text('Copié depuis le PC ✓')));
       await _load();
@@ -142,6 +217,7 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
 
   Future<void> _copyToPhone(ClipboardItem item) async {
     final messenger = ScaffoldMessenger.of(context);
+    _lastSynced = item.content.trim();
     await _write(item.content);
     messenger.showSnackBar(
       const SnackBar(content: Text('Copié dans le presse-papier du téléphone ✓')),
@@ -158,6 +234,8 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
     }
   }
 
+  // --------------------------------------------------------------------- vue
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -173,8 +251,17 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
       ),
       body: Column(
         children: [
+          SwitchListTile(
+            value: _auto,
+            onChanged: _toggleAuto,
+            title: const Text('Sync auto'),
+            subtitle: const Text(
+              'Tant que cet écran est ouvert : copie sur le tél → PC, et inversement.',
+            ),
+            secondary: Icon(_auto ? Icons.sync : Icons.sync_disabled),
+          ),
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             child: Row(
               children: [
                 Expanded(
