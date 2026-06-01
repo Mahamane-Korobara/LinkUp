@@ -37,6 +37,9 @@ class _FakeSource implements GalleryAssetSource {
           ),
         ]
       : const [];
+
+  @override
+  Future<GalleryOriginal?> loadOriginal(String mediaId) async => null;
 }
 
 GalleryIndexer _indexer({bool granted = true}) {

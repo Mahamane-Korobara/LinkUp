@@ -33,6 +33,10 @@ class GalleryController extends Controller
 
         $paginator = $this->gallery->paginate(is_string($deviceId) ? $deviceId : null, $page, $size);
 
+        $statuses = $this->gallery->importStatuses(
+            collect($paginator->items())->pluck('id')->all(),
+        );
+
         return response()->json([
             'items' => collect($paginator->items())->map(fn (GalleryItem $i) => [
                 'id' => $i->id,
@@ -44,11 +48,30 @@ class GalleryController extends Controller
                 'width' => $i->width,
                 'height' => $i->height,
                 'has_thumb' => $i->has_thumb,
+                // null | 'requested' | 'done' : où en est l'import de l'original.
+                'import_status' => $statuses[$i->id] ?? null,
             ]),
             'page' => $paginator->currentPage(),
             'last_page' => $paginator->lastPage(),
             'total' => $paginator->total(),
         ]);
+    }
+
+    /**
+     * POST /api/gallery/import — demande l'import des originaux (sélection
+     * dashboard). Crée des demandes `requested` que le tél honorera en polling.
+     * Body : `ids` = identifiants de `gallery_items`.
+     */
+    public function requestImport(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1|max:200',
+            'ids.*' => 'required|string|max:64',
+        ]);
+
+        $count = $this->gallery->requestImports($validated['ids']);
+
+        return response()->json(['ok' => true, 'requested' => $count]);
     }
 
     /**

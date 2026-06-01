@@ -3,9 +3,11 @@
 namespace App\Services\Gallery;
 
 use App\Models\Device;
+use App\Models\GalleryImportRequest;
 use App\Models\GalleryItem;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -79,6 +81,71 @@ class GalleryService
             ->orderByDesc('taken_at')
             ->orderByDesc('id')
             ->paginate(perPage: $size, page: $page);
+    }
+
+    /**
+     * S6.J4 — enregistre (ou rafraîchit) une demande d'import pour chacun des
+     * `gallery_items` donnés. Une seule demande active par item : re-demander un
+     * item déjà importé le repasse en `requested`. Retourne le nombre de demandes.
+     *
+     * @param  array<int, string>  $itemIds
+     */
+    public function requestImports(array $itemIds): int
+    {
+        $count = 0;
+        foreach (GalleryItem::query()->whereIn('id', $itemIds)->get() as $item) {
+            GalleryImportRequest::updateOrCreate(
+                ['gallery_item_id' => $item->id],
+                [
+                    'device_id' => $item->device_id,
+                    'media_id' => $item->media_id,
+                    'status' => GalleryImportRequest::REQUESTED,
+                    'transfer_id' => null,
+                ],
+            );
+            $count++;
+        }
+
+        return $count;
+    }
+
+    /**
+     * Demandes d'import en attente pour CE tél (le tél les honore en polling).
+     *
+     * @return Collection<int, GalleryImportRequest>
+     */
+    public function pendingImports(Device $device): Collection
+    {
+        return GalleryImportRequest::query()
+            ->with('item')
+            ->where('device_id', $device->id)
+            ->where('status', GalleryImportRequest::REQUESTED)
+            ->orderBy('created_at')
+            ->get();
+    }
+
+    /** Marque une demande honorée, en pointant le transfert qui porte l'original. */
+    public function markImported(GalleryImportRequest $request, ?string $transferId): void
+    {
+        $request->forceFill([
+            'status' => GalleryImportRequest::DONE,
+            'transfer_id' => $transferId,
+        ])->save();
+    }
+
+    /**
+     * Statut d'import (requested|done) indexé par `gallery_item_id`, pour le lot
+     * d'items donné — évite un N+1 dans la vue dashboard.
+     *
+     * @param  array<int, string>  $itemIds
+     * @return array<string, string>
+     */
+    public function importStatuses(array $itemIds): array
+    {
+        return GalleryImportRequest::query()
+            ->whereIn('gallery_item_id', $itemIds)
+            ->pluck('status', 'gallery_item_id')
+            ->all();
     }
 
     /** Chemin ABSOLU de la vignette (pour la servir), ou null si absente. */

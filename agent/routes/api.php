@@ -64,6 +64,8 @@ Route::middleware('dashboard.client')->group(function () {
     // S6 — galerie distante : parcours de l'index + service des vignettes.
     Route::get('/gallery', [DashboardGalleryController::class, 'index']);
     Route::get('/gallery/{item}/thumb', [DashboardGalleryController::class, 'thumb']);
+    // S6.J4 — demande d'import des originaux (sélection dashboard).
+    Route::post('/gallery/import', [DashboardGalleryController::class, 'requestImport']);
 });
 
 // poll = appelé par le TEL (authentifié par signature Ed25519), pas le
@@ -104,6 +106,9 @@ Route::middleware('auth.device')->group(function () {
     // S6 — galerie distante : le tél pousse l'index + les vignettes.
     Route::post('/gallery/sync', [GalleryController::class, 'sync']);
     Route::post('/gallery/thumb', [GalleryController::class, 'thumb']);
+    // S6.J4 — le tél récupère les demandes d'import puis les marque honorées.
+    Route::get('/gallery/imports', [GalleryController::class, 'pendingImports']);
+    Route::post('/gallery/imports/{import}/done', [GalleryController::class, 'markImported']);
 });
 
 Route::get('/user', function (Request $request) {

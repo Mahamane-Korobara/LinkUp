@@ -103,8 +103,9 @@ class TransferClient {
         _ownsHttp = httpClient == null;
 
   /// Envoie [bytes] sous le nom [filename] vers le PC [device].
-  /// Émet la progression via [onProgress]. Throws [TransferException].
-  Future<void> uploadBytes({
+  /// Émet la progression via [onProgress]. Retourne l'`id` du transfert (pour le
+  /// relier ailleurs, ex. import galerie). Throws [TransferException].
+  Future<String> uploadBytes({
     required PairedDevice device,
     required String filename,
     required List<int> bytes,
@@ -147,6 +148,8 @@ class TransferClient {
     // Le finalize s'est fait sur le BRIDGE → Laravel ne le sait pas. On le lui
     // confirme pour que l'historique passe « terminé » (sinon il reste pending).
     await _complete(device, init.transferId, storedName ?? filename);
+
+    return init.transferId;
   }
 
   /// Re-télécharge depuis le PC les octets d'un transfert terminé (pour l'ouvrir
