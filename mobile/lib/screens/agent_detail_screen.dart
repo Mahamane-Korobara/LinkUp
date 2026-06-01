@@ -6,6 +6,7 @@ import '../services/agent_info_client.dart';
 import '../services/pairing/paired_device_store.dart';
 import '../services/pairing/pairing_verifier.dart';
 import 'clipboard/clipboard_screen.dart';
+import 'gallery/gallery_screen.dart';
 import 'pairing/pairing_flow_screen.dart';
 import 'transfer/transfers_screen.dart';
 
@@ -162,6 +163,16 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
                 ),
               ),
               icon: const Icon(Icons.content_paste),
+            ),
+          if (_isPaired == true && _paired != null)
+            IconButton(
+              tooltip: 'Galerie',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => GalleryScreen(device: _paired!),
+                ),
+              ),
+              icon: const Icon(Icons.photo_library),
             ),
           // Toujours dispo (même « appairé ») : si le PC a oublié ce tél (ex.
           // migrate:fresh, révocation), le token local est invalide et il faut
