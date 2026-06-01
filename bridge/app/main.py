@@ -17,6 +17,7 @@ from fastapi import Depends, FastAPI, Request
 from app import __version__
 from app.config import settings
 from app.deps import require_agent_token
+from app.routes import clipboard as clipboard_routes
 from app.routes import mdns as mdns_routes
 from app.routes import transfer as transfer_routes
 from app.services.mdns import LinkupAnnouncer, LinkupBrowser
@@ -65,6 +66,7 @@ app = FastAPI(
 
 app.include_router(mdns_routes.router)
 app.include_router(transfer_routes.router)
+app.include_router(clipboard_routes.router)
 
 
 def _safe_username() -> str:

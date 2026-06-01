@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AgentInfoController;
+use App\Http\Controllers\Clipboard\ClipboardController;
 use App\Http\Controllers\Dashboard\FilesController;
 use App\Http\Controllers\Pairing\DeviceController;
 use App\Http\Controllers\Pairing\PairingController;
@@ -83,6 +84,12 @@ Route::middleware('auth.device')->group(function () {
     Route::get('/transfers/{transfer}/download', [TransferController::class, 'download']);
     Route::post('/transfers/{transfer}/complete', [TransferController::class, 'complete']);
     Route::post('/transfers/{transfer}/open', [TransferController::class, 'open']);
+
+    // S5 — presse-papier + lien rapide.
+    Route::get('/clipboard', [ClipboardController::class, 'index']);
+    Route::post('/clipboard', [ClipboardController::class, 'push']);
+    Route::get('/clipboard/pc', [ClipboardController::class, 'pc']);
+    Route::post('/link/open', [ClipboardController::class, 'openLink']);
 });
 
 Route::get('/user', function (Request $request) {

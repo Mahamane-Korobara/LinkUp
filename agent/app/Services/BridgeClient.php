@@ -71,10 +71,62 @@ class BridgeClient
         }
     }
 
+    /**
+     * Écrit un texte dans le presse-papier du PC (S5).
+     *
+     * @throws BridgeUnavailableException
+     */
+    public function writeClipboard(string $text): array
+    {
+        return $this->safePost('/clipboard/write', ['text' => $text]);
+    }
+
+    /**
+     * Lit le presse-papier courant du PC (S5).
+     *
+     * @throws BridgeUnavailableException
+     */
+    public function readClipboard(): array
+    {
+        return $this->safeGet('/clipboard/read');
+    }
+
+    /**
+     * Ouvre un lien (http/https) dans le navigateur par défaut du PC (S5).
+     *
+     * @throws BridgeUnavailableException
+     */
+    public function openLink(string $url): array
+    {
+        return $this->safePost('/link/open', ['url' => $url]);
+    }
+
     private function safeGet(string $path): array
     {
         try {
             return $this->request()->get($path)->throw()->json();
+        } catch (ConnectionException $e) {
+            throw new BridgeUnavailableException(
+                "Bridge Python injoignable sur {$this->baseUrl()}. Est-il démarré ?",
+                previous: $e,
+            );
+        } catch (RequestException $e) {
+            throw new BridgeUnavailableException(
+                "Bridge a répondu en erreur ({$e->response->status()}) pour {$path}.",
+                previous: $e,
+            );
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $json
+     *
+     * @throws BridgeUnavailableException
+     */
+    private function safePost(string $path, array $json): array
+    {
+        try {
+            return $this->request()->post($path, $json)->throw()->json();
         } catch (ConnectionException $e) {
             throw new BridgeUnavailableException(
                 "Bridge Python injoignable sur {$this->baseUrl()}. Est-il démarré ?",

@@ -1,0 +1,124 @@
+<?php
+
+use App\Events\ClipboardUpdated;
+use App\Models\ClipboardEntry;
+use App\Models\Device;
+use App\Services\Clipboard\ClipboardService;
+use App\Services\Pairing\DeviceApprovalService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Http;
+
+uses(RefreshDatabase::class);
+
+/** Device approuvé + token clair (helper nommé pour ne pas collisionner avec TransferTest). */
+function clipApprovedDevice(): array
+{
+    $kp = sodium_crypto_sign_keypair();
+    $pub = base64_encode(sodium_crypto_sign_publickey($kp));
+    $device = Device::create([
+        'name' => 'Phone',
+        'public_key' => $pub,
+        'fingerprint_sha256' => substr(hash('sha256', base64_decode($pub)), 0, 8),
+        'approved' => true,
+        'approved_at' => now(),
+        'paired_at' => now(),
+    ]);
+    $token = app(DeviceApprovalService::class)->issueTokenOnce($device);
+
+    return [$device, $token];
+}
+
+function clipHeaders(string $deviceId, string $token): array
+{
+    return ['X-Device-Id' => $deviceId, 'Authorization' => "Bearer {$token}"];
+}
+
+it('pushes phone clipboard to the PC and logs it', function () {
+    Http::fake(['http://127.0.0.1:8765/clipboard/write' => Http::response(['ok' => true], 200)]);
+    Event::fake([ClipboardUpdated::class]);
+    [$device, $token] = clipApprovedDevice();
+
+    $this->withHeaders(clipHeaders($device->id, $token))
+        ->postJson('/api/clipboard', ['content' => 'hello PC'])
+        ->assertOk()
+        ->assertJsonPath('ok', true);
+
+    expect(ClipboardEntry::where('content', 'hello PC')->where('origin', 'phone')->exists())->toBeTrue();
+    Http::assertSent(fn ($req) => $req->url() === 'http://127.0.0.1:8765/clipboard/write'
+        && $req['text'] === 'hello PC');
+    Event::assertDispatched(ClipboardUpdated::class);
+});
+
+it('dedups an identical clipboard push within the TTL (anti-loop)', function () {
+    Http::fake(['http://127.0.0.1:8765/clipboard/write' => Http::response(['ok' => true], 200)]);
+    [$device, $token] = clipApprovedDevice();
+
+    $this->withHeaders(clipHeaders($device->id, $token))
+        ->postJson('/api/clipboard', ['content' => 'same'])
+        ->assertOk();
+
+    $this->withHeaders(clipHeaders($device->id, $token))
+        ->postJson('/api/clipboard', ['content' => 'same'])
+        ->assertOk()
+        ->assertJsonPath('deduped', true);
+
+    expect(ClipboardEntry::where('content', 'same')->count())->toBe(1);
+});
+
+it('reads the PC clipboard for the phone', function () {
+    Http::fake(['http://127.0.0.1:8765/clipboard/read' => Http::response(['text' => 'from PC'], 200)]);
+    [$device, $token] = clipApprovedDevice();
+
+    $this->withHeaders(clipHeaders($device->id, $token))
+        ->getJson('/api/clipboard/pc')
+        ->assertOk()
+        ->assertJsonPath('text', 'from PC');
+
+    expect(ClipboardEntry::where('content', 'from PC')->where('origin', 'pc')->exists())->toBeTrue();
+});
+
+it('lists recent clipboard history for the device only', function () {
+    [$device, $token] = clipApprovedDevice();
+    [$other] = clipApprovedDevice();
+    $service = app(ClipboardService::class);
+    $service->receive($device, 'one', ClipboardService::ORIGIN_PHONE);
+    $service->receive($device, 'two', ClipboardService::ORIGIN_PHONE);
+    $service->receive($other, 'secret', ClipboardService::ORIGIN_PHONE);
+
+    $this->withHeaders(clipHeaders($device->id, $token))
+        ->getJson('/api/clipboard')
+        ->assertOk()
+        ->assertJsonCount(2, 'items')
+        ->assertJsonMissing(['content' => 'secret']);
+});
+
+it('opens an http(s) link on the PC', function () {
+    Http::fake(['http://127.0.0.1:8765/link/open' => Http::response(['ok' => true, 'url' => 'https://x.com'], 200)]);
+    [$device, $token] = clipApprovedDevice();
+
+    $this->withHeaders(clipHeaders($device->id, $token))
+        ->postJson('/api/link/open', ['url' => 'https://x.com'])
+        ->assertOk()
+        ->assertJsonPath('ok', true);
+
+    Http::assertSent(fn ($req) => $req->url() === 'http://127.0.0.1:8765/link/open'
+        && $req['url'] === 'https://x.com');
+});
+
+it('rejects a non-http link (422) and never reaches the bridge', function () {
+    Http::fake();
+    [$device, $token] = clipApprovedDevice();
+
+    $this->withHeaders(clipHeaders($device->id, $token))
+        ->postJson('/api/link/open', ['url' => 'file:///etc/passwd'])
+        ->assertStatus(422);
+
+    Http::assertNothingSent();
+});
+
+it('requires device auth for clipboard endpoints (401)', function () {
+    $this->postJson('/api/clipboard', ['content' => 'x'])->assertStatus(401);
+    $this->getJson('/api/clipboard')->assertStatus(401);
+    $this->postJson('/api/link/open', ['url' => 'https://x.com'])->assertStatus(401);
+});
