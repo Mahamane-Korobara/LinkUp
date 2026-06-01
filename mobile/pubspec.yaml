@@ -56,6 +56,7 @@ dependencies:
   # Linkup S4 — ouvrir sur le tél un fichier re-téléchargé du PC.
   path_provider: ^2.1.5
   open_filex: ^4.5.0
+  photo_manager: ^3.9.0
 
 dev_dependencies:
   flutter_test:
