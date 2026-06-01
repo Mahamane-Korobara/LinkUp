@@ -58,6 +58,12 @@ export default function RootLayout({
             >
               Presse-papier
             </Link>
+            <Link
+              href="/gallery"
+              className="text-sm text-slate-600 hover:text-slate-900"
+            >
+              Galerie
+            </Link>
           </nav>
         </header>
         <div className="flex-1">{children}</div>
