@@ -1,0 +1,37 @@
+Source: linkup
+Section: net
+Priority: optional
+Maintainer: Linkup <korobaramahamane311@gmail.com>
+Build-Depends: debhelper-compat (= 13),
+               php-cli,
+               composer,
+               python3,
+               python3-venv,
+               nodejs,
+               npm
+Standards-Version: 4.6.2
+Homepage: https://example.invalid/linkup
+
+Package: linkup
+Architecture: all
+Depends: ${misc:Depends},
+         php-cli (>= 8.2),
+         php-mbstring,
+         php-xml,
+         php-curl,
+         php-sqlite3,
+         php-bcmath,
+         php-sodium,
+         python3 (>= 3.10),
+         python3-venv,
+         nodejs,
+         xdg-utils,
+         wl-clipboard | xclip | xsel
+Description: Hub multi-appareils Linkup (téléphone <-> PC) sur le LAN
+ Linkup relie un téléphone Android et ce PC sur le réseau local : transfert de
+ fichiers, presse-papier partagé, envoi de photos, ouverture de liens.
+ .
+ Ce paquet installe l'agent (API/état) et le bridge (accès au système : presse-
+ papier, ouverture de fichiers) ainsi que le dashboard local. Les dépendances
+ presse-papier (wl-clipboard sur Wayland, xclip/xsel sur X11) sont tirées
+ automatiquement : l'utilisateur final n'a RIEN à installer à la main.

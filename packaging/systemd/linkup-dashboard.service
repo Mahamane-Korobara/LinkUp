@@ -1,0 +1,18 @@
+[Unit]
+Description=Linkup dashboard — UI locale (Next.js standalone)
+Documentation=https://example.invalid/linkup
+After=network.target linkup-agent.service
+Wants=linkup-agent.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/linkup/dashboard
+# Sortie "standalone" de Next : un server.js autonome (Node).
+ExecStart=/usr/bin/node /opt/linkup/dashboard/server.js
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,23 @@
+#!/bin/sh
+# Post-installation Linkup.
+set -e
+
+case "$1" in
+    configure)
+        # Active les services pour TOUTE session utilisateur (ils touchent le
+        # presse-papier / l'affichage → doivent tourner dans la session, pas en
+        # service système root). Ils démarreront à la prochaine ouverture de
+        # session ; pour démarrer tout de suite, l'utilisateur fait :
+        #   systemctl --user start linkup-bridge linkup-agent linkup-dashboard
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl --global enable linkup-bridge.service linkup-agent.service linkup-dashboard.service || true
+        fi
+
+        echo "Linkup installé. Ouvre http://localhost:3000 après ouverture de session."
+        echo "Démarrage immédiat : systemctl --user start linkup-bridge linkup-agent linkup-dashboard"
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

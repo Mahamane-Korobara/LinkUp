@@ -1,0 +1,6 @@
+linkup (0.5.0-1) unstable; urgency=medium
+
+  * Scaffold de paquet .deb (alpha LAN v0.5) : agent + bridge + dashboard,
+    services systemd utilisateur, dépendances presse-papier déclarées.
+
+ -- Linkup <korobaramahamane311@gmail.com>  Mon, 02 Jun 2026 00:00:00 +0000
