@@ -28,7 +28,12 @@ class _FakeSource implements GalleryAssetSource {
   Future<bool> requestPermission() async => true;
 
   @override
-  Future<List<GalleryAsset>> list({int page = 0, int size = 100}) async => const [];
+  Future<List<GalleryAsset>> list({
+    int page = 0,
+    int size = 100,
+    GalleryMediaType type = GalleryMediaType.all,
+  }) async =>
+      const [];
 
   @override
   Future<GalleryOriginal?> loadOriginal(String mediaId) async => originals[mediaId];

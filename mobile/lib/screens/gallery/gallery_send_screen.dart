@@ -105,14 +105,44 @@ class _GallerySendScreenState extends State<GallerySendScreen> {
     }
   }
 
+  GalleryMediaType get _mediaType => switch (_filter) {
+        _MediaFilter.all => GalleryMediaType.all,
+        _MediaFilter.photos => GalleryMediaType.image,
+        _MediaFilter.videos => GalleryMediaType.video,
+      };
+
   Future<void> _loadPage() async {
-    final page = await _source.list(page: _page, size: _pageSize);
+    final page = await _source.list(page: _page, size: _pageSize, type: _mediaType);
     if (!mounted) return;
     setState(() {
       _assets.addAll(page);
       _hasMore = page.length == _pageSize;
       _page++;
     });
+  }
+
+  /// Change le filtre → recharge depuis la source (filtrage + tri fiables, faits
+  /// côté plugin, plutôt qu'un tri client approximatif).
+  Future<void> _changeFilter(_MediaFilter f) async {
+    if (f == _filter) return;
+    setState(() {
+      _filter = f;
+      _assets.clear();
+      _page = 0;
+      _hasMore = true;
+      _phase = _Phase.loading;
+    });
+    try {
+      await _loadPage();
+      if (mounted) setState(() => _phase = _Phase.picking);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _phase = _Phase.error;
+          _error = 'Lecture de la galerie impossible : $e';
+        });
+      }
+    }
   }
 
   void _onScroll() {
@@ -286,29 +316,18 @@ class _GallerySendScreenState extends State<GallerySendScreen> {
     }
   }
 
-  /// Assets visibles selon le filtre Tout / Photos / Vidéos.
-  List<GalleryAsset> get _visible {
-    switch (_filter) {
-      case _MediaFilter.all:
-        return _assets;
-      case _MediaFilter.photos:
-        return _assets.where((a) => !a.meta.isVideo).toList();
-      case _MediaFilter.videos:
-        return _assets.where((a) => a.meta.isVideo).toList();
-    }
-  }
-
   Widget _buildGrid() {
-    final visible = _visible;
     return Column(
       children: [
         _filterBar(),
         Expanded(
-          child: visible.isEmpty
+          child: _assets.isEmpty
               ? Center(
-                  child: Text(_assets.isEmpty
-                      ? 'Aucune photo dans la galerie.'
-                      : 'Rien à afficher pour ce filtre.'),
+                  child: Text(switch (_filter) {
+                    _MediaFilter.videos => 'Aucune vidéo dans la galerie.',
+                    _MediaFilter.photos => 'Aucune photo dans la galerie.',
+                    _MediaFilter.all => 'Aucun média dans la galerie.',
+                  }),
                 )
               : GridView.builder(
                   controller: _scroll,
@@ -318,13 +337,13 @@ class _GallerySendScreenState extends State<GallerySendScreen> {
                     crossAxisSpacing: 4,
                     mainAxisSpacing: 4,
                   ),
-                  itemCount: visible.length + (_loadingMore ? 1 : 0),
+                  itemCount: _assets.length + (_loadingMore ? 1 : 0),
                   itemBuilder: (context, i) {
-                    if (i >= visible.length) {
+                    if (i >= _assets.length) {
                       return const Center(
                           child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
                     }
-                    final asset = visible[i];
+                    final asset = _assets[i];
                     final selected = _selected.contains(asset.meta.mediaId);
                     return _Tile(asset: asset, selected: selected, onTap: () => _toggle(asset.meta.mediaId));
                   },
@@ -334,18 +353,29 @@ class _GallerySendScreenState extends State<GallerySendScreen> {
     );
   }
 
-  /// Sélecteur Tout / Photos / Vidéos (pour distinguer photos et vidéos).
+  /// Sélecteur Tout / Photos / Vidéos en chips défilables (pas d'overflow).
   Widget _filterBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-      child: SegmentedButton<_MediaFilter>(
-        segments: const [
-          ButtonSegment(value: _MediaFilter.all, label: Text('Tout')),
-          ButtonSegment(value: _MediaFilter.photos, label: Text('Photos'), icon: Icon(Icons.photo)),
-          ButtonSegment(value: _MediaFilter.videos, label: Text('Vidéos'), icon: Icon(Icons.videocam)),
+    return SizedBox(
+      height: 48,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        children: [
+          _chip('Tout', _MediaFilter.all),
+          _chip('Photos', _MediaFilter.photos),
+          _chip('Vidéos', _MediaFilter.videos),
         ],
-        selected: {_filter},
-        onSelectionChanged: (s) => setState(() => _filter = s.first),
+      ),
+    );
+  }
+
+  Widget _chip(String label, _MediaFilter value) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: _filter == value,
+        onSelected: (_) => _changeFilter(value),
       ),
     );
   }

@@ -40,14 +40,22 @@ class GalleryOriginal {
   const GalleryOriginal({required this.bytes, required this.filename});
 }
 
+/// Type de média à lister (filtre fiable, appliqué côté plugin).
+enum GalleryMediaType { all, image, video }
+
 /// Source d'assets de la galerie. Abstraite pour injecter un faux en test sans
 /// toucher au plugin natif (`PhotoManagerAssetSource` en prod).
 abstract class GalleryAssetSource {
   /// Demande la permission d'accès à la galerie. `true` si accordée.
   Future<bool> requestPermission();
 
-  /// Page d'assets (0-based). Liste vide = fin.
-  Future<List<GalleryAsset>> list({int page = 0, int size = 100});
+  /// Page d'assets (0-based), du plus récent au plus ancien, filtrée par [type].
+  /// Liste vide = fin.
+  Future<List<GalleryAsset>> list({
+    int page = 0,
+    int size = 100,
+    GalleryMediaType type = GalleryMediaType.all,
+  });
 
   /// Charge l'original d'un média par son `media_id` (pour l'import). `null` si
   /// le média n'existe plus sur le tél.

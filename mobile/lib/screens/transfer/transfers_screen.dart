@@ -11,6 +11,18 @@ import 'file_transfer_screen.dart';
 /// Ouvre localement un fichier (octets) — injectable pour les widget tests.
 typedef FileOpener = Future<void> Function(String filename, List<int> bytes);
 
+const _mediaExt = {
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'bmp', // images
+  'mp4', 'mov', 'mkv', 'webm', '3gp', 'avi', 'm4v', // vidéos
+};
+
+/// `true` si le fichier n'est PAS une photo/vidéo (→ relève de l'onglet Fichier).
+bool _isDocument(String filename) {
+  final dot = filename.lastIndexOf('.');
+  final ext = dot < 0 ? '' : filename.substring(dot + 1).toLowerCase();
+  return !_mediaExt.contains(ext);
+}
+
 /// Historique des fichiers envoyés au PC + accès rapide à un nouvel envoi (S4).
 ///
 /// Liste alimentée par `GET /api/transfers` (scopé à ce tél). Le bouton flottant
@@ -175,14 +187,21 @@ class _TransfersScreenState extends State<TransfersScreen> {
         ],
       );
     }
-    final items = _items ?? const [];
+    // Onglet « Fichier » du hub : on n'affiche QUE les documents (les
+    // photos/vidéos ont leur propre onglet Galerie).
+    final all = _items ?? const <TransferSummary>[];
+    final items = widget.embedded ? all.where((t) => _isDocument(t.filename)).toList() : all;
     if (items.isEmpty) {
       return ListView(
         children: [
           const SizedBox(height: 100),
           Icon(Icons.inbox, size: 72, color: Colors.grey.shade300),
           const SizedBox(height: 12),
-          const Center(child: Text('Aucun fichier envoyé pour l\'instant.')),
+          Center(
+            child: Text(widget.embedded
+                ? 'Aucun document envoyé pour l\'instant.'
+                : 'Aucun fichier envoyé pour l\'instant.'),
+          ),
         ],
       );
     }
