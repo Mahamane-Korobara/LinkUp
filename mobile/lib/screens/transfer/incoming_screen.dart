@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/pairing/paired_device_store.dart';
 import '../../services/transfer/incoming_receiver.dart';
-import '../../services/transfer/media_saver.dart';
+import '../../services/transfer/received_saver.dart';
 import '../../services/transfer/transfer_client.dart';
 
 /// Écran « Fichiers reçus du PC » (S6 — sens PC → tél).
@@ -41,7 +41,7 @@ class _IncomingScreenState extends State<IncomingScreen> {
       _receiver = widget.receiver!;
     } else {
       _ownTransfers = TransferClient();
-      _receiver = IncomingReceiver(transfers: _ownTransfers!, saver: PhotoManagerMediaSaver());
+      _receiver = IncomingReceiver(transfers: _ownTransfers!, saver: DeviceFileSaver());
     }
   }
 
@@ -87,6 +87,15 @@ class _IncomingScreenState extends State<IncomingScreen> {
         _error = 'Erreur inattendue : $e';
       });
     }
+  }
+
+  /// Bilan lisible : combien en galerie, combien dans le dossier Fichiers.
+  String _summary(IncomingResult r) {
+    final parts = <String>[];
+    if (r.gallery > 0) parts.add('${r.gallery} dans la galerie');
+    if (r.documents > 0) parts.add('${r.documents} dans « LinkupReçus »');
+    final head = parts.isEmpty ? 'Rien enregistré' : parts.join(' · ');
+    return '$head${r.failed > 0 ? '\n${r.failed} échec(s)' : ''}.';
   }
 
   @override
@@ -147,10 +156,7 @@ class _IncomingScreenState extends State<IncomingScreen> {
                 size: 96, color: r.isEmpty ? Colors.grey.shade400 : Colors.green.shade500),
             const SizedBox(height: 16),
             Text(
-              r.isEmpty
-                  ? 'Aucun fichier en attente.'
-                  : '${r.saved} fichier(s) enregistré(s) dans la galerie'
-                      '${r.failed > 0 ? '\n${r.failed} échec(s)' : ''}.',
+              r.isEmpty ? 'Aucun fichier en attente.' : _summary(r),
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
