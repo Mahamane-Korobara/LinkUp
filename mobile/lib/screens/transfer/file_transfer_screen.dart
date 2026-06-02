@@ -109,7 +109,7 @@ class _FileTransferScreenState extends State<FileTransferScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Envoyer vers ${widget.device.pcName}')),
+      appBar: AppBar(title: Text('Envoyer un fichier — ${widget.device.pcName}')),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Center(child: _buildBody()),
@@ -123,12 +123,18 @@ class _FileTransferScreenState extends State<FileTransferScreen> {
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.upload_file, size: 96, color: Colors.deepPurple.shade300),
+            Icon(Icons.description, size: 96, color: Colors.deepPurple.shade300),
             const SizedBox(height: 24),
             const Text(
-              'Choisis un fichier à envoyer sur le PC',
+              'Envoyer un fichier (document) au PC',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'PDF, archives, docs… Pour tes photos et vidéos, utilise plutôt l\'écran « Galerie ».',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600),
             ),
             const SizedBox(height: 32),
             FilledButton.icon(

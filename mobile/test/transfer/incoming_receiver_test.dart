@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:linkup_mobile/services/pairing/paired_device_store.dart';
 import 'package:linkup_mobile/services/transfer/incoming_receiver.dart';
-import 'package:linkup_mobile/services/transfer/media_saver.dart';
+import 'package:linkup_mobile/services/transfer/received_saver.dart';
 import 'package:linkup_mobile/services/transfer/transfer_client.dart';
 
 const _device = PairedDevice(
@@ -19,17 +19,19 @@ const _device = PairedDevice(
   pcName: 'mon-pc',
 );
 
-/// Saver factice : note ce qui a été enregistré ; échoue pour les noms de [fail].
-class _FakeSaver implements MediaSaver {
+/// Saver factice : route par extension (.jpg/.mp4 → galerie, sinon document) ;
+/// échoue pour les noms listés dans [fail].
+class _FakeSaver implements ReceivedFileSaver {
   final List<String> saved = [];
   final Set<String> fail;
   _FakeSaver({this.fail = const {}});
 
   @override
-  Future<bool> save(String filename, Uint8List bytes, {required bool isVideo}) async {
-    if (fail.contains(filename)) return false;
+  Future<SaveResult> save(String filename, Uint8List bytes) async {
+    if (fail.contains(filename)) return SaveResult.failed;
     saved.add(filename);
-    return true;
+    final isMedia = filename.endsWith('.jpg') || filename.endsWith('.mp4');
+    return SaveResult(isMedia ? SaveKind.gallery : SaveKind.document);
   }
 }
 
@@ -59,7 +61,7 @@ MockClient _mock({required List<Map<String, String>> incoming, required List<Str
 }
 
 void main() {
-  test('downloads, saves to gallery and confirms each incoming file', () async {
+  test('routes media to the gallery, documents to a folder, and confirms each', () async {
     final delivered = <String>[];
     final saver = _FakeSaver();
     final receiver = IncomingReceiver(
@@ -67,6 +69,7 @@ void main() {
         incoming: [
           {'id': 'tx-1', 'name': 'a.jpg'},
           {'id': 'tx-2', 'name': 'b.mp4'},
+          {'id': 'tx-3', 'name': 'rapport.pdf'},
         ],
         delivered: delivered,
       )),
@@ -75,10 +78,14 @@ void main() {
 
     final result = await receiver.run(_device);
 
-    expect(result.saved, 2);
+    expect(result.gallery, 2); // a.jpg + b.mp4
+    expect(result.documents, 1); // rapport.pdf
     expect(result.failed, 0);
-    expect(saver.saved, ['a.jpg', 'b.mp4']);
-    expect(delivered, ['/api/transfers/tx-1/delivered', '/api/transfers/tx-2/delivered']);
+    expect(delivered, [
+      '/api/transfers/tx-1/delivered',
+      '/api/transfers/tx-2/delivered',
+      '/api/transfers/tx-3/delivered',
+    ]);
   });
 
   test('a failed save is not confirmed (stays pending)', () async {

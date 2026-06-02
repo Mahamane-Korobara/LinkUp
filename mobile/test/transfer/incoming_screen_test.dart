@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:linkup_mobile/screens/transfer/incoming_screen.dart';
 import 'package:linkup_mobile/services/pairing/paired_device_store.dart';
 import 'package:linkup_mobile/services/transfer/incoming_receiver.dart';
-import 'package:linkup_mobile/services/transfer/media_saver.dart';
+import 'package:linkup_mobile/services/transfer/received_saver.dart';
 import 'package:linkup_mobile/services/transfer/transfer_client.dart';
 
 const _device = PairedDevice(
@@ -18,9 +18,10 @@ const _device = PairedDevice(
   pcName: 'mon-pc',
 );
 
-class _NoopSaver implements MediaSaver {
+class _NoopSaver implements ReceivedFileSaver {
   @override
-  Future<bool> save(String filename, Uint8List bytes, {required bool isVideo}) async => true;
+  Future<SaveResult> save(String filename, Uint8List bytes) async =>
+      const SaveResult(SaveKind.gallery);
 }
 
 /// Récepteur factice : renvoie un bilan déterministe sans réseau.
@@ -38,21 +39,25 @@ class _FakeReceiver extends IncomingReceiver {
 }
 
 void main() {
-  testWidgets('fetches and shows how many files were saved', (tester) async {
+  testWidgets('fetches and shows where files were saved', (tester) async {
     await tester.pumpWidget(MaterialApp(
-      home: IncomingScreen(device: _device, receiver: _FakeReceiver(const IncomingResult(saved: 2, failed: 0))),
+      home: IncomingScreen(
+        device: _device,
+        receiver: _FakeReceiver(const IncomingResult(gallery: 2, documents: 1)),
+      ),
     ));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Récupérer'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('2 fichier(s) enregistré(s)'), findsOneWidget);
+    expect(find.textContaining('2 dans la galerie'), findsOneWidget);
+    expect(find.textContaining('1 dans « LinkupReçus »'), findsOneWidget);
   });
 
   testWidgets('shows an empty state when nothing is waiting', (tester) async {
     await tester.pumpWidget(MaterialApp(
-      home: IncomingScreen(device: _device, receiver: _FakeReceiver(const IncomingResult(saved: 0, failed: 0))),
+      home: IncomingScreen(device: _device, receiver: _FakeReceiver(const IncomingResult())),
     ));
     await tester.pumpAndSettle();
 
