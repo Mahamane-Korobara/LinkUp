@@ -40,12 +40,14 @@ tar xzf linkup-linux.tar.gz
       (sodium, pdo_sqlite, mbstring, …) sous PHP 8.5.
 - [x] un seul FrankenPHP sert **dashboard** (`/`, `/devices`, assets `_next`) **et**
       **API** (`/api/health`) via le Caddyfile.
+- [x] **end-to-end** : `linkup-run.sh` sur un bundle stagé → init 1er-run OK
+      (APP_KEY + token + **SQLite migrée, 17 tables**), `/api/health` 200,
+      `/api/pairing/devices` 200, dashboard servi. 2 binaires, zéro paquet système.
 
 ## Reste à faire
 
-- [ ] Lancer `build-bundle-linux.sh` de bout en bout + tester `linkup-run.sh` sur
-      une machine **propre** (le 1er-run init key/migrate n'a pas encore été
-      éprouvé end-to-end).
+- [ ] Lancer `build-bundle-linux.sh` de bout en bout sur une machine **propre**
+      (l'assemblage complet ; le lanceur+init sont déjà éprouvés ci-dessus).
 - [ ] Note PHP 8.5 : Laravel 12 cible 8.2–8.4 ; surveiller les dépréciations (au
       besoin, épingler une release FrankenPHP en PHP 8.4).
 - [ ] Équivalent **Windows** (`frankenphp.exe` + `linkup-bridge.exe` PyInstaller +
