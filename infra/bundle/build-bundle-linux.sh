@@ -9,7 +9,7 @@
 #   agent/            (app Laravel + vendor, sans dev)
 #   dashboard-out/    (export statique Next)
 #
-# Prérequis BUILD (sur la machine de build seulement) : composer, node/npm,
+# Prérequis BUILD (sur la machine de build seulement) : composer, node + pnpm,
 # python3-venv, pyinstaller, curl. La machine CIBLE n'a besoin de rien.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -21,8 +21,8 @@ echo "==> Nettoyage"; rm -rf "$OUT"; mkdir -p "$OUT"
 echo "==> Agent : composer --no-dev"
 (cd "$ROOT/agent" && composer install --no-dev --optimize-autoloader --no-interaction)
 
-echo "==> Dashboard : export statique"
-(cd "$ROOT/dashboard" && npm ci && npm run build)
+echo "==> Dashboard : export statique (pnpm)"
+(cd "$ROOT/dashboard" && pnpm install --frozen-lockfile && pnpm build)
 
 echo "==> Bridge : binaire PyInstaller"
 (cd "$ROOT/bridge" && [ -x .venv/bin/python ] || python3 -m venv .venv; \
