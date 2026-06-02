@@ -13,6 +13,9 @@ typedef PhoneClipboardReader = Future<String?> Function();
 /// Écrit dans le presse-papier du téléphone (injectable pour les widget tests).
 typedef PhoneClipboardWriter = Future<void> Function(String text);
 
+/// Filtre d'origine de l'historique presse-papier.
+enum _ClipFilter { all, sent, received }
+
 /// Écran presse-papier + lien rapide (S5).
 ///
 /// - Manuel : « Envoyer » (lit le presse-papier du tél au tap), « Coller depuis
@@ -57,6 +60,7 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
   String? _error;
   bool _loading = true;
   bool _busy = false;
+  _ClipFilter _filter = _ClipFilter.all;
 
   // Mode auto (1er plan).
   bool _auto = false;
@@ -283,10 +287,47 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
             ),
           ),
           const Divider(height: 1),
+          _filterBar(),
           Expanded(child: RefreshIndicator(onRefresh: _load, child: _buildBody())),
         ],
       ),
     );
+  }
+
+  /// Filtre Tout / Envoyés depuis le tél / Reçus du PC (chips défilables).
+  Widget _filterBar() {
+    Widget chip(String label, _ClipFilter value) => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ChoiceChip(
+            label: Text(label),
+            selected: _filter == value,
+            onSelected: (_) => setState(() => _filter = value),
+          ),
+        );
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        children: [
+          chip('Tout', _ClipFilter.all),
+          chip('Envoyés', _ClipFilter.sent),
+          chip('Reçus du PC', _ClipFilter.received),
+        ],
+      ),
+    );
+  }
+
+  /// Applique le filtre d'origine à la liste chargée.
+  List<ClipboardItem> _filtered(List<ClipboardItem> items) {
+    switch (_filter) {
+      case _ClipFilter.all:
+        return items;
+      case _ClipFilter.sent:
+        return items.where((i) => !i.isFromPc).toList();
+      case _ClipFilter.received:
+        return items.where((i) => i.isFromPc).toList();
+    }
   }
 
   Widget _buildBody() {
@@ -311,14 +352,24 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
         ],
       );
     }
-    final items = _items ?? const [];
+    final all = _items ?? const <ClipboardItem>[];
+    final items = _filtered(all);
     if (items.isEmpty) {
       return ListView(
         children: [
           const SizedBox(height: 100),
           Icon(Icons.content_paste_off, size: 72, color: Colors.grey.shade300),
           const SizedBox(height: 12),
-          const Center(child: Text('Aucun contenu partagé pour l\'instant.')),
+          Center(
+            child: Text(all.isEmpty
+                ? 'Aucun contenu partagé pour l\'instant.'
+                : 'Rien dans ce filtre.'),
+          ),
+          const SizedBox(height: 8),
+          const Center(
+            child: Text('Le presse-papier est effacé automatiquement après 2 jours.',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
+          ),
         ],
       );
     }

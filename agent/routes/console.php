@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\Clipboard\ClipboardService;
 use App\Services\Pairing\PairingService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -17,3 +18,13 @@ Artisan::command('linkup:purge-otps', function (PairingService $pairing) {
 })->purpose('Supprime les OTPs de pairing expirés');
 
 Schedule::command('linkup:purge-otps')->everyFiveMinutes();
+
+// S5 — purge du presse-papier journalisé de plus de 2 jours (rétention courte
+// par confidentialité). La purge se fait aussi à chaque échange (cf.
+// ClipboardService::receive) ; ce planificateur couvre le cas « serveur idle ».
+Artisan::command('linkup:prune-clipboard', function (ClipboardService $clipboard) {
+    $deleted = $clipboard->prune();
+    $this->info("Entrées presse-papier purgées : {$deleted}");
+})->purpose('Supprime le presse-papier journalisé expiré (> 2 jours)');
+
+Schedule::command('linkup:prune-clipboard')->daily();
