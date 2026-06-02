@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:linkup_mobile/screens/transfer/incoming_screen.dart';
 import 'package:linkup_mobile/services/pairing/paired_device_store.dart';
 import 'package:linkup_mobile/services/transfer/incoming_receiver.dart';
@@ -20,14 +23,30 @@ const _device = PairedDevice(
 
 class _NoopSaver implements ReceivedFileSaver {
   @override
-  Future<SaveResult> save(String filename, Uint8List bytes) async =>
-      const SaveResult(SaveKind.gallery);
+  Future<SaveResult> save(String filename, Uint8List bytes) async => const SaveResult(SaveKind.gallery);
 }
 
-/// Récepteur factice : renvoie un bilan déterministe sans réseau.
+/// MockClient qui sert la liste des entrants donnée.
+MockClient _mock(List<String> names) => MockClient((req) async {
+      if (req.url.path == '/api/transfers/incoming') {
+        return http.Response(
+          jsonEncode({
+            'transfers': [
+              for (final n in names) {'transfer_id': 'tx-$n', 'filename': n, 'direction': 'to_phone', 'status': 'completed'},
+            ],
+          }),
+          200,
+        );
+      }
+      return http.Response('{"ok":true}', 200);
+    });
+
+/// Récepteur factice : transfers branché sur un MockClient (pour la LISTE),
+/// run() renvoie un bilan déterministe sans réseau réel.
 class _FakeReceiver extends IncomingReceiver {
   final IncomingResult result;
-  _FakeReceiver(this.result) : super(transfers: TransferClient(), saver: _NoopSaver());
+  _FakeReceiver(List<String> names, this.result)
+      : super(transfers: TransferClient(httpClient: _mock(names)), saver: _NoopSaver());
 
   @override
   Future<IncomingResult> run(
@@ -39,31 +58,38 @@ class _FakeReceiver extends IncomingReceiver {
 }
 
 void main() {
-  testWidgets('fetches and shows where files were saved', (tester) async {
+  testWidgets('lists pending files and fetches them', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: IncomingScreen(
         device: _device,
-        receiver: _FakeReceiver(const IncomingResult(gallery: 2, documents: 1)),
+        receiver: _FakeReceiver(['photo.jpg', 'rapport.pdf'], const IncomingResult(gallery: 1, documents: 1)),
       ),
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Récupérer'));
-    await tester.pumpAndSettle();
+    // La liste montre les deux fichiers + le bouton compte 2.
+    expect(find.text('photo.jpg'), findsOneWidget);
+    expect(find.text('rapport.pdf'), findsOneWidget);
+    expect(find.text('Récupérer 2 fichier(s)'), findsOneWidget);
 
-    expect(find.textContaining('2 dans la galerie'), findsOneWidget);
+    await tester.tap(find.text('Récupérer 2 fichier(s)'));
+    await tester.pump();
+    await tester.pump();
+
+    // Bilan affiché en SnackBar.
+    expect(find.textContaining('1 dans la galerie'), findsOneWidget);
     expect(find.textContaining('1 dans « LinkupReçus »'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 5)); // purge le timer du SnackBar
   });
 
   testWidgets('shows an empty state when nothing is waiting', (tester) async {
     await tester.pumpWidget(MaterialApp(
-      home: IncomingScreen(device: _device, receiver: _FakeReceiver(const IncomingResult())),
+      home: IncomingScreen(device: _device, receiver: _FakeReceiver(const [], const IncomingResult())),
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Récupérer'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Aucun fichier en attente.'), findsOneWidget);
+    expect(find.text('Aucun fichier en attente'), findsOneWidget);
+    expect(find.textContaining('Aucun fichier envoyé par le PC'), findsOneWidget);
   });
 }

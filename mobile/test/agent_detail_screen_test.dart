@@ -216,8 +216,8 @@ void main() {
       expect(find.text('Appairé — appareil approuvé'), findsOneWidget);
       // Une fois appairé, l'empreinte du PC devient visible.
       expect(find.text('abc12345'), findsOneWidget);
-      // FAB d'accès aux transferts disponible.
-      expect(find.text('Transferts'), findsOneWidget);
+      // FAB d'accès au hub de transfert disponible.
+      expect(find.text('Transfert'), findsOneWidget);
     });
 
     testWidgets('treats a stored device as NOT paired when the PC rejects it (stale token)',

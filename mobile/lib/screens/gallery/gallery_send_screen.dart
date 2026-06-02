@@ -14,6 +14,9 @@ import '../../services/transfer/transfer_client.dart';
 class GallerySendScreen extends StatefulWidget {
   final PairedDevice device;
 
+  /// Embarqué dans un onglet (TransferHub) → pas de Scaffold/AppBar propre.
+  final bool embedded;
+
   /// Injectables pour les tests (sinon plugin + réseau réels).
   final GalleryAssetSource? source;
   final GallerySender? sender;
@@ -21,6 +24,7 @@ class GallerySendScreen extends StatefulWidget {
   const GallerySendScreen({
     super.key,
     required this.device,
+    this.embedded = false,
     this.source,
     this.sender,
   });
@@ -30,6 +34,9 @@ class GallerySendScreen extends StatefulWidget {
 }
 
 enum _Phase { loading, picking, sending, done, error }
+
+/// Filtre d'affichage de la grille galerie.
+enum _MediaFilter { all, photos, videos }
 
 class _GallerySendScreenState extends State<GallerySendScreen> {
   static const _pageSize = 60;
@@ -42,6 +49,7 @@ class _GallerySendScreenState extends State<GallerySendScreen> {
   final _scroll = ScrollController();
   final List<GalleryAsset> _assets = [];
   final Set<String> _selected = {};
+  _MediaFilter _filter = _MediaFilter.all;
 
   _Phase _phase = _Phase.loading;
   String? _error;
@@ -167,10 +175,21 @@ class _GallerySendScreenState extends State<GallerySendScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final sendBar = _phase == _Phase.picking ? _buildSendBar() : null;
+
+    if (widget.embedded) {
+      return Column(
+        children: [
+          Expanded(child: _buildBody()),
+          ?sendBar,
+        ],
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: Text('Envoyer au PC — ${widget.device.pcName}')),
       body: _buildBody(),
-      bottomNavigationBar: _phase == _Phase.picking ? _buildSendBar() : null,
+      bottomNavigationBar: sendBar,
     );
   }
 
@@ -267,27 +286,67 @@ class _GallerySendScreenState extends State<GallerySendScreen> {
     }
   }
 
-  Widget _buildGrid() {
-    if (_assets.isEmpty) {
-      return const Center(child: Text('Aucune photo dans la galerie.'));
+  /// Assets visibles selon le filtre Tout / Photos / Vidéos.
+  List<GalleryAsset> get _visible {
+    switch (_filter) {
+      case _MediaFilter.all:
+        return _assets;
+      case _MediaFilter.photos:
+        return _assets.where((a) => !a.meta.isVideo).toList();
+      case _MediaFilter.videos:
+        return _assets.where((a) => a.meta.isVideo).toList();
     }
-    return GridView.builder(
-      controller: _scroll,
-      padding: const EdgeInsets.all(4),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 4,
-        mainAxisSpacing: 4,
+  }
+
+  Widget _buildGrid() {
+    final visible = _visible;
+    return Column(
+      children: [
+        _filterBar(),
+        Expanded(
+          child: visible.isEmpty
+              ? Center(
+                  child: Text(_assets.isEmpty
+                      ? 'Aucune photo dans la galerie.'
+                      : 'Rien à afficher pour ce filtre.'),
+                )
+              : GridView.builder(
+                  controller: _scroll,
+                  padding: const EdgeInsets.all(4),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 4,
+                    mainAxisSpacing: 4,
+                  ),
+                  itemCount: visible.length + (_loadingMore ? 1 : 0),
+                  itemBuilder: (context, i) {
+                    if (i >= visible.length) {
+                      return const Center(
+                          child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
+                    }
+                    final asset = visible[i];
+                    final selected = _selected.contains(asset.meta.mediaId);
+                    return _Tile(asset: asset, selected: selected, onTap: () => _toggle(asset.meta.mediaId));
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  /// Sélecteur Tout / Photos / Vidéos (pour distinguer photos et vidéos).
+  Widget _filterBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      child: SegmentedButton<_MediaFilter>(
+        segments: const [
+          ButtonSegment(value: _MediaFilter.all, label: Text('Tout')),
+          ButtonSegment(value: _MediaFilter.photos, label: Text('Photos'), icon: Icon(Icons.photo)),
+          ButtonSegment(value: _MediaFilter.videos, label: Text('Vidéos'), icon: Icon(Icons.videocam)),
+        ],
+        selected: {_filter},
+        onSelectionChanged: (s) => setState(() => _filter = s.first),
       ),
-      itemCount: _assets.length + (_loadingMore ? 1 : 0),
-      itemBuilder: (context, i) {
-        if (i >= _assets.length) {
-          return const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
-        }
-        final asset = _assets[i];
-        final selected = _selected.contains(asset.meta.mediaId);
-        return _Tile(asset: asset, selected: selected, onTap: () => _toggle(asset.meta.mediaId));
-      },
     );
   }
 
@@ -299,7 +358,7 @@ class _GallerySendScreenState extends State<GallerySendScreen> {
         child: FilledButton.icon(
           onPressed: n == 0 ? null : _send,
           icon: const Icon(Icons.send),
-          label: Text(n == 0 ? 'Sélectionne des photos' : 'Envoyer $n photo(s) au PC'),
+          label: Text(n == 0 ? 'Sélectionne des médias' : 'Envoyer $n élément(s) au PC'),
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
         ),
       ),

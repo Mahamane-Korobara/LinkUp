@@ -6,10 +6,8 @@ import '../services/agent_info_client.dart';
 import '../services/pairing/paired_device_store.dart';
 import '../services/pairing/pairing_verifier.dart';
 import 'clipboard/clipboard_screen.dart';
-import 'gallery/gallery_send_screen.dart';
 import 'pairing/pairing_flow_screen.dart';
-import 'transfer/incoming_screen.dart';
-import 'transfer/transfers_screen.dart';
+import 'transfer/transfer_hub_screen.dart';
 
 /// Écran T1.19 : affiche les infos riches d'un agent sélectionné en appelant
 /// `/api/agent/info` côté Laravel du PC distant.
@@ -165,26 +163,6 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
               ),
               icon: const Icon(Icons.content_paste),
             ),
-          if (_isPaired == true && _paired != null)
-            IconButton(
-              tooltip: 'Envoyer des photos au PC',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => GallerySendScreen(device: _paired!),
-                ),
-              ),
-              icon: const Icon(Icons.photo_library),
-            ),
-          if (_isPaired == true && _paired != null)
-            IconButton(
-              tooltip: 'Récupérer les fichiers du PC',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => IncomingScreen(device: _paired!),
-                ),
-              ),
-              icon: const Icon(Icons.move_to_inbox),
-            ),
           // Toujours dispo (même « appairé ») : si le PC a oublié ce tél (ex.
           // migrate:fresh, révocation), le token local est invalide et il faut
           // re-scanner un QR pour repartir avec un device + token frais.
@@ -206,18 +184,18 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
     );
   }
 
-  /// Appairé → bouton d'envoi de fichier ; sinon → bouton d'appairage.
+  /// Appairé → hub de transfert (galerie/fichier/reçus) ; sinon → appairage.
   Widget? _buildFab(BuildContext context) {
     if (_info == null) return null;
     if (_isPaired == true && _paired != null) {
       return FloatingActionButton.extended(
         onPressed: () => Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => TransfersScreen(device: _paired!),
+            builder: (_) => TransferHubScreen(device: _paired!),
           ),
         ),
         icon: const Icon(Icons.swap_vert),
-        label: const Text('Transferts'),
+        label: const Text('Transfert'),
       );
     }
     return FloatingActionButton.extended(
