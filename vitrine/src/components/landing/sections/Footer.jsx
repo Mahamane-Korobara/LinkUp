@@ -14,33 +14,36 @@ const COLS = [
   {
     title: "Ressources",
     links: [
-      { label: "Code source", href: SITE.repo },
-      { label: "Versions", href: SITE.releases },
+      { label: "Code source", href: SITE.repo, external: true },
+      { label: "App Android", href: SITE.androidApk },
+      { label: "Programme PC", href: SITE.pcBundle },
     ],
   },
 ];
 
 export default function Footer() {
   return (
-    <footer className="border-t border-[color:var(--border)] bg-white">
-      <div className="mx-auto max-w-6xl px-5 py-14">
+    <footer className="border-t border-zinc-100 bg-white">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="lg:col-span-2">
-            <a href="#" className="flex items-center gap-2 font-extrabold">
-              <span className="brand-gradient grid size-8 place-items-center rounded-xl text-white">
-                <Link2 className="size-4.5" strokeWidth={2.5} />
+            <div className="flex items-center gap-2">
+              <span className="grid size-10 place-items-center rounded-xl bg-zinc-900 text-white">
+                <Link2 className="size-5" strokeWidth={2.5} />
               </span>
-              <span className="text-lg">Linkup</span>
-            </a>
-            <p className="mt-4 max-w-sm text-sm text-[color:var(--muted-foreground)]">
-              Ton téléphone et ton PC, reliés en un scan. Fichiers, photos, liens
-              et bien plus — sans câble, sans compte, sans cloud.
+              <span className="text-xl font-bold tracking-tight text-zinc-900">
+                Linkup
+              </span>
+            </div>
+            <p className="mt-4 max-w-sm text-sm leading-relaxed text-zinc-500">
+              Ton téléphone et ton PC, reliés en un scan. Fichiers, photos et
+              presse-papier — sans câble, sans compte, sans cloud.
             </p>
             <a
               href={SITE.repo}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-5 inline-flex items-center gap-2 rounded-lg border border-[color:var(--border)] px-3 py-2 text-sm font-medium transition-colors hover:bg-[color:var(--muted)]"
+              className="mt-5 inline-flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
             >
               <Github className="size-4" />
               GitHub
@@ -49,13 +52,16 @@ export default function Footer() {
 
           {COLS.map((col) => (
             <div key={col.title}>
-              <h4 className="text-sm font-bold">{col.title}</h4>
+              <h4 className="text-sm font-bold text-zinc-900">{col.title}</h4>
               <ul className="mt-4 space-y-2.5">
                 {col.links.map((l) => (
                   <li key={l.label}>
                     <a
                       href={l.href}
-                      className="text-sm text-[color:var(--muted-foreground)] transition-colors hover:text-[color:var(--foreground)]"
+                      {...(l.external
+                        ? { target: "_blank", rel: "noopener noreferrer" }
+                        : {})}
+                      className="text-sm text-zinc-500 transition-colors hover:text-zinc-900"
                     >
                       {l.label}
                     </a>
@@ -66,9 +72,9 @@ export default function Footer() {
           ))}
         </div>
 
-        <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-[color:var(--border)] pt-6 text-sm text-[color:var(--muted-foreground)] sm:flex-row">
+        <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-zinc-100 pt-6 text-sm text-zinc-500 sm:flex-row">
           <p>© {new Date().getFullYear()} Linkup · SahelStack</p>
-          <p>Fait avec soin — gratuit & open source</p>
+          <p>Gratuit & open source</p>
         </div>
       </div>
     </footer>

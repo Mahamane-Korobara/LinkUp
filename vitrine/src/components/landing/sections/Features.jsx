@@ -1,110 +1,164 @@
 "use client";
+import { motion } from "framer-motion";
 import {
   FileUp,
   ClipboardCheck,
-  Link as LinkIcon,
   Images,
+  Sparkles,
+  Check,
+  Link as LinkIcon,
+  Webcam,
+  Mic,
   Download,
   FileAudio,
   RefreshCw,
-  Webcam,
-  Mic,
   Presentation,
   ScanLine,
   Bell,
   Volume2,
   BellRing,
 } from "lucide-react";
-import { SectionHeading } from "@/components/ui/Section";
-import Reveal from "@/components/ui/Reveal";
 
-const GROUPS = [
+// Les 3 outils réellement disponibles aujourd'hui (alpha LAN).
+const AVAILABLE = [
   {
-    title: "Fichiers & contenu",
-    items: [
-      { icon: FileUp, name: "Transfert de fichiers", desc: "N’importe quel fichier, dans les deux sens. Reprend tout seul si ça coupe." },
-      { icon: ClipboardCheck, name: "Presse-papier partagé", desc: "Copie sur un appareil, colle sur l’autre. Textes, liens, codes." },
-      { icon: LinkIcon, name: "Lien rapide", desc: "Envoie une page web, elle s’ouvre direct sur le grand écran." },
-      { icon: Images, name: "Galerie à distance", desc: "Parcours les photos du tél depuis le PC et récupère celles que tu veux." },
-    ],
+    icon: FileUp,
+    title: "Transfert de fichiers",
+    text: "Envoie n’importe quel fichier du téléphone vers le PC et inversement. Le transfert reprend tout seul si la connexion coupe.",
+    points: ["Dans les deux sens", "Reprise automatique", "Plusieurs fichiers"],
   },
   {
-    title: "Médias",
-    items: [
-      { icon: Download, name: "Téléchargeur vidéo", desc: "Colle un lien de vidéo, elle se télécharge sur ton PC." },
-      { icon: FileAudio, name: "Transcription", desc: "Un audio enregistré devient du texte, automatiquement." },
-      { icon: RefreshCw, name: "Conversion", desc: "Change le format d’un fichier : vidéo en audio, image, etc." },
-    ],
+    icon: ClipboardCheck,
+    title: "Presse-papier partagé",
+    text: "Tu copies un texte, un lien ou un code sur un appareil — tu le colles sur l’autre. Fini de recopier à la main.",
+    points: ["Texte, liens, codes", "Tél → PC et PC → tél", "Historique récent"],
   },
   {
-    title: "Caméra & son",
-    items: [
-      { icon: Webcam, name: "Caméra du téléphone", desc: "Utilise la caméra de ton tél comme webcam sur le PC (Zoom, Meet…)." },
-      { icon: Mic, name: "Micro du téléphone", desc: "Capte un son plus net avec le micro du tél, côté PC." },
-      { icon: Presentation, name: "Télécommande slides", desc: "Tourne tes diapos depuis ton téléphone, sans pointeur." },
-      { icon: ScanLine, name: "Scanner", desc: "Scanne un QR ou code-barre, le résultat s’affiche sur le PC." },
-    ],
+    icon: Images,
+    title: "Galerie à distance",
+    text: "Parcours les photos et vidéos de ton téléphone depuis le PC, et récupère exactement celles que tu veux, en pleine qualité.",
+    points: ["Qualité d’origine", "Sélection multiple", "Aperçu rapide"],
   },
-  {
-    title: "Contrôle du PC",
-    items: [
-      { icon: Bell, name: "Notifications miroir", desc: "Tes notifs Android s’affichent sur l’écran du PC." },
-      { icon: Volume2, name: "Contrôle média", desc: "Play, pause et volume de ton PC pilotés depuis le tél." },
-      { icon: BellRing, name: "Faire sonner le tél", desc: "Téléphone perdu dans le canapé ? Fais-le sonner depuis le PC." },
-    ],
-  },
+];
+
+// Outils prévus, pas encore disponibles.
+const SOON = [
+  { icon: LinkIcon, label: "Lien rapide" },
+  { icon: Webcam, label: "Caméra webcam" },
+  { icon: Mic, label: "Micro du tél" },
+  { icon: Download, label: "Téléchargeur vidéo" },
+  { icon: FileAudio, label: "Transcription" },
+  { icon: RefreshCw, label: "Conversion" },
+  { icon: Presentation, label: "Télécommande slides" },
+  { icon: ScanLine, label: "Scanner" },
+  { icon: Bell, label: "Notifs miroir" },
+  { icon: Volume2, label: "Contrôle média" },
+  { icon: BellRing, label: "Faire sonner le tél" },
 ];
 
 export default function Features() {
   return (
-    <section id="outils" className="relative py-20 sm:py-28">
-      <div className="mx-auto max-w-6xl px-5">
-        <SectionHeading
-          eyebrow="La boîte à outils"
-          title="Une seule app, 16 outils du quotidien"
-          subtitle="Au lieu d’une appli différente pour chaque besoin, Linkup réunit tous les petits ponts utiles entre ton téléphone et ton PC. Tu actives seulement ceux qui te servent."
-        />
+    <section id="outils" className="relative overflow-hidden bg-white py-20 sm:py-28">
+      <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <motion.header
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.4 }}
+          transition={{ duration: 0.6 }}
+          className="mb-14 max-w-2xl"
+        >
+          <span className="mb-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+            <span className="h-px w-8 bg-zinc-300" />
+            Les outils
+          </span>
+          <h2 className="font-heading text-4xl font-black leading-[1.05] tracking-tight text-zinc-900 sm:text-5xl lg:text-[56px]">
+            Ce que tu peux faire{" "}
+            <span className="relative inline-block">
+              <span className="relative z-10">dès aujourd’hui.</span>
+              <span className="absolute -bottom-0.5 left-0 right-0 -z-0 h-2.5 rounded-sm bg-violet-200" />
+            </span>
+          </h2>
+          <p className="mt-5 text-base leading-relaxed text-zinc-500 sm:text-lg">
+            Linkup démarre avec les trois ponts les plus utiles entre ton
+            téléphone et ton PC. Ils marchent maintenant, sur ton réseau Wi-Fi.
+          </p>
+        </motion.header>
 
-        <div className="mt-14 space-y-12">
-          {GROUPS.map((group) => (
-            <div key={group.title}>
-              <Reveal>
-                <div className="mb-5 flex items-center gap-3">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-[color:var(--primary)]">
-                    {group.title}
-                  </h3>
-                  <span className="h-px flex-1 bg-[color:var(--border)]" />
-                  <span className="text-xs font-medium text-[color:var(--muted-foreground)]">
-                    {group.items.length} outils
-                  </span>
-                </div>
-              </Reveal>
+        {/* Disponible maintenant */}
+        <div className="mb-6 flex items-center gap-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+            <span className="size-1.5 rounded-full bg-emerald-500" />
+            Disponible maintenant
+          </span>
+          <span className="h-px flex-1 bg-zinc-100" />
+        </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {group.items.map((item, i) => (
-                  <Reveal key={item.name} delay={i * 0.05}>
-                    <article className="group h-full rounded-2xl border border-[color:var(--border)] bg-white p-5 shadow-[var(--shadow-card)] transition-all hover:-translate-y-1 hover:border-transparent hover:shadow-[var(--shadow-pop)]">
-                      <div className="grid size-10 place-items-center rounded-xl grad-soft text-[color:var(--primary)] transition-colors group-hover:brand-gradient group-hover:text-white">
-                        <item.icon className="size-5" />
-                      </div>
-                      <h4 className="mt-3.5 font-bold leading-snug">{item.name}</h4>
-                      <p className="mt-1.5 text-sm leading-relaxed text-[color:var(--muted-foreground)]">
-                        {item.desc}
-                      </p>
-                    </article>
-                  </Reveal>
-                ))}
+        <div className="grid gap-5 md:grid-cols-3">
+          {AVAILABLE.map((f, i) => (
+            <motion.article
+              key={f.title}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.55, delay: i * 0.1 }}
+              className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white p-6 shadow-card transition-all hover:-translate-y-1 hover:shadow-pop sm:p-7"
+            >
+              <div className="mb-5 flex size-12 items-center justify-center rounded-2xl bg-zinc-900 text-white transition-colors group-hover:bg-violet-600">
+                <f.icon className="size-6" strokeWidth={2} />
               </div>
-            </div>
+              <h3 className="font-heading text-xl font-black tracking-tight text-zinc-900">
+                {f.title}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+                {f.text}
+              </p>
+              <ul className="mt-5 space-y-2 border-t border-zinc-100 pt-5">
+                {f.points.map((p) => (
+                  <li key={p} className="flex items-center gap-2 text-[13px] font-medium text-zinc-700">
+                    <span className="grid size-4.5 place-items-center rounded-full bg-violet-100 text-violet-700">
+                      <Check className="size-3" strokeWidth={3} />
+                    </span>
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </motion.article>
           ))}
         </div>
 
-        <Reveal>
-          <p className="mt-12 text-center text-sm text-[color:var(--muted-foreground)]">
-            + un terminal sécurisé et un aperçu de tes sites en cours de
-            développement, pour les utilisateurs avancés.
+        {/* Bientôt */}
+        <div className="mb-6 mt-16 flex items-center gap-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-violet-700">
+            <Sparkles className="size-3" />
+            Bientôt
+          </span>
+          <span className="h-px flex-1 bg-zinc-100" />
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{ duration: 0.5 }}
+          className="rounded-3xl border border-dashed border-zinc-200 bg-zinc-50/60 p-6 sm:p-8"
+        >
+          <p className="mb-5 max-w-2xl text-sm text-zinc-500">
+            La boîte à outils s’agrandit : caméra de ton téléphone en webcam,
+            micro déporté, téléchargeur vidéo, notifications du tél sur le PC, et
+            plus encore. Ces outils arrivent au fil des mises à jour.
           </p>
-        </Reveal>
+          <div className="flex flex-wrap gap-2.5">
+            {SOON.map((s) => (
+              <span
+                key={s.label}
+                className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3.5 py-2 text-[13px] font-medium text-zinc-600"
+              >
+                <s.icon className="size-4 text-zinc-400" />
+                {s.label}
+              </span>
+            ))}
+          </div>
+        </motion.div>
       </div>
     </section>
   );

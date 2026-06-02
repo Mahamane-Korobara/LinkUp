@@ -1,15 +1,16 @@
-// Configuration centrale de la vitrine — un seul endroit à mettre à jour
-// quand l'APK ou le bundle PC change de lien.
+// Configuration centrale de la vitrine.
+// Les fichiers d'installation sont servis EN DIRECT depuis /public/downloads
+// → un seul clic, aucun détour par GitHub pour l'utilisateur.
 
 export const SITE = {
   name: "Linkup",
   tagline: "Ton téléphone et ton PC, reliés en un scan",
-  // Liens de téléchargement (GitHub Releases). À pointer sur la release publiée.
-  androidApk:
-    "https://github.com/Mahamane-Korobara/LinkUp/releases/latest/download/linkup.apk",
-  pcLinux:
-    "https://github.com/Mahamane-Korobara/LinkUp/releases/latest/download/linkup-linux.tar.gz",
-  pcWindows: "https://github.com/Mahamane-Korobara/LinkUp/releases/latest", // bientôt
-  releases: "https://github.com/Mahamane-Korobara/LinkUp/releases",
+
+  // Téléchargements directs (fichiers dans vitrine/public/downloads)
+  androidApk: "/downloads/linkup.apk",
+  androidSize: "65 Mo",
+  pcBundle: "/downloads/linkup-pc.tar.gz",
+  pcSize: "141 Mo",
+
   repo: "https://github.com/Mahamane-Korobara/LinkUp",
 };

@@ -1,0 +1,9 @@
+# Binaires d'installation servis en téléchargement direct.
+# Volontairement hors git (lourds : APK 65 Mo, bundle PC 141 Mo).
+# Présents en local pour `pnpm dev/build`. Pour le déploiement, voir README.md.
+*.apk
+*.tar.gz
+*.zip
+*.exe
+!.gitignore
+!README.md

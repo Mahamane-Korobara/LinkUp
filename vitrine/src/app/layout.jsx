@@ -1,9 +1,9 @@
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Geist } from "next/font/google";
 import "./globals.css";
 
-const jakarta = Plus_Jakarta_Sans({
+const geist = Geist({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-geist",
   display: "swap",
 });
 
@@ -11,18 +11,18 @@ export const metadata = {
   metadataBase: new URL("https://linkup.sahelstack.tech"),
   title: "Linkup — Ton téléphone et ton PC, reliés en un scan",
   description:
-    "Transfère fichiers, photos, liens et presse-papier entre ton téléphone et ton PC, sans câble et sans compte. Une seule app, reliée en scannant un QR code. Tes données restent sur ton réseau.",
+    "Transfère fichiers, photos et presse-papier entre ton téléphone et ton PC, sans câble et sans compte. Une seule app, reliée en scannant un QR code. Tes données restent sur ton réseau.",
   keywords: [
     "transfert fichier téléphone PC",
     "sans câble",
     "presse-papier partagé",
-    "webcam téléphone",
+    "galerie téléphone PC",
     "Linkup",
   ],
   openGraph: {
     title: "Linkup — Ton téléphone et ton PC, reliés en un scan",
     description:
-      "Fichiers, photos, liens, presse-papier, caméra… entre ton tel et ton PC. Sans câble, sans compte, sans cloud.",
+      "Fichiers, photos et presse-papier entre ton tél et ton PC. Sans câble, sans compte, sans cloud.",
     type: "website",
     locale: "fr_FR",
   },
@@ -30,7 +30,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="fr" className={jakarta.variable}>
+    <html lang="fr" className={geist.variable}>
       <body>{children}</body>
     </html>
   );

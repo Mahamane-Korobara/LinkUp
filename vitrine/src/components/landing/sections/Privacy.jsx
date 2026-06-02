@@ -1,81 +1,88 @@
 "use client";
 import { motion } from "framer-motion";
-import { ShieldCheck, WifiOff, UserX, Lock, Github } from "lucide-react";
+import { WifiOff, UserX, Lock, Github } from "lucide-react";
 import { SITE } from "@/lib/site";
 
 const POINTS = [
   {
     icon: WifiOff,
     title: "Tout passe par ton réseau",
-    text: "Tes fichiers voyagent directement d’un appareil à l’autre sur ton Wi-Fi. Ils ne partent pas sur un serveur lointain.",
+    text: "Tes fichiers voyagent directement d’un appareil à l’autre sur ton Wi-Fi. Ils ne partent sur aucun serveur lointain.",
   },
   {
     icon: UserX,
     title: "Aucun compte à créer",
-    text: "Pas d’e-mail, pas de mot de passe, pas de profil. Tu installes et tu scannes, point.",
+    text: "Pas d’e-mail, pas de mot de passe, pas de profil. Tu installes, tu scannes, c’est tout.",
   },
   {
     icon: Lock,
-    title: "Liaison chiffrée et approuvée",
-    text: "Chaque appareil doit être approuvé sur ton PC avant de se connecter. La liaison est chiffrée de bout en bout.",
+    title: "Liaison approuvée et chiffrée",
+    text: "Chaque appareil doit être approuvé sur ton PC avant de se connecter, et la liaison est chiffrée de bout en bout.",
   },
 ];
 
 export default function Privacy() {
   return (
-    <section className="relative py-20 sm:py-28">
-      <div className="mx-auto max-w-6xl px-5">
-        <div className="relative overflow-hidden rounded-[2rem] bg-[color:var(--ink)] px-6 py-14 text-white shadow-[var(--shadow-pop)] sm:px-12">
-          {/* déco */}
-          <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full grad-soft blur-3xl opacity-60" />
-          <div className="pointer-events-none absolute -bottom-28 -left-20 size-72 rounded-full grad-soft blur-3xl opacity-40" />
-
-          <div className="relative mx-auto max-w-2xl text-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/80">
-              <ShieldCheck className="size-4" />
-              Tes données restent chez toi
+    <section className="relative overflow-hidden bg-white py-20 sm:py-28">
+      <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="grid items-start gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.4 }}
+            transition={{ duration: 0.6 }}
+          >
+            <span className="mb-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+              <span className="h-px w-8 bg-zinc-300" />
+              Ta vie privée
             </span>
-            <h2 className="mt-5 text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
-              Pensé pour ta vie privée, pas pour la revendre
+            <h2 className="font-heading text-4xl font-black leading-[1.05] tracking-tight text-zinc-900 sm:text-5xl">
+              Tes données
+              <br />
+              <span className="relative inline-block">
+                <span className="relative z-10">restent chez toi.</span>
+                <span className="absolute -bottom-0.5 left-0 right-0 -z-0 h-2.5 rounded-sm bg-violet-200" />
+              </span>
             </h2>
-            <p className="mt-4 text-white/70 text-pretty">
+            <p className="mt-5 max-w-md text-base leading-relaxed text-zinc-500">
               Contrairement aux solutions liées à un cloud, Linkup ne stocke rien
               ailleurs que chez toi. Et le code est ouvert : n’importe qui peut
               vérifier ce qu’il fait.
             </p>
-          </div>
-
-          <div className="relative mt-12 grid gap-5 sm:grid-cols-3">
-            {POINTS.map((p, i) => (
-              <motion.div
-                key={p.title}
-                initial={{ opacity: 0, y: 18 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
-                className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm"
-              >
-                <div className="grid size-11 place-items-center rounded-xl bg-white/10 text-white">
-                  <p.icon className="size-5.5" />
-                </div>
-                <h3 className="mt-4 font-bold">{p.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-white/65">
-                  {p.text}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-
-          <div className="relative mt-10 text-center">
             <a
               href={SITE.repo}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+              className="mt-7 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 shadow-card transition-colors hover:bg-zinc-50"
             >
               <Github className="size-4.5" />
               Voir le code source
             </a>
+          </motion.div>
+
+          <div className="space-y-4">
+            {POINTS.map((p, i) => (
+              <motion.div
+                key={p.title}
+                initial={{ opacity: 0, x: 24 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.55, delay: i * 0.1 }}
+                className="flex items-start gap-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-card sm:p-6"
+              >
+                <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+                  <p.icon className="size-5.5" />
+                </span>
+                <div>
+                  <h3 className="font-heading text-lg font-black tracking-tight text-zinc-900">
+                    {p.title}
+                  </h3>
+                  <p className="mt-1 text-sm leading-relaxed text-zinc-500">
+                    {p.text}
+                  </p>
+                </div>
+              </motion.div>
+            ))}
           </div>
         </div>
       </div>
