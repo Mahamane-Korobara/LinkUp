@@ -70,7 +70,7 @@ export default function DownloadSection() {
             delay={0}
             icon={Smartphone}
             kicker="Sur ton téléphone"
-            sub="Android 8 ou plus récent"
+            sub="Android uniquement · 8.0 ou +"
             href={SITE.androidApk}
             fileLabel="linkup.apk"
             size={SITE.androidSize}
@@ -84,10 +84,11 @@ export default function DownloadSection() {
             delay={0.12}
             icon={Monitor}
             kicker="Sur ton ordinateur"
-            sub="Linux · Windows bientôt"
+            sub="Linux — testé et prêt"
             href={SITE.pcBundle}
             fileLabel="linkup-pc.tar.gz"
             size={SITE.pcSize}
+            soon="Windows — bientôt disponible"
             steps={[
               "Décompresse le dossier",
               "Lance Linkup — un QR s’affiche",
@@ -104,7 +105,7 @@ export default function DownloadSection() {
   );
 }
 
-function DownloadCard({ icon: Icon, kicker, sub, href, fileLabel, size, steps, delay }) {
+function DownloadCard({ icon: Icon, kicker, sub, href, fileLabel, size, steps, soon, delay }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 24 }}
@@ -139,6 +140,13 @@ function DownloadCard({ icon: Icon, kicker, sub, href, fileLabel, size, steps, d
           {size}
         </span>
       </a>
+
+      {soon && (
+        <div className="mt-2.5 flex items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 px-4 py-2.5 text-[13px] font-medium text-zinc-500">
+          <Monitor className="size-4" />
+          {soon}
+        </div>
+      )}
 
       <ul className="mt-5 space-y-2.5">
         {steps.map((s, i) => (
