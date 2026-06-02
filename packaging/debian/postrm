@@ -1,0 +1,15 @@
+#!/bin/sh
+# Post-removal Linkup.
+set -e
+
+case "$1" in
+    remove|purge)
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl --global disable linkup-bridge.service linkup-agent.service linkup-dashboard.service || true
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

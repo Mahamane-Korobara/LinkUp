@@ -1,0 +1,47 @@
+#!/usr/bin/make -f
+# Règles de build du paquet Linkup.
+#
+# On installe l'app sous /opt/linkup et on prépare ses dépendances au moment du
+# build (composer/pip/npm) pour que l'utilisateur n'ait pas à le faire :
+#   - agent     : vendor PHP (composer --no-dev)
+#   - bridge    : venv Python avec les requirements
+#   - dashboard : build Next.js en mode "standalone"
+#
+# NB : artisan serve (serveur de dev) suffit pour l'alpha LAN. Une vraie prod
+# passerait par php-fpm + nginx — hors périmètre v0.5.
+
+export DH_VERBOSE = 1
+DESTDIR = debian/linkup
+PREFIX  = $(DESTDIR)/opt/linkup
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Agent Laravel : dépendances de prod uniquement.
+	cd agent && composer install --no-dev --optimize-autoloader --no-interaction
+	# Bridge Python : venv embarqué (dépendances depuis pyproject.toml).
+	python3 -m venv bridge/.venv
+	bridge/.venv/bin/pip install --no-cache-dir ./bridge
+	# Dashboard Next.js : sortie standalone (node_modules minimal).
+	cd dashboard && npm ci && npm run build
+
+override_dh_auto_install:
+	# Agent
+	mkdir -p $(PREFIX)/agent
+	cp -a agent/. $(PREFIX)/agent/
+	# Bridge (+ venv)
+	mkdir -p $(PREFIX)/bridge
+	cp -a bridge/. $(PREFIX)/bridge/
+	# Dashboard (sortie standalone)
+	mkdir -p $(PREFIX)/dashboard
+	cp -a dashboard/.next/standalone/. $(PREFIX)/dashboard/
+	cp -a dashboard/.next/static $(PREFIX)/dashboard/.next/static
+	# Services systemd utilisateur (clipboard/X11 = session de l'utilisateur).
+	mkdir -p $(DESTDIR)/usr/lib/systemd/user
+	cp packaging/systemd/linkup-agent.service     $(DESTDIR)/usr/lib/systemd/user/
+	cp packaging/systemd/linkup-bridge.service    $(DESTDIR)/usr/lib/systemd/user/
+	cp packaging/systemd/linkup-dashboard.service $(DESTDIR)/usr/lib/systemd/user/
+
+override_dh_auto_test:
+	# Tests lancés en CI, pas pendant le packaging.

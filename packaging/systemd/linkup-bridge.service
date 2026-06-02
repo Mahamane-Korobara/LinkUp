@@ -1,0 +1,19 @@
+[Unit]
+Description=Linkup bridge — accès OS (presse-papier, fichiers, liens)
+Documentation=https://example.invalid/linkup
+# Service UTILISATEUR : doit tourner dans la session graphique pour accéder au
+# presse-papier (Wayland/X11). Lancé via `systemctl --user`.
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/linkup/bridge
+ExecStart=/opt/linkup/bridge/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8765
+Restart=on-failure
+RestartSec=2
+# Token partagé agent<->bridge + réglages : déposés par l'utilisateur ici.
+EnvironmentFile=-%h/.config/linkup/bridge.env
+
+[Install]
+WantedBy=graphical-session.target
