@@ -17,6 +17,9 @@ typedef FileOpener = Future<void> Function(String filename, List<int> bytes);
 /// ouvre l'écran de sélection/envoi ; au retour, la liste se rafraîchit.
 class TransfersScreen extends StatefulWidget {
   final PairedDevice device;
+
+  /// Embarqué dans un onglet (TransferHub) → pas de Scaffold/AppBar propre.
+  final bool embedded;
   final TransferClient? client;
 
   /// Ouverture locale injectable (sinon écrit en cache + open_filex).
@@ -25,6 +28,7 @@ class TransfersScreen extends StatefulWidget {
   const TransfersScreen({
     super.key,
     required this.device,
+    this.embedded = false,
     this.client,
     this.openLocalFile,
   });
@@ -108,6 +112,27 @@ class _TransfersScreenState extends State<TransfersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) {
+      // Onglet « Fichier » du hub : historique + bouton d'envoi, sans Scaffold.
+      return Column(
+        children: [
+          Expanded(child: RefreshIndicator(onRefresh: _load, child: _buildBody())),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: FilledButton.icon(
+                onPressed: _openSend,
+                icon: const Icon(Icons.upload_file),
+                label: const Text('Envoyer un fichier'),
+                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Transferts — ${widget.device.pcName}'),

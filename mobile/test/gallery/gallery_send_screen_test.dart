@@ -82,15 +82,15 @@ void main() {
     await tester.pumpAndSettle();
 
     // Grille chargée : le bouton invite à sélectionner.
-    expect(find.text('Sélectionne des photos'), findsOneWidget);
+    expect(find.text('Sélectionne des médias'), findsOneWidget);
 
-    // Sélectionne la première vignette.
-    await tester.tap(find.byType(GestureDetector).first);
+    // Sélectionne la première vignette (on tape l'image du tile, pas le filtre).
+    await tester.tap(find.byType(Image).first);
     await tester.pumpAndSettle();
-    expect(find.text('Envoyer 1 photo(s) au PC'), findsOneWidget);
+    expect(find.text('Envoyer 1 élément(s) au PC'), findsOneWidget);
 
     // Envoie.
-    await tester.tap(find.text('Envoyer 1 photo(s) au PC'));
+    await tester.tap(find.text('Envoyer 1 élément(s) au PC'));
     await tester.pumpAndSettle();
 
     expect(find.text('Envoi terminé'), findsOneWidget);
