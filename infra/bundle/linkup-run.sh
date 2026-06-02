@@ -30,6 +30,9 @@ if [ ! -f "$HERE/.initialized" ]; then
   }
   set_env APP_ENV production
   set_env DB_CONNECTION sqlite                 # zéro install : base fichier
+  # Chemin ABSOLU : sinon SQLite prend DB_DATABASE (hérité de .env.example, ex.
+  # « linkup ») comme un chemin relatif et migre dans le mauvais fichier.
+  set_env DB_DATABASE "$HERE/agent/database/database.sqlite"
   set_env LINKUP_BRIDGE_AGENT_TOKEN "$(openssl rand -hex 32 2>/dev/null || head -c32 /dev/urandom | xxd -p | tr -d '\n')"
 
   : >"$HERE/agent/database/database.sqlite"
