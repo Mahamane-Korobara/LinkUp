@@ -2,19 +2,20 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { QrCode, Timer, RefreshCw, ChevronDown } from 'lucide-react';
 
-import { LARAVEL_BASE } from '../../lib/api';
+import { LARAVEL_BASE } from '@/lib/api';
+import { PageHeader } from '@/components/PageHeader';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ErrorBanner } from '@/components/ui/states';
+import { Skeleton } from '@/components/ui/skeleton';
 
 /**
  * Page S2.J2 T2.8 — affiche le QR de pairing du PC.
- *
- * Flow :
- * 1. Fetch /api/pairing/qr → reçoit {url, otp, expires_at, ttl_seconds}
- * 2. Affiche le PNG /api/pairing/qr.png?ts=<timestamp> (force le refresh image)
- * 3. Countdown TTL côté client + auto-refresh à expiration
- *
- * Une fois le tel scanné le QR, S2.J4 va ajouter le popup d'approbation
- * via Reverb event `PairingPendingApproval`.
+ * Logique inchangée : fetch /api/pairing/qr, countdown TTL + auto-refresh,
+ * détection d'un scan (nouveau pending) → redirection /devices.
  */
 
 type PairingPayload = {
@@ -41,9 +42,6 @@ export default function PairPage() {
   const [remaining, setRemaining] = useState(0);
   const [qrTimestamp, setQrTimestamp] = useState<number>(() => Date.now());
 
-  // Utilisée par le bouton Réessayer et l'auto-refresh du countdown (contextes
-  // event/callback : setState synchrone autorisé). L'effet de montage, lui,
-  // inline le fetch ci-dessous pour respecter set-state-in-effect.
   const fetchPairing = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -81,7 +79,6 @@ export default function PairPage() {
     };
   }, []);
 
-  // Countdown + auto-refresh à expiration
   useEffect(() => {
     if (remaining <= 0) return;
     const interval = setInterval(() => {
@@ -96,9 +93,6 @@ export default function PairPage() {
     return () => clearInterval(interval);
   }, [remaining, fetchPairing]);
 
-  // Détecte qu'un téléphone a scanné (nouveau device pending) et redirige vers
-  // l'écran d'approbation. On ignore les pending déjà présents à l'ouverture
-  // pour ne rediriger que sur un scan effectué pendant qu'on regarde le QR.
   const baselinePendingIds = useRef<Set<string> | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -114,7 +108,6 @@ export default function PairPage() {
           .filter((d: { status: string }) => d.status === 'pending')
           .map((d: { device_id: string }) => d.device_id);
 
-        // Premier passage : on mémorise les pending existants sans rediriger.
         if (baselinePendingIds.current === null) {
           baselinePendingIds.current = new Set(pendingIds);
           return;
@@ -134,66 +127,68 @@ export default function PairPage() {
   }, [router]);
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-50 p-8">
-      <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full">
-        <h1 className="text-2xl font-bold text-center mb-2">Appairer un téléphone</h1>
-        <p className="text-center text-slate-600 text-sm mb-6">
-          Scanne ce QR avec l&apos;app Linkup sur ton téléphone Android.
-        </p>
+    <>
+      <PageHeader
+        icon={QrCode}
+        title="Appairer un téléphone"
+        subtitle="Scanne ce QR code avec l’app Linkup sur ton téléphone Android."
+      />
 
-        {loading && !payload && (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-deepPurple-600" />
+      {error && <ErrorBanner message={error} base={LARAVEL_BASE} />}
+
+      <Card className="mx-auto max-w-md overflow-hidden">
+        {loading && !payload && !error && (
+          <div className="flex flex-col items-center gap-4 p-8">
+            <Skeleton className="size-72 rounded-2xl" />
+            <Skeleton className="h-8 w-44 rounded-full" />
           </div>
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700 text-sm">
-            <p className="font-semibold mb-1">Erreur de chargement</p>
-            <p>{error}</p>
-            <p className="text-xs mt-2 text-red-500">
-              Laravel doit tourner sur <code>{LARAVEL_BASE}</code>.
-            </p>
-            <button
-              onClick={fetchPairing}
-              className="mt-3 px-4 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-            >
-              Réessayer
-            </button>
+          <div className="p-6">
+            <Button onClick={fetchPairing} className="w-full">
+              <RefreshCw /> Réessayer
+            </Button>
           </div>
         )}
 
         {payload && !error && (
-          <>
-            <div className="flex justify-center mb-4">
+          <div className="flex flex-col items-center p-6 sm:p-8">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.4 }}
+              className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-card"
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
+                key={qrTimestamp}
                 src={`${LARAVEL_BASE}/api/pairing/qr.png?ts=${qrTimestamp}`}
                 alt="QR code de pairing"
-                width={320}
-                height={320}
-                className="border border-slate-200 rounded-lg"
+                width={288}
+                height={288}
+                className="rounded-lg"
               />
+            </motion.div>
+
+            <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-violet-50 px-4 py-2 text-sm text-violet-700">
+              <Timer className="size-4" />
+              <span className="font-mono font-bold tabular-nums">{remaining}s</span>
+              <span className="text-violet-500">avant un nouveau code</span>
             </div>
 
-            <div className="text-center">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-full text-sm">
-                <span className="font-mono font-semibold">
-                  {remaining}s
-                </span>
-                <span className="text-slate-500">avant nouveau code</span>
-              </div>
-            </div>
-
-            <details className="mt-6 text-xs text-slate-500">
-              <summary className="cursor-pointer">URL technique</summary>
-              <p className="break-all font-mono mt-2 bg-slate-50 p-2 rounded">
+            <details className="mt-6 w-full text-xs text-zinc-500">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium">
+                <ChevronDown className="size-3.5" />
+                URL technique
+              </summary>
+              <p className="mt-2 break-all rounded-lg bg-zinc-50 p-2 font-mono">
                 {payload.url}
               </p>
             </details>
-          </>
+          </div>
         )}
-      </div>
-    </main>
+      </Card>
+    </>
   );
 }
