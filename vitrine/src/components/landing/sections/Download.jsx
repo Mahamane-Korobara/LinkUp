@@ -1,121 +1,155 @@
 "use client";
-import { Smartphone, Monitor, Download, CheckCircle2 } from "lucide-react";
+import { motion } from "framer-motion";
+import {
+  Sparkles,
+  Smartphone,
+  Monitor,
+  ArrowDownToLine,
+  Check,
+} from "lucide-react";
 import { SITE } from "@/lib/site";
-import { SectionHeading } from "@/components/ui/Section";
-import Reveal from "@/components/ui/Reveal";
 
 export default function DownloadSection() {
   return (
-    <section id="telecharger" className="relative py-20 sm:py-28">
-      <div className="bg-grid pointer-events-none absolute inset-0 opacity-60" />
-      <div className="relative mx-auto max-w-5xl px-5">
-        <SectionHeading
-          eyebrow="Prêt à relier tes appareils ?"
-          title="Installe Linkup, c’est gratuit"
-          subtitle="Deux petites installations : l’app sur ton téléphone, le programme sur ton PC. Puis tu scannes, et c’est parti."
-        />
+    <section
+      id="telecharger"
+      className="relative overflow-hidden bg-zinc-950 py-24 sm:py-32"
+    >
+      {/* grille */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.05]"
+        style={{
+          backgroundImage:
+            "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
+          backgroundSize: "60px 60px",
+          maskImage: "radial-gradient(ellipse at center, black 30%, transparent 80%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse at center, black 30%, transparent 80%)",
+        }}
+      />
+      {/* glow violet animé */}
+      <motion.div
+        animate={{ scale: [1, 1.15, 1], opacity: [0.35, 0.55, 0.35] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[500px] w-[800px] -translate-x-1/2 -translate-y-1/2"
+        style={{
+          background: "radial-gradient(ellipse, rgba(124,58,237,0.5) 0%, transparent 60%)",
+          filter: "blur(80px)",
+        }}
+      />
 
-        <div className="mt-12 grid gap-6 md:grid-cols-2">
-          {/* Téléphone */}
-          <Reveal>
-            <div className="flex h-full flex-col rounded-2xl border border-[color:var(--border)] bg-white p-7 shadow-[var(--shadow-card)]">
-              <div className="flex items-center gap-3">
-                <div className="grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 text-white">
-                  <Smartphone className="size-6" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold">Sur ton téléphone</h3>
-                  <p className="text-sm text-[color:var(--muted-foreground)]">
-                    Android 8 ou plus récent
-                  </p>
-                </div>
-              </div>
+      <div className="relative mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="mb-12 text-center"
+        >
+          <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-violet-300">
+            <Sparkles className="size-3" />
+            Prêt à relier tes appareils ?
+          </span>
+          <h2 className="font-heading text-4xl font-black leading-[1.02] tracking-tight text-white sm:text-5xl lg:text-[60px]">
+            Installe Linkup,
+            <br />
+            c’est{" "}
+            <span className="relative inline-block">
+              <span className="relative z-10 text-violet-400">gratuit.</span>
+              <span className="absolute -bottom-1 left-0 right-0 -z-0 h-3 rounded-sm bg-violet-500/30" />
+            </span>
+          </h2>
+          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-zinc-400 sm:text-lg">
+            Deux fichiers : l’app pour ton téléphone, le programme pour ton PC.
+            Téléchargement direct, un seul clic.
+          </p>
+        </motion.div>
 
-              <a
-                href={SITE.androidApk}
-                className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl brand-gradient px-5 py-3.5 font-semibold text-white shadow-[var(--shadow-pop)] transition-transform hover:-translate-y-0.5"
-              >
-                <Download className="size-5" />
-                Télécharger l’app (.apk)
-              </a>
-
-              <ul className="mt-5 space-y-2 text-sm text-[color:var(--muted-foreground)]">
-                <Step>Ouvre le fichier téléchargé sur ton téléphone</Step>
-                <Step>
-                  Autorise l’installation si Android le demande (« cette source »)
-                </Step>
-                <Step>Lance Linkup et appuie sur « Scanner »</Step>
-              </ul>
-            </div>
-          </Reveal>
-
-          {/* PC */}
-          <Reveal delay={0.1}>
-            <div className="flex h-full flex-col rounded-2xl border border-[color:var(--border)] bg-white p-7 shadow-[var(--shadow-card)]">
-              <div className="flex items-center gap-3">
-                <div className="grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-400 text-white">
-                  <Monitor className="size-6" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold">Sur ton ordinateur</h3>
-                  <p className="text-sm text-[color:var(--muted-foreground)]">
-                    Windows 10/11 · Linux
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                <a
-                  href={SITE.pcWindows}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-[color:var(--border)] bg-white px-4 py-3.5 text-sm font-semibold transition-colors hover:bg-[color:var(--muted)]"
-                >
-                  <Monitor className="size-4.5 text-[color:var(--primary)]" />
-                  Windows
-                  <span className="text-[10px] font-bold text-[color:var(--accent)]">
-                    bientôt
-                  </span>
-                </a>
-                <a
-                  href={SITE.pcLinux}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-[color:var(--border)] bg-white px-4 py-3.5 text-sm font-semibold transition-colors hover:bg-[color:var(--muted)]"
-                >
-                  <Monitor className="size-4.5 text-[color:var(--primary)]" />
-                  Linux
-                </a>
-              </div>
-
-              <ul className="mt-5 space-y-2 text-sm text-[color:var(--muted-foreground)]">
-                <Step>Décompresse le dossier téléchargé</Step>
-                <Step>Lance Linkup — un QR code s’affiche</Step>
-                <Step>Rien d’autre à installer sur ton PC</Step>
-              </ul>
-            </div>
-          </Reveal>
+        <div className="grid gap-5 md:grid-cols-2">
+          <DownloadCard
+            delay={0}
+            icon={Smartphone}
+            kicker="Sur ton téléphone"
+            sub="Android 8 ou plus récent"
+            href={SITE.androidApk}
+            fileLabel="linkup.apk"
+            size={SITE.androidSize}
+            steps={[
+              "Ouvre le fichier téléchargé",
+              "Autorise l’installation si demandé",
+              "Lance Linkup et appuie sur « Scanner »",
+            ]}
+          />
+          <DownloadCard
+            delay={0.12}
+            icon={Monitor}
+            kicker="Sur ton ordinateur"
+            sub="Linux · Windows bientôt"
+            href={SITE.pcBundle}
+            fileLabel="linkup-pc.tar.gz"
+            size={SITE.pcSize}
+            steps={[
+              "Décompresse le dossier",
+              "Lance Linkup — un QR s’affiche",
+              "Rien d’autre à installer",
+            ]}
+          />
         </div>
 
-        <Reveal>
-          <p className="mt-8 text-center text-sm text-[color:var(--muted-foreground)]">
-            Besoin d’une autre version ?{" "}
-            <a
-              href={SITE.releases}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-[color:var(--primary)] underline-offset-4 hover:underline"
-            >
-              Toutes les versions sur GitHub
-            </a>
-          </p>
-        </Reveal>
+        <p className="mt-8 text-center text-xs text-zinc-500">
+          Téléchargement direct depuis le site · aucune inscription · open source
+        </p>
       </div>
     </section>
   );
 }
 
-function Step({ children }) {
+function DownloadCard({ icon: Icon, kicker, sub, href, fileLabel, size, steps, delay }) {
   return (
-    <li className="flex items-start gap-2">
-      <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[color:var(--primary)]" />
-      <span>{children}</span>
-    </li>
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.55, delay }}
+      className="flex flex-col rounded-3xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-sm sm:p-7"
+    >
+      <div className="flex items-center gap-3">
+        <span className="grid size-12 place-items-center rounded-2xl bg-white text-zinc-900">
+          <Icon className="size-6" />
+        </span>
+        <div>
+          <h3 className="font-heading text-lg font-black tracking-tight text-white">
+            {kicker}
+          </h3>
+          <p className="text-[13px] text-zinc-400">{sub}</p>
+        </div>
+      </div>
+
+      <a
+        href={href}
+        download
+        className="group mt-6 inline-flex items-center justify-between gap-2 rounded-xl bg-white px-5 py-3.5 font-semibold text-zinc-900 shadow-2xl shadow-violet-900/40 transition-all hover:bg-zinc-100"
+      >
+        <span className="flex items-center gap-2 text-sm">
+          <ArrowDownToLine className="size-5 text-violet-600" />
+          Télécharger
+          <span className="font-mono text-[12px] text-zinc-400">{fileLabel}</span>
+        </span>
+        <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-bold text-zinc-500 group-hover:bg-violet-100 group-hover:text-violet-700">
+          {size}
+        </span>
+      </a>
+
+      <ul className="mt-5 space-y-2.5">
+        {steps.map((s, i) => (
+          <li key={s} className="flex items-start gap-2.5 text-sm text-zinc-300">
+            <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-violet-500/20 text-[10px] font-bold text-violet-300">
+              {i + 1}
+            </span>
+            {s}
+          </li>
+        ))}
+      </ul>
+    </motion.div>
   );
 }
