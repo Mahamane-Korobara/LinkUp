@@ -1,15 +1,17 @@
 // Configuration centrale de la vitrine.
-// Les fichiers d'installation sont servis EN DIRECT depuis /public/downloads
-// → un seul clic, aucun détour par GitHub pour l'utilisateur.
+// Les fichiers d'installation sont servis EN DIRECT depuis le VPS
+// sahelstack.tech (Apache, Content-Disposition: attachment) → un seul clic,
+// aucun détour par GitHub. Voir vitrine/public/downloads/README.md pour
+// l'upload (rsync) et la config Apache.
 
 export const SITE = {
   name: "Linkup",
   tagline: "Ton téléphone et ton PC, reliés en un scan",
 
-  // Téléchargements directs (fichiers dans vitrine/public/downloads)
-  androidApk: "/downloads/linkup.apk",
+  // Téléchargements directs (servis par le VPS, hors Vercel)
+  androidApk: "https://linkup.sahelstack.tech/dl/linkup.apk",
   androidSize: "65 Mo",
-  pcBundle: "/downloads/linkup-pc.tar.gz",
+  pcBundle: "https://linkup.sahelstack.tech/dl/linkup-pc.tar.gz",
   pcSize: "141 Mo",
 
   repo: "https://github.com/Mahamane-Korobara/LinkUp",
