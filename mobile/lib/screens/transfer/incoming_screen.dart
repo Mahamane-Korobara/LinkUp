@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../services/pairing/paired_device_store.dart';
@@ -35,7 +37,17 @@ class IncomingScreen extends StatefulWidget {
   final bool embedded;
   final IncomingReceiver? receiver;
 
-  const IncomingScreen({super.key, required this.device, this.embedded = false, this.receiver});
+  /// Intervalle de rafraîchissement « temps réel ». `null` = pas de polling
+  /// (utile en test pour éviter un timer périodique).
+  final Duration? pollInterval;
+
+  const IncomingScreen({
+    super.key,
+    required this.device,
+    this.embedded = false,
+    this.receiver,
+    this.pollInterval = const Duration(seconds: 4),
+  });
 
   @override
   State<IncomingScreen> createState() => _IncomingScreenState();
@@ -54,6 +66,7 @@ class _IncomingScreenState extends State<IncomingScreen> {
   int _done = 0;
   int _total = 0;
   String? _error;
+  Timer? _poll;
 
   @override
   void initState() {
@@ -66,12 +79,30 @@ class _IncomingScreenState extends State<IncomingScreen> {
       _receiver = IncomingReceiver(transfers: _ownTransfers!, saver: DeviceFileSaver());
     }
     _loadList();
+    // Temps réel : rafraîchit la liste régulièrement (le PC peut déposer un
+    // fichier à tout moment). Silencieux : pas de spinner à chaque tick.
+    if (widget.pollInterval != null) {
+      _poll = Timer.periodic(widget.pollInterval!, (_) => _silentReload());
+    }
   }
 
   @override
   void dispose() {
+    _poll?.cancel();
     if (_owns) _ownTransfers?.close();
     super.dispose();
+  }
+
+  /// Rafraîchissement discret (polling) : ne touche la liste que si on est déjà
+  /// en train de l'afficher (pas pendant un téléchargement / une erreur).
+  Future<void> _silentReload() async {
+    if (_phase != _Phase.list) return;
+    try {
+      final pending = await _receiver.transfers.listIncoming(widget.device);
+      if (mounted && _phase == _Phase.list) setState(() => _pending = pending);
+    } catch (_) {
+      // tick silencieux : on ignore une erreur ponctuelle de réseau
+    }
   }
 
   Future<void> _loadList() async {
@@ -221,17 +252,30 @@ class _IncomingScreenState extends State<IncomingScreen> {
     }
   }
 
+  /// Filtre en chips défilables (évite l'overflow des libellés longs).
   Widget _filterBar() {
-    return SegmentedButton<_Filter>(
-      showSelectedIcon: false,
-      segments: const [
-        ButtonSegment(value: _Filter.all, label: Text('Tout')),
-        ButtonSegment(value: _Filter.images, icon: Icon(Icons.image), label: Text('Images')),
-        ButtonSegment(value: _Filter.videos, icon: Icon(Icons.videocam), label: Text('Vidéos')),
-        ButtonSegment(value: _Filter.documents, icon: Icon(Icons.description), label: Text('Docs')),
-      ],
-      selected: {_filter},
-      onSelectionChanged: (s) => setState(() => _filter = s.first),
+    return SizedBox(
+      height: 40,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          _chip('Tout', _Filter.all),
+          _chip('Images', _Filter.images),
+          _chip('Vidéos', _Filter.videos),
+          _chip('Documents', _Filter.documents),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(String label, _Filter value) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: _filter == value,
+        onSelected: (_) => setState(() => _filter = value),
+      ),
     );
   }
 

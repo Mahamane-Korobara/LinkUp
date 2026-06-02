@@ -8,7 +8,9 @@ Wants=linkup-bridge.service
 Type=simple
 WorkingDirectory=/opt/linkup/agent
 # Écoute 0.0.0.0 : le téléphone attaque l'agent sur le LAN (handshake pairing).
-ExecStart=/usr/bin/php artisan serve --host=0.0.0.0 --port=8000
+# post/upload_max_filesize relevés : l'envoi PC→tél (dashboard) poste le fichier
+# en multipart à Laravel ; 8 Mo (défaut PHP) rejetait les vidéos.
+ExecStart=/usr/bin/php -d post_max_size=256M -d upload_max_filesize=256M artisan serve --host=0.0.0.0 --port=8000
 Restart=on-failure
 RestartSec=2
 EnvironmentFile=-%h/.config/linkup/agent.env

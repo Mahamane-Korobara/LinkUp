@@ -13,10 +13,25 @@ class PhotoManagerAssetSource implements GalleryAssetSource {
   }
 
   @override
-  Future<List<GalleryAsset>> list({int page = 0, int size = 100}) async {
+  Future<List<GalleryAsset>> list({
+    int page = 0,
+    int size = 100,
+    GalleryMediaType type = GalleryMediaType.all,
+  }) async {
+    final reqType = switch (type) {
+      GalleryMediaType.all => RequestType.common, // images + vidéos
+      GalleryMediaType.image => RequestType.image,
+      GalleryMediaType.video => RequestType.video,
+    };
+
+    // Tri du plus récent au plus ancien (date de prise de vue).
+    final filter = FilterOptionGroup()
+      ..addOrderOption(const OrderOption(type: OrderOptionType.createDate, asc: false));
+
     final paths = await PhotoManager.getAssetPathList(
       onlyAll: true,
-      type: RequestType.common, // images + vidéos
+      type: reqType,
+      filterOption: filter,
     );
     if (paths.isEmpty) return const [];
 

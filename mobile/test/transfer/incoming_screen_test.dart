@@ -62,6 +62,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: IncomingScreen(
         device: _device,
+        pollInterval: null, // pas de timer périodique en test
         receiver: _FakeReceiver(['photo.jpg', 'rapport.pdf'], const IncomingResult(gallery: 1, documents: 1)),
       ),
     ));
@@ -85,7 +86,8 @@ void main() {
 
   testWidgets('shows an empty state when nothing is waiting', (tester) async {
     await tester.pumpWidget(MaterialApp(
-      home: IncomingScreen(device: _device, receiver: _FakeReceiver(const [], const IncomingResult())),
+      home: IncomingScreen(
+          device: _device, pollInterval: null, receiver: _FakeReceiver(const [], const IncomingResult())),
     ));
     await tester.pumpAndSettle();
 
