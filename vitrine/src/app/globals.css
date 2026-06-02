@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-ink: var(--ink);
+
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-lg: 1rem;
+  --radius-xl: 1.4rem;
+  --radius-2xl: 1.8rem;
+}
+
+:root {
+  /* Base claire, très légèrement bleutée */
+  --background: oklch(0.99 0.004 250);
+  --foreground: oklch(0.18 0.02 265);
+  --card: oklch(1 0 0);
+  --muted: oklch(0.965 0.006 255);
+  --muted-foreground: oklch(0.52 0.02 265);
+  --border: oklch(0.92 0.008 260);
+
+  /* Marque : indigo → cyan (la « liaison » sans fil) */
+  --primary: oklch(0.55 0.2 277);          /* indigo */
+  --primary-foreground: oklch(0.99 0 0);
+  --accent: oklch(0.72 0.13 210);          /* cyan */
+  --ink: oklch(0.16 0.03 270);             /* encre sombre pour sections foncées */
+
+  --grad: linear-gradient(120deg, oklch(0.55 0.2 277) 0%, oklch(0.62 0.16 250) 45%, oklch(0.74 0.13 205) 100%);
+  --grad-soft: linear-gradient(135deg, oklch(0.55 0.2 277 / 0.12) 0%, oklch(0.74 0.13 205 / 0.12) 100%);
+
+  --shadow-card: 0 1px 2px rgba(20, 22, 60, 0.04), 0 8px 30px -18px rgba(20, 22, 60, 0.25);
+  --shadow-pop: 0 30px 80px -32px rgba(49, 46, 129, 0.45);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Utilitaires marque ───────────────────────────────────────── */
+.brand-gradient {
+  background: var(--grad);
+}
+.text-gradient {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.grad-soft {
+  background: var(--grad-soft);
+}
+
+/* Grille / halo décoratifs */
+.bg-grid {
+  background-image:
+    linear-gradient(to right, oklch(0.55 0.2 277 / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(0.55 0.2 277 / 0.06) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 40%, transparent 100%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 40%, transparent 100%);
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.85); opacity: 0.6; }
+  70% { transform: scale(1.6); opacity: 0; }
+  100% { opacity: 0; }
+}
+.pulse-ring {
+  animation: pulse-ring 2.4s cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+::selection {
+  background: oklch(0.55 0.2 277 / 0.22);
+}
