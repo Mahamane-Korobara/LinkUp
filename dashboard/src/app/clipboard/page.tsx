@@ -35,6 +35,14 @@ function isUrl(s: string): boolean {
   return /^https?:\/\//i.test(s.trim());
 }
 
+type ClipFilter = 'all' | 'sent' | 'received';
+
+const FILTERS: { key: ClipFilter; label: string }[] = [
+  { key: 'all', label: 'Tout' },
+  { key: 'sent', label: 'Envoyés du téléphone' },
+  { key: 'received', label: 'Reçus du PC' },
+];
+
 export default function ClipboardPage() {
   const { data: items, error, loadedOnce } = usePolling<ClipItem[]>(
     loadClipboard,
@@ -42,6 +50,11 @@ export default function ClipboardPage() {
     [],
   );
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<ClipFilter>('all');
+
+  const shown = items.filter((i) =>
+    filter === 'all' ? true : filter === 'received' ? i.origin === 'pc' : i.origin !== 'pc',
+  );
 
   const copy = async (item: ClipItem) => {
     try {
@@ -57,9 +70,26 @@ export default function ClipboardPage() {
     <main className="min-h-screen bg-slate-50 p-8">
       <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold mb-1">Presse-papier</h1>
-        <p className="text-slate-600 text-sm mb-6">
+        <p className="text-slate-600 text-sm mb-4">
           Les textes synchronisés avec ton téléphone. Clique pour recopier sur ce PC.
+          {' '}Effacé automatiquement après 2 jours.
         </p>
+
+        <div className="flex gap-2 mb-4">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`px-3 py-1.5 text-sm rounded-full border ${
+                filter === f.key
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm mb-4">
@@ -67,14 +97,14 @@ export default function ClipboardPage() {
           </div>
         )}
 
-        {loadedOnce && items.length === 0 && !error && (
+        {loadedOnce && shown.length === 0 && !error && (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
-            Aucun contenu partagé pour l&apos;instant.
+            {items.length === 0 ? 'Aucun contenu partagé pour l\'instant.' : 'Rien dans ce filtre.'}
           </div>
         )}
 
         <div className="space-y-3">
-          {items.map((item) => (
+          {shown.map((item) => (
             <div
               key={item.id}
               className="bg-white rounded-xl border border-slate-200 p-4 flex items-start justify-between gap-4"

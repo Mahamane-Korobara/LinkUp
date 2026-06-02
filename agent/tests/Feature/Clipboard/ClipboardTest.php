@@ -156,3 +156,43 @@ it('does not duplicate when the same PC clipboard is pulled repeatedly (auto pol
 
     expect(ClipboardEntry::where('content', 'inchangé')->count())->toBe(1);
 });
+
+it('prunes clipboard entries older than the 2-day retention', function () {
+    [$device] = clipApprovedDevice();
+    $svc = app(ClipboardService::class);
+
+    // Entrée vieille de 3 jours (au-delà de la rétention) + une fraîche.
+    $old = ClipboardEntry::create([
+        'device_id' => $device->id, 'content' => 'vieux', 'hash' => hash('sha256', 'vieux'), 'origin' => 'phone',
+    ]);
+    $old->forceFill(['created_at' => now()->subDays(3)])->save();
+    ClipboardEntry::create([
+        'device_id' => $device->id, 'content' => 'frais', 'hash' => hash('sha256', 'frais'), 'origin' => 'phone',
+    ]);
+
+    expect($svc->prune())->toBe(1);
+    expect(ClipboardEntry::where('content', 'vieux')->exists())->toBeFalse();
+    expect(ClipboardEntry::where('content', 'frais')->exists())->toBeTrue();
+});
+
+it('hides expired entries from the history even before pruning', function () {
+    [$device] = clipApprovedDevice();
+    $old = ClipboardEntry::create([
+        'device_id' => $device->id, 'content' => 'expiré', 'hash' => hash('sha256', 'expiré'), 'origin' => 'pc',
+    ]);
+    $old->forceFill(['created_at' => now()->subDays(3)])->save();
+
+    $recent = app(ClipboardService::class)->recent($device);
+    expect($recent->pluck('content'))->not->toContain('expiré');
+});
+
+it('runs the scheduled prune command', function () {
+    [$device] = clipApprovedDevice();
+    $old = ClipboardEntry::create([
+        'device_id' => $device->id, 'content' => 'old', 'hash' => hash('sha256', 'old'), 'origin' => 'phone',
+    ]);
+    $old->forceFill(['created_at' => now()->subDays(5)])->save();
+
+    $this->artisan('linkup:prune-clipboard')->assertOk();
+    expect(ClipboardEntry::count())->toBe(0);
+});

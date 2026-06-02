@@ -5,6 +5,7 @@ namespace App\Services\Clipboard;
 use App\Events\ClipboardUpdated;
 use App\Models\ClipboardEntry;
 use App\Models\Device;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -19,6 +20,25 @@ class ClipboardService
     public const ORIGIN_PHONE = 'phone';
     public const ORIGIN_PC = 'pc';
 
+    /** Rétention : le presse-papier journalisé est effacé après 2 jours. */
+    public const RETENTION_DAYS = 2;
+
+    /** Date limite : les entrées antérieures sont considérées expirées. */
+    private function cutoff(): Carbon
+    {
+        return now()->subDays(self::RETENTION_DAYS);
+    }
+
+    /**
+     * Supprime les entrées plus vieilles que la rétention. Retourne le nombre
+     * d'entrées effacées. Appelé à chaque écriture (garantit la purge même sans
+     * planificateur) et par la commande `clipboard:prune`.
+     */
+    public function prune(): int
+    {
+        return ClipboardEntry::query()->where('created_at', '<', $this->cutoff())->delete();
+    }
+
     /**
      * Journalise un contenu de presse-papier et le diffuse.
      *
@@ -29,6 +49,9 @@ class ClipboardService
      */
     public function receive(?Device $device, string $content, string $origin): ?ClipboardEntry
     {
+        // Purge opportuniste : à chaque échange, on efface ce qui a plus de 2 j.
+        $this->prune();
+
         $hash = hash('sha256', $content);
 
         if (ClipboardEntry::query()->latest()->value('hash') === $hash) {
@@ -61,6 +84,7 @@ class ClipboardService
     {
         return ClipboardEntry::query()
             ->where('device_id', $device->id)
+            ->where('created_at', '>=', $this->cutoff()) // jamais d'entrée expirée
             ->latest()
             ->limit($limit)
             ->get();
@@ -74,6 +98,7 @@ class ClipboardService
     public function recentAll(int $limit = 100): Collection
     {
         return ClipboardEntry::query()
+            ->where('created_at', '>=', $this->cutoff())
             ->latest()
             ->limit($limit)
             ->get();
