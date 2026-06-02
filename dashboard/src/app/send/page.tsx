@@ -1,16 +1,28 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+  SendHorizontal,
+  Smartphone,
+  Paperclip,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+} from 'lucide-react';
 
-import { DASHBOARD_HEADERS, LARAVEL_BASE, formatBytes } from '../../lib/api';
+import { DASHBOARD_HEADERS, LARAVEL_BASE, formatBytes } from '@/lib/api';
+import { PageHeader } from '@/components/PageHeader';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ErrorBanner, EmptyState } from '@/components/ui/states';
 
 /**
- * Page « Envoyer » (S6 — PC → tél). Le PC dépose des fichiers dans l'outbox pour
- * un téléphone appairé ; celui-ci les récupère depuis l'app (« Reçus du PC »).
+ * Page « Envoyer » (S6 — PC → tél). Logique inchangée : loadDevices (approuvés),
+ * POST /api/outbox/{device} par fichier, suivi par fichier.
  */
 
 type Device = { device_id: string; name: string | null; status: string };
-
 type SendState = { name: string; status: 'pending' | 'ok' | 'error'; message?: string };
 
 async function loadDevices(): Promise<Device[]> {
@@ -28,7 +40,7 @@ async function sendFile(deviceId: string, file: File): Promise<void> {
   form.append('file', file);
   const res = await fetch(`${LARAVEL_BASE}/api/outbox/${deviceId}`, {
     method: 'POST',
-    headers: DASHBOARD_HEADERS, // pas de Content-Type : le navigateur pose le boundary
+    headers: DASHBOARD_HEADERS,
     body: form,
   });
   if (!res.ok) {
@@ -48,6 +60,7 @@ export default function SendPage() {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [results, setResults] = useState<SendState[]>([]);
+  const [picked, setPicked] = useState<string[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -73,42 +86,42 @@ export default function SendPage() {
       } catch (e) {
         setResults((prev) =>
           prev.map((r, j) =>
-            j === i ? { ...r, status: 'error', message: e instanceof Error ? e.message : String(e) } : r,
+            j === i
+              ? { ...r, status: 'error', message: e instanceof Error ? e.message : String(e) }
+              : r,
           ),
         );
       }
     }
     setSending(false);
     if (fileInput.current) fileInput.current.value = '';
+    setPicked([]);
   }, [deviceId]);
 
   return (
-    <main className="min-h-screen bg-slate-50 p-8">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">Envoyer au téléphone</h1>
-        <p className="text-slate-600 text-sm mb-6">
-          Choisis des fichiers : ils seront déposés pour le téléphone, qui les enregistrera dans sa galerie
-          depuis l&apos;écran « Reçus du PC ».
-        </p>
+    <>
+      <PageHeader
+        icon={SendHorizontal}
+        title="Envoyer au téléphone"
+        subtitle="Dépose des fichiers pour un téléphone appairé : il les récupère depuis l’écran « Reçus du PC »."
+      />
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm mb-4">
-            {error} — Laravel doit tourner sur <code>{LARAVEL_BASE}</code>.
-          </div>
-        )}
+      {error && <ErrorBanner message={error} base={LARAVEL_BASE} />}
 
-        {devices.length === 0 && !error ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
-            Aucun téléphone appairé. Appaire un téléphone d&apos;abord.
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700">Téléphone</span>
+      {devices.length === 0 && !error ? (
+        <EmptyState icon={Smartphone}>
+          Aucun téléphone approuvé. Appaire et approuve un téléphone d’abord.
+        </EmptyState>
+      ) : (
+        <Card className="space-y-5 p-6">
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-zinc-700">Téléphone</span>
+            <div className="relative">
+              <Smartphone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
               <select
                 value={deviceId}
                 onChange={(e) => setDeviceId(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="w-full appearance-none rounded-xl border border-zinc-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20"
               >
                 {devices.map((d) => (
                   <option key={d.device_id} value={d.device_id}>
@@ -116,51 +129,79 @@ export default function SendPage() {
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
+          </label>
 
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700">Fichiers</span>
+          <div>
+            <span className="mb-1.5 block text-sm font-medium text-zinc-700">Fichiers</span>
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50/60 px-4 py-8 text-center transition-colors hover:border-violet-400 hover:bg-violet-50/40">
+              <Paperclip className="size-6 text-zinc-400" />
+              <span className="text-sm font-medium text-zinc-600">
+                {picked.length > 0
+                  ? `${picked.length} fichier${picked.length > 1 ? 's' : ''} sélectionné${picked.length > 1 ? 's' : ''}`
+                  : 'Clique pour choisir des fichiers'}
+              </span>
+              {picked.length > 0 && (
+                <span className="max-w-full truncate text-xs text-zinc-400">
+                  {picked.join(', ')}
+                </span>
+              )}
               <input
                 ref={fileInput}
                 type="file"
                 multiple
-                className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-indigo-700"
+                className="hidden"
+                onChange={(e) =>
+                  setPicked(Array.from(e.target.files ?? []).map((f) => f.name))
+                }
               />
             </label>
-
-            <button
-              onClick={onSend}
-              disabled={sending || !deviceId}
-              className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {sending ? 'Envoi…' : 'Envoyer'}
-            </button>
-
-            {results.length > 0 && (
-              <ul className="text-sm divide-y divide-slate-100 border-t border-slate-100 pt-2">
-                {results.map((r, i) => (
-                  <li key={i} className="flex items-center justify-between py-1.5">
-                    <span className="truncate">{r.name}</span>
-                    <span
-                      className={
-                        r.status === 'ok'
-                          ? 'text-green-600'
-                          : r.status === 'error'
-                            ? 'text-red-600'
-                            : 'text-slate-400'
-                      }
-                    >
-                      {r.status === 'ok' ? '✓ déposé' : r.status === 'error' ? `✗ ${r.message}` : '…'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <p className="text-xs text-slate-400">Taille max par fichier : {formatBytes(200 * 1024 * 1024)}.</p>
           </div>
-        )}
-      </div>
-    </main>
+
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-zinc-400">
+              Taille max par fichier : {formatBytes(200 * 1024 * 1024)}.
+            </p>
+            <Button onClick={onSend} disabled={sending || !deviceId || picked.length === 0}>
+              {sending ? <Loader2 className="animate-spin" /> : <SendHorizontal />}
+              {sending ? 'Envoi…' : 'Envoyer'}
+            </Button>
+          </div>
+
+          {results.length > 0 && (
+            <ul className="divide-y divide-zinc-100 border-t border-zinc-100 pt-2 text-sm">
+              {results.map((r, i) => (
+                <li key={i} className="flex items-center justify-between gap-3 py-2">
+                  <span className="truncate text-zinc-700">{r.name}</span>
+                  <span
+                    className={
+                      r.status === 'ok'
+                        ? 'inline-flex items-center gap-1.5 font-medium text-emerald-600'
+                        : r.status === 'error'
+                          ? 'inline-flex items-center gap-1.5 font-medium text-red-600'
+                          : 'inline-flex items-center gap-1.5 text-zinc-400'
+                    }
+                  >
+                    {r.status === 'ok' ? (
+                      <>
+                        <CheckCircle2 className="size-4" /> déposé
+                      </>
+                    ) : r.status === 'error' ? (
+                      <>
+                        <XCircle className="size-4" /> {r.message}
+                      </>
+                    ) : (
+                      <>
+                        <Loader2 className="size-4 animate-spin" /> envoi
+                      </>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
+    </>
   );
 }

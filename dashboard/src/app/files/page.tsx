@@ -1,13 +1,20 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Inbox, FileText, ExternalLink, HardDrive, Clock } from 'lucide-react';
 
-import { DASHBOARD_HEADERS, LARAVEL_BASE, formatBytes, formatDate } from '../../lib/api';
-import { usePolling } from '../../hooks/usePolling';
+import { DASHBOARD_HEADERS, LARAVEL_BASE, formatBytes, formatDate } from '@/lib/api';
+import { usePolling } from '@/hooks/usePolling';
+import { PageHeader } from '@/components/PageHeader';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ErrorBanner, EmptyState } from '@/components/ui/states';
+import { Skeleton } from '@/components/ui/skeleton';
 
 /**
- * Page « Fichiers reçus » (S4) — liste les fichiers envoyés par les téléphones
- * et permet de les ouvrir sur le PC, sans aller fouiller dans ~/Linkup/Inbox.
+ * Page « Fichiers reçus » (S4) — logique inchangée : poll /api/files,
+ * POST /api/files/{id}/open pour ouvrir sur le PC.
  */
 
 const POLL_INTERVAL_MS = 3000;
@@ -58,50 +65,73 @@ export default function FilesPage() {
   const shownError = openError ?? error;
 
   return (
-    <main className="min-h-screen bg-slate-50 p-8">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">Fichiers reçus</h1>
-        <p className="text-slate-600 text-sm mb-6">
-          Les fichiers envoyés depuis ton téléphone, ouvrables directement sur ce PC.
-        </p>
+    <>
+      <PageHeader
+        icon={Inbox}
+        title="Fichiers reçus"
+        subtitle="Les fichiers envoyés depuis ton téléphone, ouvrables directement sur ce PC."
+      />
 
-        {shownError && (
-          <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm mb-4">
-            {shownError} — Laravel doit tourner sur <code>{LARAVEL_BASE}</code>.
-          </div>
-        )}
+      {shownError && <ErrorBanner message={shownError} base={LARAVEL_BASE} />}
 
-        {loadedOnce && files.length === 0 && !error && (
-          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
-            Aucun fichier reçu pour l&apos;instant.
-          </div>
-        )}
-
+      {!loadedOnce && !error && (
         <div className="space-y-3">
-          {files.map((f) => (
-            <div
-              key={f.transfer_id}
-              className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-4"
-            >
-              <div className="min-w-0">
-                <div className="font-medium truncate">📄 {f.filename}</div>
-                <div className="text-xs text-slate-500 mt-1 space-x-3">
-                  <span>{formatBytes(f.size)}</span>
-                  {f.device && <span>de {f.device}</span>}
-                  {formatDate(f.completed_at) && <span>{formatDate(f.completed_at)}</span>}
-                </div>
-              </div>
-              <button
-                onClick={() => openOnPc(f.transfer_id)}
-                disabled={busyId === f.transfer_id}
-                className="px-3 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 shrink-0"
-              >
-                {busyId === f.transfer_id ? '…' : 'Ouvrir'}
-              </button>
-            </div>
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-2xl" />
           ))}
         </div>
+      )}
+
+      {loadedOnce && files.length === 0 && !error && (
+        <EmptyState icon={Inbox}>
+          Aucun fichier reçu pour l’instant. Envoie un fichier depuis l’app sur
+          ton téléphone, il apparaîtra ici.
+        </EmptyState>
+      )}
+
+      <div className="space-y-3">
+        {files.map((f, i) => (
+          <motion.div
+            key={f.transfer_id}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: Math.min(i * 0.04, 0.3) }}
+          >
+            <Card className="flex items-center justify-between gap-4 p-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-600">
+                  <FileText className="size-5" />
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate font-semibold text-zinc-900">
+                    {f.filename}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-zinc-400">
+                    <span className="inline-flex items-center gap-1">
+                      <HardDrive className="size-3.5" /> {formatBytes(f.size)}
+                    </span>
+                    {f.device && <span>de {f.device}</span>}
+                    {formatDate(f.completed_at) && (
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="size-3.5" /> {formatDate(f.completed_at)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openOnPc(f.transfer_id)}
+                disabled={busyId === f.transfer_id}
+                className="shrink-0"
+              >
+                <ExternalLink /> {busyId === f.transfer_id ? '…' : 'Ouvrir'}
+              </Button>
+            </Card>
+          </motion.div>
+        ))}
       </div>
-    </main>
+    </>
   );
 }

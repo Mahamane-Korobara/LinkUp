@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AppShell } from "@/components/AppShell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Linkup — Dashboard",
+  title: "Linkup — Tableau de bord",
   description: "Appairage et gestion des téléphones Linkup connectés à ce PC.",
 };
 
@@ -26,47 +26,10 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-slate-50">
-        <header className="border-b border-slate-200 bg-white">
-          <nav className="max-w-2xl mx-auto flex items-center gap-6 px-6 h-14">
-            <Link href="/devices" className="font-bold text-indigo-600">
-              🔗 Linkup
-            </Link>
-            <Link
-              href="/pair"
-              className="text-sm text-slate-600 hover:text-slate-900"
-            >
-              Appairer
-            </Link>
-            <Link
-              href="/devices"
-              className="text-sm text-slate-600 hover:text-slate-900"
-            >
-              Téléphones
-            </Link>
-            <Link
-              href="/files"
-              className="text-sm text-slate-600 hover:text-slate-900"
-            >
-              Fichiers
-            </Link>
-            <Link
-              href="/send"
-              className="text-sm text-slate-600 hover:text-slate-900"
-            >
-              Envoyer
-            </Link>
-            <Link
-              href="/clipboard"
-              className="text-sm text-slate-600 hover:text-slate-900"
-            >
-              Presse-papier
-            </Link>
-          </nav>
-        </header>
-        <div className="flex-1">{children}</div>
+      <body>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );
