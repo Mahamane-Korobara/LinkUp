@@ -25,15 +25,26 @@ def test_discovered_agent_helpers():
 
 def test_announcer_info_before_start(monkeypatch):
     monkeypatch.setattr(mdns_module, "_local_ip", lambda: "192.168.1.42")
-    announcer = LinkupAnnouncer(port=8080, bridge_port=8765, fingerprint="abc12345")
+    announcer = LinkupAnnouncer(
+        port=8080, bridge_port=8765, laravel_port=8770, fingerprint="abc12345"
+    )
     info = announcer.info()
 
     assert info["registered"] is False
     assert info["fingerprint"] == "abc12345"
     assert info["port"] == 8080
     assert info["bridge_port"] == 8765
+    # Port HTTP Laravel propagé tel quel (8770 dans le bundle PC).
+    assert info["laravel_port"] == 8770
     assert info["agent_id"].startswith("linkup-")
     assert info["host"].endswith(".local.")
+
+
+def test_announcer_laravel_port_defaults_to_8000():
+    # laravel_port non fourni → convention dev 8000 (cf. LinkupPorts.laravel).
+    announcer = LinkupAnnouncer(port=8080, bridge_port=8765)
+    assert announcer.laravel_port == 8000
+    assert announcer.info()["laravel_port"] == 8000
 
 
 @pytest.mark.asyncio

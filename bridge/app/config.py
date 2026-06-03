@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = Field(default=8765, ge=1, le=65535)
     reverb_port: int = Field(default=8080, ge=1, le=65535)
+    # Port HTTP de l'agent Laravel (FrankenPHP). Annoncé dans /health et mDNS
+    # pour que le téléphone joigne /api/agent/info sur le BON port sans le coder
+    # en dur (8000 en dev, 8770 dans le bundle PC — cf. linkup-launch.sh).
+    laravel_port: int = Field(default=8000, ge=1, le=65535)
     # Token Bearer partagé avec Laravel. Pas de valeur par défaut : refus de démarrer
     # si non configuré (cf. ADR-002 sécurité). En prod, généré par les installeurs S6.5.
     agent_token: str = Field(min_length=16)

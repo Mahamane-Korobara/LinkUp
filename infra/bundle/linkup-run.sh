@@ -17,6 +17,7 @@ export LINKUP_HTTP_PORT="${LINKUP_HTTP_PORT:-8770}"   # 8770 (pas 8000 : réserv
 export LINKUP_PAIRING_PORT="${LINKUP_PAIRING_PORT:-$LINKUP_HTTP_PORT}"  # le QR encode ce port
 export LINKUP_BRIDGE_HOST="0.0.0.0"          # joignable par le tél sur le LAN
 export LINKUP_BRIDGE_PORT="${LINKUP_BRIDGE_PORT:-8765}"
+export LINKUP_BRIDGE_LARAVEL_PORT="${LINKUP_BRIDGE_LARAVEL_PORT:-$LINKUP_HTTP_PORT}"  # annoncé au tél
 
 ENV_FILE="$HERE/agent/.env"
 

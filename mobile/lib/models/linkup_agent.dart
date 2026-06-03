@@ -10,6 +10,12 @@ class LinkupAgent {
   final String address;
   final int reverbPort;
   final int bridgePort;
+
+  /// Port HTTP de l'agent Laravel, découvert via `/health` ou le TXT mDNS
+  /// (`laravel_port`). Évite de coder le port en dur : 8000 en dev, 8770 dans
+  /// le bundle PC. Fallback sur [LinkupPorts.laravel] si la découverte est muette.
+  final int laravelPort;
+
   final String? agentId;
   final String? fingerprint;
   final String? version;
@@ -30,6 +36,7 @@ class LinkupAgent {
     required this.reverbPort,
     required this.bridgePort,
     required this.source,
+    this.laravelPort = LinkupPorts.laravel,
     this.agentId,
     this.fingerprint,
     this.version,
@@ -67,16 +74,16 @@ class LinkupAgent {
   Uri get bridgeHealthUri => Uri.parse('http://$address:$bridgePort/health');
 
   /// URL HTTP de l'agent Laravel, pour appeler `/api/agent/info`.
-  /// Par convention Linkup, Laravel écoute sur `LinkupPorts.laravel` en dev — le
-  /// port Reverb annoncé en mDNS n'est PAS le port HTTP métier, donc on ne peut
-  /// pas le déduire de l'annonce.
-  Uri agentInfoUri({int laravelPort = LinkupPorts.laravel}) =>
-      Uri.parse('http://$address:$laravelPort/api/agent/info');
+  /// Utilise [laravelPort] (découvert via /health ou mDNS). Un override
+  /// optionnel reste possible (ex. saisie manuelle / tests).
+  Uri agentInfoUri([int? laravelPortOverride]) =>
+      Uri.parse('http://$address:${laravelPortOverride ?? laravelPort}/api/agent/info');
 
   /// Clé stable pour différencier deux agents dans une liste/dictionnaire.
   String get uniqueKey => agentId ?? '$address:$bridgePort';
 
   LinkupAgent copyWith({
+    int? laravelPort,
     String? agentId,
     String? fingerprint,
     String? version,
@@ -89,6 +96,7 @@ class LinkupAgent {
       reverbPort: reverbPort,
       bridgePort: bridgePort,
       source: source,
+      laravelPort: laravelPort ?? this.laravelPort,
       agentId: agentId ?? this.agentId,
       fingerprint: fingerprint ?? this.fingerprint,
       version: version ?? this.version,

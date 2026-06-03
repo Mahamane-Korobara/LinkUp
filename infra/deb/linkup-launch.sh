@@ -125,6 +125,7 @@ start_hub() {
   export LINKUP_PAIRING_PORT="$PORT"        # le QR de pairing encode CE port
   export LINKUP_BRIDGE_HOST="0.0.0.0"
   export LINKUP_BRIDGE_PORT="${LINKUP_BRIDGE_PORT:-8765}"
+  export LINKUP_BRIDGE_LARAVEL_PORT="$PORT"   # annoncé au tél via /health + mDNS
   export LINKUP_BRIDGE_AGENT_TOKEN="$(grep '^LINKUP_BRIDGE_AGENT_TOKEN=' "$AGENT/.env" | cut -d= -f2-)"
   export LINKUP_BRIDGE_TRANSFERS_DIR="${LINKUP_BRIDGE_TRANSFERS_DIR:-$HOME/Linkup/Transfert}"
   mkdir -p "$HOME/Linkup/Transfert" "$HOME/Linkup/Outbox"

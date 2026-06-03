@@ -138,11 +138,16 @@ class LanSweepDiscovery {
       final payload = jsonDecode(response.body);
       if (payload is! Map<String, dynamic>) return null;
       if (payload['service'] != 'linkup-bridge') return null;
+      // Port HTTP de l'agent annoncé par le bridge (8000 dev / 8770 bundle).
+      // Fallback sur la convention si un vieux bridge ne le renvoie pas.
+      final laravelPort = (payload['laravel_port'] as num?)?.toInt() ??
+          LinkupPorts.laravel;
       return LinkupAgent(
         instanceName: '${payload['agent_id'] ?? ip}._linkup._tcp.local.',
         address: ip,
         reverbPort: LinkupPorts.reverb,
         bridgePort: bridgePort,
+        laravelPort: laravelPort,
         agentId: payload['agent_id'] as String?,
         version: payload['version'] as String?,
         hostname: payload['host'] as String?,

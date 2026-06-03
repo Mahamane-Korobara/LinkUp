@@ -28,7 +28,10 @@ from app.services.transfer import TransferService
 async def lifespan(app: FastAPI):
     """Gère le démarrage / arrêt propre du serveur."""
     announcer = LinkupAnnouncer(
-        port=settings.reverb_port, bridge_port=settings.port, version=__version__
+        port=settings.reverb_port,
+        bridge_port=settings.port,
+        laravel_port=settings.laravel_port,
+        version=__version__,
     )
     browser = LinkupBrowser(
         heartbeat_interval_seconds=settings.mdns_heartbeat_interval_seconds,
@@ -101,6 +104,9 @@ def health(request: Request) -> dict:
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "version": __version__,
         "uptime_seconds": round(time.monotonic() - started_at, 1),
+        # Port HTTP de l'agent Laravel : le tél bâtit /api/agent/info dessus
+        # (évite le 8000 codé en dur → marche aussi sur le bundle en 8770).
+        "laravel_port": settings.laravel_port,
         "host": socket.gethostname(),
         "user": _safe_username(),
         "os": platform.system(),
