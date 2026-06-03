@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Linkup (service)
+Comment=Démarre le hub Linkup à l'ouverture de session
+Exec=/opt/linkup/bin/linkup --serve
+Icon=linkup
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=3
+Categories=Network;

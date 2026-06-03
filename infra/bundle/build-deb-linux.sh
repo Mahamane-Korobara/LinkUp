@@ -28,6 +28,7 @@ echo "==> Staging $STAGE"
 rm -rf "$STAGE"
 mkdir -p "$STAGE/opt/linkup/bin" \
          "$STAGE/usr/share/applications" \
+         "$STAGE/etc/xdg/autostart" \
          "$STAGE/usr/share/icons/hicolor/512x512/apps" \
          "$STAGE/usr/share/icons/hicolor/256x256/apps" \
          "$STAGE/usr/share/icons/hicolor/128x128/apps" \
@@ -42,14 +43,15 @@ install -m 0755 "$DEB_SRC/linkup-launch.sh" "$STAGE/opt/linkup/bin/linkup"
 rm -f "$STAGE/opt/linkup/agent/.env" "$STAGE/opt/linkup/agent/.initialized" \
       "$STAGE/opt/linkup/agent/database/database.sqlite" 2>/dev/null || true
 
-# 3) Lanceur menu/bureau + icônes (déclinées depuis le 512 de marque).
+# 3) Lanceur menu/bureau + autostart de session + icônes (déclinées du 512 de marque).
 install -m 0644 "$DEB_SRC/linkup.desktop" "$STAGE/usr/share/applications/linkup.desktop"
+install -m 0644 "$DEB_SRC/linkup-autostart.desktop" "$STAGE/etc/xdg/autostart/linkup.desktop"
 install -m 0644 "$ICON_SRC" "$STAGE/usr/share/icons/hicolor/512x512/apps/linkup.png"
 convert "$ICON_SRC" -resize 256x256 "$STAGE/usr/share/icons/hicolor/256x256/apps/linkup.png"
 convert "$ICON_SRC" -resize 128x128 "$STAGE/usr/share/icons/hicolor/128x128/apps/linkup.png"
 
 # 4) Métadonnées DEBIAN.
-INSTALLED_KB="$(du -sk "$STAGE/opt" "$STAGE/usr" | awk '{s+=$1} END{print s}')"
+INSTALLED_KB="$(du -sk "$STAGE/opt" "$STAGE/usr" "$STAGE/etc" | awk '{s+=$1} END{print s}')"
 cat >"$STAGE/DEBIAN/control" <<EOF
 Package: linkup
 Version: $VERSION

@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Lanceur Linkup installé par le .deb (/opt/linkup/bin/linkup).
 #
-# Cliqué depuis le menu/bureau (zéro terminal) : démarre les deux binaires
-# embarqués (frankenphp = agent Laravel + dashboard sur :8000, linkup-bridge =
-# accès OS + LAN sur :8765), puis ouvre le dashboard. Mono-instance : si Linkup
-# tourne déjà, on se contente de rouvrir la fenêtre.
+# Deux modes :
+#   --serve  : lance le hub en avant-plan (utilisé par l'autostart de session).
+#              Fait l'init 1er-run, pose l'icône bureau, démarre frankenphp
+#              (agent + dashboard, :8000) + linkup-bridge (LAN, :8765).
+#   --open   : (défaut, clic sur l'icône) s'assure que le hub tourne — le démarre
+#              détaché si besoin — puis OUVRE le dashboard dans le navigateur.
 #
 # L'app est en lecture seule sous /opt/linkup ; tout l'état inscriptible (clé,
-# token, base SQLite, logs Laravel) vit dans l'espace utilisateur.
+# token, base SQLite, logs) vit dans l'espace utilisateur ($XDG_DATA_HOME).
 set -euo pipefail
 
 APP_DIR="${LINKUP_APP_DIR:-/opt/linkup}"   # surchargé en test ; /opt/linkup en prod
@@ -17,29 +19,36 @@ PORT="${LINKUP_HTTP_PORT:-8000}"
 URL="http://localhost:${PORT}"
 
 log() { logger -t linkup "$*" 2>/dev/null || true; }
+health() { curl -fsS -m 1 "$URL/api/health" >/dev/null 2>&1; }
 
 # Ouvre le dashboard : fenêtre-app dédiée si un navigateur Chromium est présent
-# (rendu « vraie app »), sinon onglet normal via xdg-open.
+# (rendu « vraie app »), sinon onglet via le navigateur par défaut.
 open_dashboard() {
   for b in google-chrome google-chrome-stable chromium chromium-browser brave-browser microsoft-edge; do
-    if command -v "$b" >/dev/null 2>&1; then
-      "$b" --app="$URL" >/dev/null 2>&1 &
-      return
-    fi
+    if command -v "$b" >/dev/null 2>&1; then "$b" --app="$URL" >/dev/null 2>&1 & return; fi
   done
   xdg-open "$URL" >/dev/null 2>&1 &
 }
 
-# Déjà démarré ? → on rouvre juste la fenêtre et on sort.
-if curl -fsS -m 1 "$URL/api/health" >/dev/null 2>&1; then
-  open_dashboard
-  exit 0
-fi
+# Pose une icône cliquable sur le bureau (dossier localisé, ex. ~/Bureau),
+# marquée « de confiance ». Idempotent.
+place_desktop_icon() {
+  local desk
+  desk="$(xdg-user-dir DESKTOP 2>/dev/null || echo "$HOME/Desktop")"
+  [ -d "$desk" ] || return 0
+  [ -f /usr/share/applications/linkup.desktop ] || return 0
+  if [ ! -f "$desk/linkup.desktop" ]; then
+    cp /usr/share/applications/linkup.desktop "$desk/linkup.desktop"
+    chmod +x "$desk/linkup.desktop"
+    gio set "$desk/linkup.desktop" metadata::trusted true 2>/dev/null || true
+  fi
+}
 
-mkdir -p "$STATE"
+# Init par-utilisateur au tout premier lancement (idempotent via .initialized).
+ensure_init() {
+  mkdir -p "$STATE"
+  [ -f "$STATE/.initialized" ] && return 0
 
-# --- Premier lancement (par utilisateur) -----------------------------------
-if [ ! -f "$STATE/.initialized" ]; then
   command -v notify-send >/dev/null 2>&1 && \
     notify-send -i linkup "Linkup" "Préparation au premier démarrage…" || true
 
@@ -48,12 +57,12 @@ if [ ! -f "$STATE/.initialized" ]; then
   rm -rf "$AGENT"
   cp -a "$APP_DIR/agent" "$AGENT"
 
-  ENV_FILE="$AGENT/.env"
-  [ -f "$ENV_FILE" ] || cp "$AGENT/.env.example" "$ENV_FILE" 2>/dev/null || : >"$ENV_FILE"
+  local env_file="$AGENT/.env"
+  [ -f "$env_file" ] || cp "$AGENT/.env.example" "$env_file" 2>/dev/null || : >"$env_file"
   set_env() {
     local k="$1" v="$2"
-    if grep -q "^${k}=" "$ENV_FILE"; then sed -i "s|^${k}=.*|${k}=${v}|" "$ENV_FILE"
-    else printf '%s=%s\n' "$k" "$v" >>"$ENV_FILE"; fi
+    if grep -q "^${k}=" "$env_file"; then sed -i "s|^${k}=.*|${k}=${v}|" "$env_file"
+    else printf '%s=%s\n' "$k" "$v" >>"$env_file"; fi
   }
   set_env APP_ENV production
   set_env DB_CONNECTION sqlite
@@ -65,43 +74,48 @@ if [ ! -f "$STATE/.initialized" ]; then
   : >"$AGENT/database/database.sqlite"
   "$APP_DIR/frankenphp" php-cli "$AGENT/artisan" key:generate --force
   "$APP_DIR/frankenphp" php-cli "$AGENT/artisan" migrate --force
-
-  # Icône sur le bureau (dossier localisé, ex. ~/Bureau), marquée « de confiance »
-  # pour qu'elle soit cliquable directement.
-  DESKTOP_DIR="$(xdg-user-dir DESKTOP 2>/dev/null || echo "$HOME/Desktop")"
-  if [ -d "$DESKTOP_DIR" ] && [ -f /usr/share/applications/linkup.desktop ]; then
-    cp /usr/share/applications/linkup.desktop "$DESKTOP_DIR/linkup.desktop"
-    chmod +x "$DESKTOP_DIR/linkup.desktop"
-    gio set "$DESKTOP_DIR/linkup.desktop" metadata::trusted true 2>/dev/null || true
-  fi
-
   touch "$STATE/.initialized"
-fi
+}
 
-# --- Démarrage des services -------------------------------------------------
-export LINKUP_AGENT_PUBLIC="$AGENT/public"
-export LINKUP_DASHBOARD_OUT="$APP_DIR/dashboard-out"
-export LINKUP_HTTP_PORT="$PORT"
-export LINKUP_BRIDGE_HOST="0.0.0.0"
-export LINKUP_BRIDGE_PORT="${LINKUP_BRIDGE_PORT:-8765}"
-export LINKUP_BRIDGE_AGENT_TOKEN="$(grep '^LINKUP_BRIDGE_AGENT_TOKEN=' "$AGENT/.env" | cut -d= -f2-)"
-export LINKUP_BRIDGE_TRANSFERS_DIR="${LINKUP_BRIDGE_TRANSFERS_DIR:-$HOME/Linkup/Transfert}"
-mkdir -p "$HOME/Linkup/Transfert" "$HOME/Linkup/Outbox"
+# Démarre les deux services en avant-plan (bloque jusqu'à arrêt).
+run_services() {
+  export LINKUP_AGENT_PUBLIC="$AGENT/public"
+  export LINKUP_DASHBOARD_OUT="$APP_DIR/dashboard-out"
+  export LINKUP_HTTP_PORT="$PORT"
+  export LINKUP_BRIDGE_HOST="0.0.0.0"
+  export LINKUP_BRIDGE_PORT="${LINKUP_BRIDGE_PORT:-8765}"
+  export LINKUP_BRIDGE_AGENT_TOKEN="$(grep '^LINKUP_BRIDGE_AGENT_TOKEN=' "$AGENT/.env" | cut -d= -f2-)"
+  export LINKUP_BRIDGE_TRANSFERS_DIR="${LINKUP_BRIDGE_TRANSFERS_DIR:-$HOME/Linkup/Transfert}"
+  mkdir -p "$HOME/Linkup/Transfert" "$HOME/Linkup/Outbox"
 
-"$APP_DIR/linkup-bridge" >/dev/null 2>&1 &
-BRIDGE_PID=$!
-"$APP_DIR/frankenphp" run --config "$APP_DIR/Caddyfile" >/dev/null 2>&1 &
-FRANKEN_PID=$!
-trap 'kill "$BRIDGE_PID" "$FRANKEN_PID" 2>/dev/null || true' EXIT INT TERM
-log "démarré (bridge=$BRIDGE_PID frankenphp=$FRANKEN_PID)"
+  "$APP_DIR/linkup-bridge" >/dev/null 2>&1 &
+  local bridge=$!
+  "$APP_DIR/frankenphp" run --config "$APP_DIR/Caddyfile" >/dev/null 2>&1 &
+  local franken=$!
+  trap 'kill "$bridge" "$franken" 2>/dev/null || true' EXIT INT TERM
+  log "hub démarré (bridge=$bridge frankenphp=$franken)"
+  wait
+}
 
-# Attendre que l'agent réponde, puis ouvrir le dashboard.
-for _ in $(seq 1 60); do
-  curl -fsS -m 1 "$URL/api/health" >/dev/null 2>&1 && break
-  sleep 0.25
-done
-open_dashboard
+MODE="${1:---open}"
 
-# Garder le hub vivant (il doit rester joignable par le téléphone sur le LAN)
-# tant que la session ne le coupe pas.
-wait
+case "$MODE" in
+  --serve)
+    # Déjà en route ailleurs ? On ne double pas (évite le conflit de port).
+    if health; then log "déjà démarré, --serve no-op"; exit 0; fi
+    ensure_init
+    place_desktop_icon
+    run_services
+    ;;
+
+  --open|*)
+    place_desktop_icon
+    if ! health; then
+      # Démarre le hub DÉTACHÉ (survit à la fermeture de ce process), puis attend.
+      ensure_init
+      setsid "$APP_DIR/bin/linkup" --serve </dev/null >/dev/null 2>&1 &
+      for _ in $(seq 1 60); do health && break; sleep 0.25; done
+    fi
+    open_dashboard
+    ;;
+esac
