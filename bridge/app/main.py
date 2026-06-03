@@ -43,11 +43,13 @@ async def lifespan(app: FastAPI):
     app.state.mdns_announcer = announcer
     app.state.mdns_browser = browser
     app.state.started_at = time.monotonic()
-    # Chunks en staging sous ~/.linkup/transfers, fichiers finalisés dans l'inbox
-    # configurée (LINKUP_BRIDGE_TRANSFERS_DIR, défaut ~/Linkup/Inbox).
+    # Chunks en staging sous ~/.linkup/transfers, fichiers finalisés rangés par
+    # catégorie sous l'inbox configurée (LINKUP_BRIDGE_TRANSFERS_DIR, défaut
+    # ~/Linkup/Transfert). L'ancien dossier plat est fouillé en fallback à l'ouverture.
     app.state.transfer_service = TransferService(
         staging_dir=Path.home() / ".linkup" / "transfers",
         inbox_dir=Path(settings.transfers_dir).expanduser(),
+        legacy_inbox_dirs=(Path(settings.transfers_dir_legacy).expanduser(),),
     )
 
     try:

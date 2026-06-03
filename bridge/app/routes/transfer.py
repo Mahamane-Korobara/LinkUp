@@ -65,7 +65,11 @@ def finalize_transfer(
         dest = service.finalize(transfer_id, filename, total_chunks, sha256)
     except TransferError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {"ok": True, "path": str(dest), "filename": dest.name, "size": dest.stat().st_size}
+    # `filename` = chemin RELATIF à l'inbox (« photos/IMG.jpg ») : le tél le
+    # renvoie tel quel à Laravel comme stored_name, qui sait alors le re-résoudre
+    # dans le bon sous-dossier (cf. TransferService.resolve_in_inbox).
+    rel = dest.relative_to(service.inbox_root).as_posix()
+    return {"ok": True, "path": str(dest), "filename": rel, "size": dest.stat().st_size}
 
 
 @router.post("/open")

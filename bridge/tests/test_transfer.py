@@ -42,8 +42,21 @@ def test_save_chunk_then_finalize_roundtrip(service):
 
     assert dest.read_bytes() == full
     assert dest.name == "demo.txt"
+    # rangé dans le sous-dossier « fichiers » (extension non média)
+    assert dest.parent == service._inbox / "fichiers"
     # staging nettoyé après finalize
     assert service.received_chunks("tx1") == []
+
+
+def test_finalize_classes_media_into_subfolders(service):
+    cases = {"photo.jpg": "photos", "clip.MP4": "video", "notes.pdf": "fichiers"}
+    for i, (name, sub) in enumerate(cases.items()):
+        tx = f"tx-media-{i}"
+        service.save_chunk(tx, 0, b"x", sha(b"x"))
+        dest = service.finalize(tx, name, total_chunks=1, sha256_hex=sha(b"x"))
+        assert dest.parent == service._inbox / sub
+        # le finalize re-localise le fichier par son chemin relatif
+        assert service.resolve_in_inbox(f"{sub}/{name}") == dest.resolve()
 
 
 def test_save_chunk_rejects_bad_chunk_checksum(service):
@@ -89,6 +102,21 @@ def test_open_in_inbox_opens_existing_file(service, monkeypatch):
     result = service.open_in_inbox("photo.jpg")
     assert result.name == "photo.jpg"
     assert opened == [result]
+
+
+def test_resolve_in_inbox_falls_back_to_legacy_flat_dir(tmp_path, monkeypatch):
+    legacy = tmp_path / "Inbox"
+    legacy.mkdir(parents=True)
+    (legacy / "old.jpg").write_bytes(b"img")
+    svc = TransferService(
+        staging_dir=tmp_path / "staging",
+        inbox_dir=tmp_path / "Transfert",
+        legacy_inbox_dirs=(legacy,),
+    )
+    # stored_name au format relatif « photos/old.jpg » mais fichier réellement
+    # dans l'ancien dossier plat → résolu par basename dans la racine legacy.
+    assert svc.resolve_in_inbox("photos/old.jpg") == (legacy / "old.jpg").resolve()
+    assert svc.resolve_in_inbox("old.jpg") == (legacy / "old.jpg").resolve()
 
 
 def test_open_in_inbox_rejects_unknown_file(service, monkeypatch):
@@ -174,7 +202,8 @@ def test_finalize_sanitizes_filename_and_avoids_collision(service):
     # nom avec chemin → seul le basename est gardé
     service.save_chunk("a", 0, b"1", sha(b"1"))
     d1 = service.finalize("a", "/etc/passwd", total_chunks=1, sha256_hex=sha(b"1"))
-    assert d1.parent == service._inbox
+    # passwd n'a pas d'extension média → sous-dossier « fichiers », basename seul
+    assert d1.parent == service._inbox / "fichiers"
     assert d1.name == "passwd"
 
     # même nom → suffixe (1)
@@ -226,7 +255,9 @@ def test_http_upload_status_finalize_flow(service):
     )
     assert r.status_code == 200, r.text
     assert r.json()["size"] == len(full)
-    assert (service._inbox / "up.bin").read_bytes() == full
+    # .bin → sous-dossier « fichiers » ; le finalize renvoie le chemin relatif
+    assert r.json()["filename"] == "fichiers/up.bin"
+    assert (service._inbox / "fichiers" / "up.bin").read_bytes() == full
 
 
 def test_http_upload_bad_checksum_returns_422(service):

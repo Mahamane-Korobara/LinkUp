@@ -8,15 +8,19 @@
 }
 
 :root {
-  --background: oklch(0.985 0.002 250);
-  --foreground: oklch(0.18 0.02 265);
-  --shadow-card: 0 1px 2px rgba(20, 22, 60, 0.04), 0 1px 3px rgba(20, 22, 60, 0.06);
-  --shadow-pop: 0 12px 40px -12px rgba(20, 22, 60, 0.22);
+  /* Neutres PURS (chroma 0) alignés sur la vitrine et l'app mobile (palette
+     zinc), au lieu du léger voile bleuté précédent. */
+  --background: oklch(0.99 0 0);
+  --foreground: oklch(0.145 0 0);
+  --shadow-card: 0 1px 2px rgba(15, 15, 15, 0.04), 0 1px 3px rgba(15, 15, 15, 0.06);
+  --shadow-elevated: 0 10px 40px -12px rgba(15, 15, 15, 0.18);
+  --shadow-pop: 0 20px 60px -20px rgba(15, 15, 15, 0.25);
+  --shadow-violet: 0 20px 50px -15px rgba(124, 58, 237, 0.3), 0 5px 15px -5px rgba(0, 0, 0, 0.06);
 }
 
 @layer base {
   * {
-    border-color: oklch(0.92 0.008 260);
+    border-color: oklch(0.922 0 0);
   }
   html {
     scroll-behavior: smooth;
@@ -33,7 +37,9 @@
 
 @layer utilities {
   .shadow-card { box-shadow: var(--shadow-card); }
+  .shadow-elevated { box-shadow: var(--shadow-elevated); }
   .shadow-pop { box-shadow: var(--shadow-pop); }
+  .shadow-violet { box-shadow: var(--shadow-violet); }
   .no-scrollbar { scrollbar-width: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
 }

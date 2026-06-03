@@ -8,6 +8,7 @@ use App\Models\Device;
 use App\Models\Transfer;
 use App\Services\BridgeClient;
 use App\Services\BridgeUnavailableException;
+use App\Services\Transfer\InboxLocator;
 use App\Services\Transfer\TransferService;
 use App\Services\Transfer\TransferTokenSigner;
 use Illuminate\Http\JsonResponse;
@@ -152,22 +153,27 @@ class TransferController extends Controller
             return response()->json(['message' => 'Transfert non disponible.'], 409);
         }
 
-        $baseDir = $isToPhone
-            ? (string) config('services.linkup.outbox')
-            : (string) config('services.linkup.inbox');
-        $base = realpath($baseDir);
-        $path = $base !== false
-            ? realpath($base . DIRECTORY_SEPARATOR . basename($name))
-            : false;
+        if ($isToPhone) {
+            // Outbox : stockage plat (le PC y dépose le fichier choisi).
+            $base = realpath((string) config('services.linkup.outbox'));
+            $path = $base !== false
+                ? realpath($base . DIRECTORY_SEPARATOR . basename($name))
+                : false;
+            abort_unless(
+                $path !== false && str_starts_with($path, $base . DIRECTORY_SEPARATOR) && is_file($path),
+                404,
+            );
 
-        // Anti-traversal : le fichier résolu DOIT être dans le dossier attendu.
-        abort_unless(
-            $path !== false && str_starts_with($path, $base . DIRECTORY_SEPARATOR) && is_file($path),
-            404,
-        );
+            // Pour to_phone, on présente le nom d'origine (lisible), pas le storedName.
+            return response()->download($path, $transfer->filename);
+        }
 
-        // Pour to_phone, on présente le nom d'origine (lisible), pas le storedName.
-        return response()->download($path, $isToPhone ? $transfer->filename : $name);
+        // to_pc : inbox rangée par catégorie → le stored_name est un chemin
+        // relatif (« photos/IMG.jpg ») re-résolu (avec fallback) par le locator.
+        $path = InboxLocator::fromConfig()->locate($name);
+        abort_if($path === null, 404);
+
+        return response()->download($path, basename($name));
     }
 
     /**
