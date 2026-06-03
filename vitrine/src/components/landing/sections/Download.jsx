@@ -6,7 +6,6 @@ import {
   Smartphone,
   Monitor,
   ArrowDownToLine,
-  Check,
 } from "lucide-react";
 import { SITE } from "@/lib/site";
 import InstallModal from "@/components/landing/InstallModal";
