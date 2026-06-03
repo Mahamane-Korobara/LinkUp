@@ -41,7 +41,7 @@ dependencies:
 
   # Linkup S2.J1 — crypto Ed25519 + stockage sécurisé clés
   cryptography: ^2.7.0
-  flutter_secure_storage: ^9.2.4
+  flutter_secure_storage: ^10.3.1
 
   # Linkup S2.J3 — scan QR pour le pairing
   mobile_scanner: ^5.2.3
