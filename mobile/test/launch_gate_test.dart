@@ -44,7 +44,9 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      expect(find.text('Sélectionner un agent Linkup'), findsOneWidget);
+      // Le picker est identifié par son FAB de saisie manuelle (le titre est
+      // désormais le logo Linkup).
+      expect(find.text('Saisie manuelle'), findsOneWidget);
       // Pas de saut vers le détail.
       expect(find.text('Appairé — appareil approuvé'), findsNothing);
     });
