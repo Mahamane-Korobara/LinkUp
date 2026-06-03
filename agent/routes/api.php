@@ -64,6 +64,11 @@ Route::middleware('dashboard.client')->group(function () {
     Route::post('/outbox/{device}', [OutboxController::class, 'send']);
 });
 
+// Aperçu d'un fichier reçu, servi INLINE pour les balises <img>/<video> du
+// dashboard (Galerie). Hors `dashboard.client` car ces balises ne peuvent pas
+// émettre le header custom ; lecture seule, fichiers terminés uniquement.
+Route::get('/files/{transfer}/raw', [FilesController::class, 'raw']);
+
 // poll = appelé par le TEL (authentifié par signature Ed25519), pas le
 // dashboard → reste ouvert (le tel ne peut pas envoyer le header dashboard).
 Route::post('/pairing/poll', [DeviceController::class, 'poll']);

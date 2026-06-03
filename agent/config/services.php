@@ -64,7 +64,13 @@ return [
         // Dossier des fichiers reçus (= LINKUP_BRIDGE_TRANSFERS_DIR côté bridge).
         // Laravel et le bridge tournent sur le MÊME PC/user, donc Laravel peut
         // lire l'inbox directement pour servir un fichier au tél (download).
-        'inbox' => env('LINKUP_INBOX_DIR', (getenv('HOME') ?: sys_get_temp_dir()) . '/Linkup/Inbox'),
+        // Depuis S6.6 : les fichiers reçus sont rangés par catégorie sous
+        // <inbox>/{photos,video,fichiers}/ (cf. bridge TransferService).
+        'inbox' => env('LINKUP_INBOX_DIR', (getenv('HOME') ?: sys_get_temp_dir()) . '/Linkup/Transfert'),
+
+        // Ancien dossier plat (avant S6.6) : fouillé en fallback pour que les
+        // fichiers reçus AVANT la migration restent ouvrables/prévisualisables.
+        'inbox_legacy' => env('LINKUP_INBOX_LEGACY_DIR', (getenv('HOME') ?: sys_get_temp_dir()) . '/Linkup/Inbox'),
 
         // S6 — dossier des fichiers que le PC envoie VERS le tél (sens to_phone).
         // Le dashboard y dépose les fichiers choisis ; le tél les télécharge.

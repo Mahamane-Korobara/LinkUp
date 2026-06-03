@@ -19,6 +19,18 @@ export const DASHBOARD_HEADERS = {
   'X-Linkup-Client': 'dashboard',
 } as const;
 
+/** Catégorie de média d'un fichier reçu (rangement bridge → onglets dashboard). */
+export type FileCategory = 'photos' | 'video' | 'fichiers';
+
+/**
+ * URL d'aperçu (octets bruts) d'un fichier reçu, servie INLINE par l'agent.
+ * Utilisable directement comme `src` d'une balise <img>/<video> (la route est
+ * hors `dashboard.client`, car ces balises n'émettent pas le header custom).
+ */
+export function fileRawUrl(transferId: string): string {
+  return `${LARAVEL_BASE}/api/files/${transferId}/raw`;
+}
+
 /**
  * Date ISO → « jj/mm hh:mm » (fr-FR). Chaîne vide si absente/invalide.
  * Passe `{ year: true }` pour inclure l'année (« jj/mm/aaaa hh:mm »).
