@@ -43,8 +43,10 @@ fi
 
 # Token partagé : le bridge le lit dans l'environnement.
 export LINKUP_BRIDGE_AGENT_TOKEN="$(grep '^LINKUP_BRIDGE_AGENT_TOKEN=' "$ENV_FILE" | cut -d= -f2-)"
-export LINKUP_BRIDGE_TRANSFERS_DIR="${LINKUP_BRIDGE_TRANSFERS_DIR:-$HOME/Linkup/Inbox}"
-mkdir -p "$HOME/Linkup/Inbox" "$HOME/Linkup/Outbox"
+# S6.6 : les reçus sont rangés par catégorie sous Transfert/{photos,video,fichiers}.
+# L'ancien Inbox/ reste fouillé en fallback (cf. InboxLocator / resolve_in_inbox).
+export LINKUP_BRIDGE_TRANSFERS_DIR="${LINKUP_BRIDGE_TRANSFERS_DIR:-$HOME/Linkup/Transfert}"
+mkdir -p "$HOME/Linkup/Transfert" "$HOME/Linkup/Outbox"
 
 # --- Démarrage ---------------------------------------------------------------
 "$HERE/linkup-bridge" &

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Linkup
+GenericName=Hub téléphone ⇄ PC
+Comment=Relie ton téléphone et ton PC sur le réseau local (transferts, presse-papier)
+Comment[en]=Link your phone and PC over the local network
+Exec=/opt/linkup/bin/linkup
+Icon=linkup
+Terminal=false
+Categories=Network;FileTransfer;Utility;
+Keywords=phone;transfer;clipboard;linkup;telephone;transfert;
+StartupNotify=true
+StartupWMClass=localhost__8000
