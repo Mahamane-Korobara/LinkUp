@@ -14,8 +14,8 @@ import {
 } from 'lucide-react';
 
 import {
-  DASHBOARD_HEADERS,
   LARAVEL_BASE,
+  apiFetch,
   fileRawUrl,
   formatBytes,
   formatDate,
@@ -51,12 +51,7 @@ type FileDto = {
 type Tab = 'galerie' | 'fichier';
 
 async function loadFiles(): Promise<FileDto[]> {
-  const res = await fetch(`${LARAVEL_BASE}/api/files`, {
-    headers: DASHBOARD_HEADERS,
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
+  const data = await (await apiFetch('/api/files')).json();
   return (data.files ?? []) as FileDto[];
 }
 
@@ -73,11 +68,7 @@ export default function FilesPage() {
   const openOnPc = useCallback(async (transferId: string) => {
     setBusyId(transferId);
     try {
-      const res = await fetch(`${LARAVEL_BASE}/api/files/${transferId}/open`, {
-        method: 'POST',
-        headers: DASHBOARD_HEADERS,
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await apiFetch(`/api/files/${transferId}/open`, { method: 'POST' });
       setOpenError(null);
     } catch (e) {
       setOpenError(e instanceof Error ? e.message : String(e));

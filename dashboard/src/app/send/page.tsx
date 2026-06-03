@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import {
   SendHorizontal,
   Smartphone,
@@ -11,7 +10,7 @@ import {
   Loader2,
 } from 'lucide-react';
 
-import { DASHBOARD_HEADERS, LARAVEL_BASE, formatBytes } from '@/lib/api';
+import { LARAVEL_BASE, apiFetch, formatBytes } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,32 +25,15 @@ type Device = { device_id: string; name: string | null; status: string };
 type SendState = { name: string; status: 'pending' | 'ok' | 'error'; message?: string };
 
 async function loadDevices(): Promise<Device[]> {
-  const res = await fetch(`${LARAVEL_BASE}/api/pairing/devices`, {
-    headers: DASHBOARD_HEADERS,
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
+  const data = await (await apiFetch('/api/pairing/devices')).json();
   return ((data.devices ?? []) as Device[]).filter((d) => d.status === 'approved');
 }
 
 async function sendFile(deviceId: string, file: File): Promise<void> {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch(`${LARAVEL_BASE}/api/outbox/${deviceId}`, {
-    method: 'POST',
-    headers: DASHBOARD_HEADERS,
-    body: form,
-  });
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
-    try {
-      msg = (await res.json()).message ?? msg;
-    } catch {
-      /* corps non-JSON */
-    }
-    throw new Error(msg);
-  }
+  // apiFetch remonte déjà le message d'erreur JSON de Laravel (ex. POST trop gros).
+  await apiFetch(`/api/outbox/${deviceId}`, { method: 'POST', body: form });
 }
 
 export default function SendPage() {
