@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../models/linkup_agent.dart';
 import '../services/agent_discovery.dart';
 import '../services/linkup_discovery.dart';
+import '../theme/app_colors.dart';
+import '../widgets/app_logo.dart';
 import 'agent_picker/empty_state.dart';
 import 'agent_picker/manual_agent_dialog.dart';
 
@@ -142,31 +144,33 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sélectionner un agent Linkup'),
+        titleSpacing: 16,
+        title: const AppLogo(size: 30, showWordmark: true),
         actions: [
           IconButton(
             tooltip: 'Rescanner le LAN',
             onPressed: _scanning ? null : _runScan,
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: Column(
         children: [
-          if (_scanning) const LinearProgressIndicator(),
+          if (_scanning) const LinearProgressIndicator(minHeight: 2),
           // L'erreur est masquée dès qu'au moins un agent est visible : on
           // veut pas garder un bandeau rouge si la liste répond enfin.
           if (_error != null && _agents.isEmpty)
             Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: _ErrorBanner(message: _error!),
             ),
           Expanded(child: _buildAgentList()),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addManual,
-        icon: const Icon(Icons.edit),
+        icon: const Icon(Icons.keyboard_rounded),
         label: const Text('Saisie manuelle'),
       ),
     );
@@ -179,32 +183,135 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
         onRetry: _runScan,
       );
     }
-    return ListView.separated(
-      itemCount: _agents.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (context, index) {
-        final agent = _agents[index];
-        final isAuto = agent.source == LinkupAgentSource.mdns ||
-            agent.source == LinkupAgentSource.lanSweep;
-        return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: isAuto
-                ? Colors.deepPurple.shade100
-                : Colors.orange.shade100,
-            child: Icon(
-              isAuto ? Icons.computer : Icons.edit_location_alt,
-              color: isAuto ? Colors.deepPurple : Colors.orange,
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
+      children: [
+        Row(
+          children: [
+            const Text(
+              'PC trouvés sur ton Wi-Fi',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.4,
+                color: AppColors.faint,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Container(height: 1, color: AppColors.line)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        for (final agent in _agents) ...[
+          _AgentCard(agent: agent, onTap: () => _notifySelection(agent)),
+          const SizedBox(height: 10),
+        ],
+      ],
+    );
+  }
+}
+
+/// Carte d'un PC découvert : icône colorée selon la source, nom + adresse,
+/// chevron. Tap → sélection (conserve le comportement d'origine).
+class _AgentCard extends StatelessWidget {
+  final LinkupAgent agent;
+  final VoidCallback onTap;
+
+  const _AgentCard({required this.agent, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isAuto = agent.source == LinkupAgentSource.mdns ||
+        agent.source == LinkupAgentSource.lanSweep;
+    final iconBg = isAuto ? AppColors.brandSoft : AppColors.warnSoft;
+    final iconFg = isAuto ? AppColors.brand : AppColors.warn;
+
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  isAuto
+                      ? Icons.desktop_windows_rounded
+                      : Icons.edit_location_alt_rounded,
+                  color: iconFg,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      agent.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      agent.subtitleLine,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.faint),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bandeau d'erreur discret (scan en échec) — au lieu d'un texte rouge brut.
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+
+  const _ErrorBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.dangerSoft,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded,
+              color: AppColors.danger, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(color: AppColors.danger, fontSize: 13),
             ),
           ),
-          title: Text(
-            agent.displayName,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-          subtitle: Text(agent.subtitleLine),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _notifySelection(agent),
-        );
-      },
+        ],
+      ),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'screens/launch_gate.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   runApp(const LinkupApp());
@@ -13,10 +14,8 @@ class LinkupApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Linkup',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
       // S2.J5 : reconnexion auto si un PC est déjà appairé (cf. LaunchGate).
       home: const LaunchGate(),
     );

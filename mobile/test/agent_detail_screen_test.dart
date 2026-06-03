@@ -108,8 +108,13 @@ void main() {
       expect(find.text('abc12345'), findsNothing,
           reason: 'empreinte masquée tant que non appairé');
       expect(find.text('Disponible après appairage'), findsOneWidget);
-      expect(find.text('linkup-abc'), findsWidgets); // appbar + ligne
       expect(find.text('Appairer'), findsOneWidget);
+
+      // Les détails techniques (dont l'Agent ID) sont repliés par défaut :
+      // on déplie pour vérifier que les lignes sont bien rendues.
+      await tester.tap(find.text('Détails techniques'));
+      await tester.pumpAndSettle();
+      expect(find.text('linkup-abc'), findsWidgets); // ligne Agent ID
     });
 
     testWidgets('hides the PC fingerprint until the phone is paired',
