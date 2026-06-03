@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Linkup
+GenericName=Hub téléphone ⇄ PC
+Comment=Relie ton téléphone et ton PC sur le réseau local (transferts, presse-papier)
+Exec=linkup
+Icon=linkup
+Terminal=false
+Categories=Network;

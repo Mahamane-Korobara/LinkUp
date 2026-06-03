@@ -84,16 +84,17 @@ export default function DownloadSection() {
             delay={0.12}
             icon={Monitor}
             kicker="Sur ton ordinateur"
-            sub="Linux · Ubuntu, Debian, Mint"
+            sub="Linux · toutes distributions"
             href={SITE.pcBundle}
-            fileLabel="linkup-pc.deb"
+            fileLabel="Linkup.AppImage"
             size={SITE.pcSize}
             soon="Windows — bientôt disponible"
             steps={[
-              "Double-clique le fichier téléchargé",
-              "Installe (un clic) — « Linkup » arrive dans ton menu",
-              "Ouvre Linkup : le dashboard s’affiche tout seul",
+              "Clic droit → Propriétés → « Autoriser l’exécution »",
+              "Double-clique le fichier",
+              "Linkup s’ouvre — icône ajoutée au menu et au bureau",
             ]}
+            alt={{ href: SITE.pcDeb, label: "Debian/Ubuntu/Mint : .deb" }}
           />
         </div>
 
@@ -105,7 +106,7 @@ export default function DownloadSection() {
   );
 }
 
-function DownloadCard({ icon: Icon, kicker, sub, href, fileLabel, size, steps, soon, delay }) {
+function DownloadCard({ icon: Icon, kicker, sub, href, fileLabel, size, steps, soon, alt, delay }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 24 }}
@@ -158,6 +159,17 @@ function DownloadCard({ icon: Icon, kicker, sub, href, fileLabel, size, steps, s
           </li>
         ))}
       </ul>
+
+      {alt && (
+        <a
+          href={alt.href}
+          download
+          className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 underline-offset-4 hover:text-violet-300 hover:underline"
+        >
+          <ArrowDownToLine className="size-3.5" />
+          {alt.label}
+        </a>
+      )}
     </motion.div>
   );
 }

@@ -1,0 +1,8 @@
+#!/bin/bash
+# Point d'entrée de l'AppImage Linkup. Le montage squashfs est sous $HERE ;
+# on délègue au lanceur commun (partagé avec le .deb) en lui pointant l'app.
+# $APPIMAGE (chemin réel du .AppImage, fourni par le runtime) sert à l'auto-
+# intégration menu/bureau/autostart côté lanceur.
+HERE="$(dirname "$(readlink -f "${0}")")"
+export LINKUP_APP_DIR="$HERE/usr/lib/linkup"
+exec "$LINKUP_APP_DIR/bin/linkup" "${1:---open}"
