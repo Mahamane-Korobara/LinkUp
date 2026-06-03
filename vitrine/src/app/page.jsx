@@ -6,6 +6,7 @@ import HowItWorks from "@/components/landing/sections/HowItWorks";
 import Features from "@/components/landing/sections/Features";
 import Privacy from "@/components/landing/sections/Privacy";
 import Comparison from "@/components/landing/sections/Comparison";
+import Faq from "@/components/landing/sections/Faq";
 import DownloadSection from "@/components/landing/sections/Download";
 import Footer from "@/components/landing/sections/Footer";
 
@@ -30,6 +31,7 @@ export default function Home() {
         <Features />
         <Privacy />
         <Comparison />
+        <Faq />
         <DownloadSection />
       </main>
 

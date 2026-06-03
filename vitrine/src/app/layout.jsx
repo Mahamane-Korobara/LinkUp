@@ -1,5 +1,6 @@
 import { Geist } from "next/font/google";
 import "./globals.css";
+import { FAQ } from "@/lib/faq";
 
 const geist = Geist({
   subsets: ["latin"],
@@ -9,8 +10,12 @@ const geist = Geist({
 
 const SITE_URL = "https://linkup-landing.sahelstack.tech";
 const TITLE = "Linkup — Ton téléphone et ton PC, reliés en un scan";
+// Meta description : ~155 caractères (au-delà, Google tronque), mots-clés en tête.
 const DESCRIPTION =
-  "Transfère fichiers, photos et presse-papier entre ton téléphone et ton PC, sans câble et sans compte. Une seule app, reliée en scannant un QR code. Tes données restent sur ton réseau local — rien ne passe par le cloud. Gratuit et open source (Android + Linux).";
+  "Transfère fichiers, photos et presse-papier entre téléphone et PC, sans câble ni compte. L'alternative AirDrop pour Android et Linux, sur ton wifi. Gratuit.";
+// Description plus riche réservée aux données structurées (pas de limite SERP).
+const LONG_DESCRIPTION =
+  "Linkup relie ton téléphone et ton PC sur le même wifi pour transférer fichiers, photos, vidéos et presse-papier, sans câble, sans compte et sans cloud. L'alternative AirDrop pour Android et Linux (Windows bientôt). Gratuit et open source.";
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
@@ -77,8 +82,17 @@ const JSON_LD = {
       "@id": `${SITE_URL}/#website`,
       url: `${SITE_URL}/`,
       name: "Linkup",
-      description: DESCRIPTION,
+      description: LONG_DESCRIPTION,
       inLanguage: "fr-FR",
+    },
+    {
+      "@type": "FAQPage",
+      "@id": `${SITE_URL}/#faq`,
+      mainEntity: FAQ.map((f) => ({
+        "@type": "Question",
+        name: f.q,
+        acceptedAnswer: { "@type": "Answer", text: f.a },
+      })),
     },
     {
       "@type": "SoftwareApplication",
@@ -87,7 +101,7 @@ const JSON_LD = {
       applicationCategory: "UtilitiesApplication",
       operatingSystem: "Android 8+, Linux",
       url: `${SITE_URL}/`,
-      description: DESCRIPTION,
+      description: LONG_DESCRIPTION,
       inLanguage: "fr-FR",
       isAccessibleForFree: true,
       offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
