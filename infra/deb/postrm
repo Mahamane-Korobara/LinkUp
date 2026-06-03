@@ -1,0 +1,15 @@
+#!/bin/sh
+# Post-suppression Linkup. On NE touche PAS aux données utilisateur
+# (~/.local/share/linkup, ~/Linkup) — désinstaller ne doit pas effacer les
+# fichiers reçus ni les bases. Suppression manuelle si l'utilisateur le veut.
+set -e
+
+case "$1" in
+    remove|purge)
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database -q /usr/share/applications 2>/dev/null || true
+        fi
+        ;;
+esac
+
+exit 0
