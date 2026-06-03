@@ -61,6 +61,9 @@ export const metadata = {
     follow: true,
     googleBot: { index: true, follow: true, "max-image-preview": "large" },
   },
+  verification: {
+    google: "GTg5-2S2kgxIiMLXQbGWkzmxNAGWU-NxA4copGCfB1k",
+  },
   category: "technology",
 };
 
