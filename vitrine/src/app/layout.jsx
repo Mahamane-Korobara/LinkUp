@@ -7,31 +7,116 @@ const geist = Geist({
   display: "swap",
 });
 
+const SITE_URL = "https://linkup-landing.sahelstack.tech";
+const TITLE = "Linkup — Ton téléphone et ton PC, reliés en un scan";
+const DESCRIPTION =
+  "Transfère fichiers, photos et presse-papier entre ton téléphone et ton PC, sans câble et sans compte. Une seule app, reliée en scannant un QR code. Tes données restent sur ton réseau local — rien ne passe par le cloud. Gratuit et open source (Android + Linux).";
+
 export const metadata = {
-  metadataBase: new URL("https://linkup.sahelstack.tech"),
-  title: "Linkup — Ton téléphone et ton PC, reliés en un scan",
-  description:
-    "Transfère fichiers, photos et presse-papier entre ton téléphone et ton PC, sans câble et sans compte. Une seule app, reliée en scannant un QR code. Tes données restent sur ton réseau.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: TITLE,
+    template: "%s · Linkup",
+  },
+  description: DESCRIPTION,
+  applicationName: "Linkup",
+  authors: [{ name: "Mahamane Korobara" }],
+  creator: "Mahamane Korobara",
   keywords: [
-    "transfert fichier téléphone PC",
-    "sans câble",
-    "presse-papier partagé",
-    "galerie téléphone PC",
+    "transfert de fichiers téléphone PC",
+    "envoyer photos téléphone vers PC sans câble",
+    "presse-papier partagé téléphone PC",
+    "alternative AirDrop pour Android et Linux",
+    "partage local sans cloud ni compte",
+    "appairage QR code",
     "Linkup",
   ],
+  alternates: { canonical: "/" },
   openGraph: {
-    title: "Linkup — Ton téléphone et ton PC, reliés en un scan",
+    type: "website",
+    url: SITE_URL,
+    siteName: "Linkup",
+    title: TITLE,
+    description:
+      "Fichiers, photos et presse-papier entre ton tél et ton PC. Sans câble, sans compte, sans cloud. Gratuit, open source.",
+    locale: "fr_FR",
+    images: [
+      {
+        url: "/og.png",
+        width: 1200,
+        height: 630,
+        alt: "Linkup — relie ton téléphone et ton PC en scannant un QR code",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
     description:
       "Fichiers, photos et presse-papier entre ton tél et ton PC. Sans câble, sans compte, sans cloud.",
-    type: "website",
-    locale: "fr_FR",
+    images: ["/og.png"],
   },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large" },
+  },
+  category: "technology",
+};
+
+// Données structurées (schema.org) : ce que les moteurs ET les IA lisent pour
+// comprendre sans ambiguïté ce qu'est Linkup. Pas de note/avis inventés.
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      url: `${SITE_URL}/`,
+      name: "Linkup",
+      description: DESCRIPTION,
+      inLanguage: "fr-FR",
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${SITE_URL}/#app`,
+      name: "Linkup",
+      applicationCategory: "UtilitiesApplication",
+      operatingSystem: "Android 8+, Linux",
+      url: `${SITE_URL}/`,
+      description: DESCRIPTION,
+      inLanguage: "fr-FR",
+      isAccessibleForFree: true,
+      offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
+      downloadUrl: [
+        "https://linkup.sahelstack.tech/dl/linkup.apk",
+        "https://linkup.sahelstack.tech/dl/linkup.AppImage",
+        "https://linkup.sahelstack.tech/dl/linkup-pc.deb",
+      ],
+      featureList: [
+        "Transfert de fichiers entre téléphone et PC sur le réseau local",
+        "Envoi de photos et vidéos depuis la galerie",
+        "Presse-papier partagé téléphone ⇄ PC",
+        "Appairage par scan d'un QR code, sans compte",
+        "Aucune donnée dans le cloud : tout reste sur le réseau local",
+      ],
+      screenshot: `${SITE_URL}/og.png`,
+      softwareVersion: "0.6",
+      author: { "@type": "Person", name: "Mahamane Korobara" },
+    },
+  ],
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="fr" className={geist.variable}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+        />
+      </body>
     </html>
   );
 }
