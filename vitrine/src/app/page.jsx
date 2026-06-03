@@ -11,17 +11,29 @@ import Footer from "@/components/landing/sections/Footer";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[color:var(--background)]">
+    <>
+      {/* Lien d'évitement (accessibilité clavier) */}
+      <a
+        href="#contenu"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-zinc-900 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+      >
+        Aller au contenu
+      </a>
+
       <ScrollProgress />
       <Navbar />
-      <HeroSection />
-      <Problem />
-      <HowItWorks />
-      <Features />
-      <Privacy />
-      <Comparison />
-      <DownloadSection />
+
+      <main id="contenu" className="min-h-screen bg-[color:var(--background)]">
+        <HeroSection />
+        <Problem />
+        <HowItWorks />
+        <Features />
+        <Privacy />
+        <Comparison />
+        <DownloadSection />
+      </main>
+
       <Footer />
-    </main>
+    </>
   );
 }

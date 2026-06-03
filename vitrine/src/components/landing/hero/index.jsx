@@ -57,10 +57,10 @@ export default function HeroSection() {
               <span className="h-px max-w-15 flex-1 bg-violet-200" />
             </motion.div>
 
+            {/* h1 = élément LCP : rendu immédiat (pas d'entrée opacity/translate)
+                pour ne pas retarder le Largest Contentful Paint. */}
             <motion.h1
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
+              initial={false}
               className="font-heading mb-5 text-[clamp(2.1rem,5.5vw,4rem)] font-black leading-[1.05] tracking-tight text-zinc-900"
             >
               Ton téléphone et ton PC,{" "}
