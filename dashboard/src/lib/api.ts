@@ -28,6 +28,29 @@ export const DASHBOARD_HEADERS = {
   'X-Linkup-Client': 'dashboard',
 } as const;
 
+/**
+ * Appel à l'API de l'agent local, centralisé : préfixe la base, injecte le
+ * header anti-CSRF, force `no-store` et lève sur statut non-2xx. Évite de
+ * répéter ce boilerplate dans chaque page (cf. audit DRY).
+ */
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const res = await fetch(`${LARAVEL_BASE}${path}`, {
+    cache: 'no-store',
+    ...init,
+    headers: { ...DASHBOARD_HEADERS, ...init.headers },
+  });
+  if (!res.ok) {
+    let message = `HTTP ${res.status}`;
+    try {
+      message = (await res.clone().json()).message ?? message;
+    } catch {
+      /* corps non-JSON : on garde le code HTTP */
+    }
+    throw new Error(message);
+  }
+  return res;
+}
+
 /** Catégorie de média d'un fichier reçu (rangement bridge → onglets dashboard). */
 export type FileCategory = 'photos' | 'video' | 'fichiers';
 

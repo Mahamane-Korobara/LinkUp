@@ -12,7 +12,7 @@ import {
   Clock,
 } from 'lucide-react';
 
-import { DASHBOARD_HEADERS, LARAVEL_BASE, formatDate } from '@/lib/api';
+import { LARAVEL_BASE, apiFetch, formatDate } from '@/lib/api';
 import { usePolling } from '@/hooks/usePolling';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/card';
@@ -36,12 +36,7 @@ type ClipItem = {
 };
 
 async function loadClipboard(): Promise<ClipItem[]> {
-  const res = await fetch(`${LARAVEL_BASE}/api/clipboard/history`, {
-    headers: DASHBOARD_HEADERS,
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
+  const data = await (await apiFetch('/api/clipboard/history')).json();
   return (data.items ?? []) as ClipItem[];
 }
 

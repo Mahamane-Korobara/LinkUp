@@ -13,7 +13,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-import { DASHBOARD_HEADERS, LARAVEL_BASE, formatDate } from '@/lib/api';
+import { LARAVEL_BASE, apiFetch, formatDate } from '@/lib/api';
 import { usePolling } from '@/hooks/usePolling';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/card';
@@ -44,12 +44,7 @@ type DeviceDto = {
 };
 
 async function loadDevices(): Promise<DeviceDto[]> {
-  const res = await fetch(`${LARAVEL_BASE}/api/pairing/devices`, {
-    headers: DASHBOARD_HEADERS,
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
+  const data = await (await apiFetch('/api/pairing/devices')).json();
   return (data.devices ?? []) as DeviceDto[];
 }
 
@@ -72,11 +67,7 @@ export default function DevicesPage() {
     async (deviceId: string, action: 'approve' | 'reject') => {
       setBusyId(deviceId);
       try {
-        const res = await fetch(
-          `${LARAVEL_BASE}/api/pairing/devices/${deviceId}/${action}`,
-          { method: 'POST', headers: DASHBOARD_HEADERS },
-        );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await apiFetch(`/api/pairing/devices/${deviceId}/${action}`, { method: 'POST' });
         setData(await loadDevices());
         setActionError(null);
       } catch (e) {
@@ -96,15 +87,11 @@ export default function DevicesPage() {
       if (name === '') return;
       setBusyId(deviceId);
       try {
-        const res = await fetch(
-          `${LARAVEL_BASE}/api/pairing/devices/${deviceId}/rename`,
-          {
-            method: 'POST',
-            headers: { ...DASHBOARD_HEADERS, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name }),
-          },
-        );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await apiFetch(`/api/pairing/devices/${deviceId}/rename`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
         setData(await loadDevices());
         setActionError(null);
       } catch (e) {
