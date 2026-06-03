@@ -11,8 +11,9 @@ export const SITE = {
   // Téléchargements directs (servis par le VPS, hors Vercel)
   androidApk: "https://linkup.sahelstack.tech/dl/linkup.apk",
   androidSize: "65 Mo",
-  pcBundle: "https://linkup.sahelstack.tech/dl/linkup-pc.tar.gz",
-  pcSize: "141 Mo",
+  // PC : paquet .deb auto-installable (double-clic → icône « Linkup » dans le menu).
+  pcBundle: "https://linkup.sahelstack.tech/dl/linkup-pc.deb",
+  pcSize: "138 Mo",
 
   repo: "https://github.com/Mahamane-Korobara/LinkUp",
 };

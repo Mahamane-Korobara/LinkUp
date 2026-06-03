@@ -84,15 +84,15 @@ export default function DownloadSection() {
             delay={0.12}
             icon={Monitor}
             kicker="Sur ton ordinateur"
-            sub="Linux — testé et prêt"
+            sub="Linux · Ubuntu, Debian, Mint"
             href={SITE.pcBundle}
-            fileLabel="linkup-pc.tar.gz"
+            fileLabel="linkup-pc.deb"
             size={SITE.pcSize}
             soon="Windows — bientôt disponible"
             steps={[
-              "Décompresse le dossier",
-              "Lance Linkup — un QR s’affiche",
-              "Rien d’autre à installer",
+              "Double-clique le fichier téléchargé",
+              "Installe (un clic) — « Linkup » arrive dans ton menu",
+              "Ouvre Linkup : le dashboard s’affiche tout seul",
             ]}
           />
         </div>
