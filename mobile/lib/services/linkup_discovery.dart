@@ -149,11 +149,16 @@ class LinkupDiscovery implements AgentDiscovery {
     final bridgePortRaw = txtProperties['bridge_port'];
     final bridgePort = int.tryParse(bridgePortRaw ?? '') ?? LinkupPorts.bridge;
 
+    // Port HTTP de l'agent Laravel annoncé dans le TXT (8000 dev / 8770 bundle).
+    final laravelPort =
+        int.tryParse(txtProperties['laravel_port'] ?? '') ?? LinkupPorts.laravel;
+
     final agent = LinkupAgent(
       instanceName: serviceName,
       address: ip,
       reverbPort: srv.port,
       bridgePort: bridgePort,
+      laravelPort: laravelPort,
       agentId: txtProperties['id'],
       fingerprint: txtProperties['fp'],
       version: txtProperties['v'],

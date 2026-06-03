@@ -23,6 +23,8 @@ def test_health_returns_alive():
     assert "timestamp" in body
     assert "version" in body
     assert "os" in body
+    # Le tél lit ce port pour bâtir /api/agent/info sans coder 8000 en dur.
+    assert body["laravel_port"] == 8000
 
 
 def test_system_info_requires_token():

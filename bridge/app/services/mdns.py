@@ -25,6 +25,8 @@ import httpx
 from zeroconf import IPVersion, ServiceInfo, ServiceStateChange, Zeroconf
 from zeroconf.asyncio import AsyncServiceBrowser, AsyncServiceInfo, AsyncZeroconf
 
+from app import __version__
+
 logger = logging.getLogger(__name__)
 
 # Type de service mDNS utilise pour identifier les agents Linkup sur le reseau
@@ -168,16 +170,18 @@ class LinkupAnnouncer:
         self,
         port: int = 8080,
         bridge_port: int | None = None,
+        laravel_port: int | None = None,
         agent_id: str | None = None,
         fingerprint: str | None = None,
-        version: str = "0.1.0",
+        version: str | None = None,
         instance_name: str | None = None,
     ) -> None:
         self.port = port
         self.bridge_port = bridge_port or port
+        self.laravel_port = laravel_port or 8000
         self.agent_id = agent_id or f"linkup-{uuid.uuid4().hex[:8]}"
         self.fingerprint = fingerprint or "pending"
-        self.version = version
+        self.version = version or __version__
         self.instance_name = instance_name or f"{self.agent_id}.{SERVICE_TYPE}"
         self._zc: AsyncZeroconf | None = None
         self._info: ServiceInfo | None = None
@@ -202,6 +206,7 @@ class LinkupAnnouncer:
                 "fp": self.fingerprint,
                 "host": socket.gethostname(),
                 "bridge_port": str(self.bridge_port),
+                "laravel_port": str(self.laravel_port),
             },
             server=_hostname(),
         )
@@ -245,6 +250,7 @@ class LinkupAnnouncer:
             "version": self.version,
             "port": self.port,
             "bridge_port": self.bridge_port,
+            "laravel_port": self.laravel_port,
             "host": _hostname(),
             "ip": _local_ip(),
         }

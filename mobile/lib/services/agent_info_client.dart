@@ -4,7 +4,6 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
-import '../config/linkup_ports.dart';
 import '../models/linkup_agent.dart';
 
 /// Réponse `/api/agent/info` de Laravel.
@@ -72,12 +71,15 @@ abstract class AgentInfoFetcher {
 class AgentInfoClient implements AgentInfoFetcher {
   final http.Client _client;
   final Duration timeout;
-  final int laravelPort;
+
+  /// Override optionnel du port Laravel. Par défaut `null` → on utilise le port
+  /// DÉCOUVERT par l'agent (via /health ou mDNS), au lieu d'un port codé en dur.
+  final int? laravelPort;
 
   AgentInfoClient({
     http.Client? client,
     this.timeout = const Duration(seconds: 3),
-    this.laravelPort = LinkupPorts.laravel,
+    this.laravelPort,
   }) : _client = client ?? http.Client();
 
   /// Appelle Laravel sur le PC du [agent].
@@ -86,7 +88,7 @@ class AgentInfoClient implements AgentInfoFetcher {
   /// firewall, port 8000 pas ouvert, bridge down).
   @override
   Future<AgentInfo> fetch(LinkupAgent agent) async {
-    final uri = agent.agentInfoUri(laravelPort: laravelPort);
+    final uri = agent.agentInfoUri(laravelPort);
     try {
       final response = await _client
           .get(uri, headers: {'Accept': 'application/json'}).timeout(timeout);

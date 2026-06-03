@@ -45,12 +45,14 @@ void main() {
         bridgePort: 8765,
         source: LinkupAgentSource.mdns,
       );
+      // Sans override → port par défaut (LinkupPorts.laravel).
       expect(
         agent.agentInfoUri().toString(),
         'http://192.168.1.7:8000/api/agent/info',
       );
+      // Override positionnel.
       expect(
-        agent.agentInfoUri(laravelPort: 9000).toString(),
+        agent.agentInfoUri(9000).toString(),
         'http://192.168.1.7:9000/api/agent/info',
       );
     });
