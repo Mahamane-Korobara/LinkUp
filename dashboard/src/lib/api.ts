@@ -5,9 +5,18 @@
  * (base API, header anti-CSRF, formatage date/octets).
  */
 
-/** Base de l'API Laravel de l'agent local. */
+/**
+ * Base de l'API Laravel de l'agent local.
+ *
+ * Dans le bundle PC, le dashboard ET l'API sont servis par FrankenPHP sur la
+ * MÊME origine (port quelconque, ex. 8770) : on utilise alors des URLs RELATIVES
+ * (`''`) pour ne dépendre d'aucun port codé en dur. En dev, le dashboard tourne
+ * sur :3000 et l'API sur :8000 → base absolue.
+ */
 export const LARAVEL_BASE =
-  process.env.NEXT_PUBLIC_LARAVEL_URL ?? 'http://localhost:8000';
+  process.env.NEXT_PUBLIC_LINKUP_SAME_ORIGIN === '1'
+    ? ''
+    : (process.env.NEXT_PUBLIC_LARAVEL_URL ?? 'http://localhost:8000');
 
 /**
  * Header exigé par l'agent sur les routes de gestion (anti-CSRF, cf.

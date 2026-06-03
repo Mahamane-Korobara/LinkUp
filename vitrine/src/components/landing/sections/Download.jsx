@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Sparkles,
@@ -8,8 +9,10 @@ import {
   Check,
 } from "lucide-react";
 import { SITE } from "@/lib/site";
+import InstallModal from "@/components/landing/InstallModal";
 
 export default function DownloadSection() {
+  const [showInstall, setShowInstall] = useState(false);
   return (
     <section
       id="telecharger"
@@ -89,6 +92,7 @@ export default function DownloadSection() {
             fileLabel="Linkup.AppImage"
             size={SITE.pcSize}
             soon="Windows — bientôt disponible"
+            onClick={() => setShowInstall(true)}
             steps={[
               "Clic droit → Propriétés → « Autoriser l’exécution »",
               "Double-clique le fichier",
@@ -102,11 +106,13 @@ export default function DownloadSection() {
           Téléchargement direct depuis le site · aucune inscription · open source
         </p>
       </div>
+
+      <InstallModal open={showInstall} onClose={() => setShowInstall(false)} />
     </section>
   );
 }
 
-function DownloadCard({ icon: Icon, kicker, sub, href, fileLabel, size, steps, soon, alt, delay }) {
+function DownloadCard({ icon: Icon, kicker, sub, href, fileLabel, size, steps, soon, alt, onClick, delay }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 24 }}
@@ -130,6 +136,7 @@ function DownloadCard({ icon: Icon, kicker, sub, href, fileLabel, size, steps, s
       <a
         href={href}
         download
+        onClick={onClick}
         className="group mt-6 inline-flex items-center justify-between gap-2 rounded-xl bg-white px-5 py-3.5 font-semibold text-zinc-900 shadow-2xl shadow-violet-900/40 transition-all hover:bg-zinc-100"
       >
         <span className="flex items-center gap-2 text-sm">

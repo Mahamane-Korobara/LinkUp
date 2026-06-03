@@ -13,7 +13,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 
 export LINKUP_AGENT_PUBLIC="$HERE/agent/public"
 export LINKUP_DASHBOARD_OUT="$HERE/dashboard-out"
-export LINKUP_HTTP_PORT="${LINKUP_HTTP_PORT:-8000}"
+export LINKUP_HTTP_PORT="${LINKUP_HTTP_PORT:-8770}"   # 8770 (pas 8000 : réservé au dev)
+export LINKUP_PAIRING_PORT="${LINKUP_PAIRING_PORT:-$LINKUP_HTTP_PORT}"  # le QR encode ce port
 export LINKUP_BRIDGE_HOST="0.0.0.0"          # joignable par le tél sur le LAN
 export LINKUP_BRIDGE_PORT="${LINKUP_BRIDGE_PORT:-8765}"
 
@@ -53,5 +54,5 @@ mkdir -p "$HOME/Linkup/Transfert" "$HOME/Linkup/Outbox"
 BRIDGE_PID=$!
 trap 'kill "$BRIDGE_PID" 2>/dev/null || true' EXIT INT TERM
 
-echo "Linkup démarré → dashboard : http://localhost:${LINKUP_HTTP_PORT}"
+echo "Linkup démarré → dashboard : http://localhost:${LINKUP_HTTP_PORT}"  # 8770 par défaut
 exec "$HERE/frankenphp" run --config "$HERE/Caddyfile"

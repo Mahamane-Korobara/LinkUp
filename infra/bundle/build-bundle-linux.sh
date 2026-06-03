@@ -21,8 +21,9 @@ echo "==> Nettoyage"; rm -rf "$OUT"; mkdir -p "$OUT"
 echo "==> Agent : composer --no-dev"
 (cd "$ROOT/agent" && composer install --no-dev --optimize-autoloader --no-interaction)
 
-echo "==> Dashboard : export statique (pnpm)"
-(cd "$ROOT/dashboard" && pnpm install --frozen-lockfile && pnpm build)
+echo "==> Dashboard : export statique (pnpm) — API en même origine (port libre)"
+(cd "$ROOT/dashboard" && pnpm install --frozen-lockfile && \
+  NEXT_PUBLIC_LINKUP_SAME_ORIGIN=1 pnpm build)
 
 echo "==> Bridge : binaire PyInstaller"
 (cd "$ROOT/bridge" && [ -x .venv/bin/python ] || python3 -m venv .venv; \

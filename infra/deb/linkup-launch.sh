@@ -1,110 +1,88 @@
 #!/usr/bin/env bash
-# Lanceur Linkup installé par le .deb (/opt/linkup/bin/linkup).
+# Lanceur Linkup (partagé .deb et AppImage). Modèle « application » :
+#   clic → démarre le hub + ouvre le dashboard dans une fenêtre dédiée ;
+#   on FERME la fenêtre → le hub s'arrête (le port se libère).
 #
-# Deux modes :
-#   --serve  : lance le hub en avant-plan (utilisé par l'autostart de session).
-#              Fait l'init 1er-run, pose l'icône bureau, démarre frankenphp
-#              (agent + dashboard, :8000) + linkup-bridge (LAN, :8765).
-#   --open   : (défaut, clic sur l'icône) s'assure que le hub tourne — le démarre
-#              détaché si besoin — puis OUVRE le dashboard dans le navigateur.
+# Le hub = frankenphp (agent Laravel + dashboard statique, port 8770) +
+# linkup-bridge (accès OS + LAN, port 8765). Port 8770 choisi pour ne PAS
+# entrer en conflit avec le 8000/3000 des environnements de dev.
 #
-# L'app est en lecture seule sous /opt/linkup ; tout l'état inscriptible (clé,
-# token, base SQLite, logs) vit dans l'espace utilisateur ($XDG_DATA_HOME).
-set -euo pipefail
+# L'app est en lecture seule (sous /opt/linkup pour le .deb, ou le montage
+# squashfs pour l'AppImage) ; tout l'état inscriptible vit dans $XDG_DATA_HOME.
+set -uo pipefail
 
-APP_DIR="${LINKUP_APP_DIR:-/opt/linkup}"   # surchargé en test ; /opt/linkup en prod
+APP_DIR="${LINKUP_APP_DIR:-/opt/linkup}"
 STATE="${XDG_DATA_HOME:-$HOME/.local/share}/linkup"
 AGENT="$STATE/agent"
-PORT="${LINKUP_HTTP_PORT:-8000}"
+PROFILE="$STATE/win"                       # profil navigateur dédié (détection de fermeture)
+PORT="${LINKUP_HTTP_PORT:-8770}"
 URL="http://localhost:${PORT}"
 
 log() { logger -t linkup "$*" 2>/dev/null || true; }
 health() { curl -fsS -m 1 "$URL/api/health" >/dev/null 2>&1; }
 
-# Ouvre le dashboard : fenêtre-app dédiée si un navigateur Chromium est présent
-# (rendu « vraie app »), sinon onglet via le navigateur par défaut.
-open_dashboard() {
-  for b in google-chrome google-chrome-stable chromium chromium-browser brave-browser microsoft-edge; do
-    if command -v "$b" >/dev/null 2>&1; then "$b" --app="$URL" >/dev/null 2>&1 & return; fi
+# Chemin ABSOLU d'une icône installée (jamais d'icône cassée sur le bureau).
+icon_abs() {
+  local p
+  for p in "$HOME/.local/share/icons/hicolor/512x512/apps/linkup.png" \
+           "/usr/share/icons/hicolor/512x512/apps/linkup.png" \
+           "$APP_DIR/linkup.png"; do
+    [ -f "$p" ] && { echo "$p"; return; }
   done
-  xdg-open "$URL" >/dev/null 2>&1 &
 }
 
-# Chemin du .desktop « menu » : système (.deb) ou local utilisateur (AppImage).
-menu_desktop_path() {
-  if [ -f /usr/share/applications/linkup.desktop ]; then
-    echo /usr/share/applications/linkup.desktop
-  else
-    echo "$HOME/.local/share/applications/linkup.desktop"
-  fi
-}
-
-# Intégration AppImage : crée l'entrée menu + l'autostart + l'icône, pointant
-# sur le chemin réel de l'AppImage ($APPIMAGE). No-op hors AppImage (.deb).
+# Intégration AppImage : entrée menu + icône (PAS d'autostart : modèle « app »).
 integrate_appimage() {
   [ -n "${APPIMAGE:-}" ] || return 0
   local apps="$HOME/.local/share/applications"
-  local autostart="$HOME/.config/autostart"
   local icondir="$HOME/.local/share/icons/hicolor/512x512/apps"
-  mkdir -p "$apps" "$autostart" "$icondir"
+  mkdir -p "$apps" "$icondir"
   [ -f "$APP_DIR/linkup.png" ] && cp -f "$APP_DIR/linkup.png" "$icondir/linkup.png"
-
+  # Ancien autostart d'une version précédente → on le retire (modèle app désormais).
+  rm -f "$HOME/.config/autostart/linkup.desktop" 2>/dev/null || true
   cat > "$apps/linkup.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Linkup
 GenericName=Hub téléphone ⇄ PC
 Comment=Relie ton téléphone et ton PC sur le réseau local
-Exec=$APPIMAGE --open
-Icon=linkup
+Exec=$APPIMAGE
+Icon=$(icon_abs)
 Terminal=false
 Categories=Network;
 StartupNotify=true
 EOF
-
-  cat > "$autostart/linkup.desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=Linkup (service)
-Exec=$APPIMAGE --serve
-Icon=linkup
-Terminal=false
-NoDisplay=true
-X-GNOME-Autostart-enabled=true
-X-GNOME-Autostart-Delay=3
-EOF
-
   update-desktop-database "$apps" 2>/dev/null || true
 }
 
-# Pose une icône cliquable sur le bureau (dossier localisé, ex. ~/Bureau),
-# marquée « de confiance ». Idempotent.
+# Icône cliquable sur le bureau (dossier localisé, ex. ~/Bureau), Icon en chemin
+# ABSOLU + marquée « de confiance ». Idempotent.
 place_desktop_icon() {
-  local desk src
+  local desk src ic
   desk="$(xdg-user-dir DESKTOP 2>/dev/null || echo "$HOME/Desktop")"
-  src="$(menu_desktop_path)"
   [ -d "$desk" ] || return 0
-  [ -f "$src" ] || return 0
-  if [ ! -f "$desk/linkup.desktop" ]; then
-    cp "$src" "$desk/linkup.desktop"
-    chmod +x "$desk/linkup.desktop"
-    gio set "$desk/linkup.desktop" metadata::trusted true 2>/dev/null || true
+  if [ -f /usr/share/applications/linkup.desktop ]; then
+    src=/usr/share/applications/linkup.desktop          # .deb
+  else
+    src="$HOME/.local/share/applications/linkup.desktop" # AppImage
   fi
+  [ -f "$src" ] || return 0
+  ic="$(icon_abs)"
+  # (Re)génère pour garantir une icône absolue (corrige les icônes cassées).
+  sed "s|^Icon=.*|Icon=${ic}|" "$src" > "$desk/linkup.desktop"
+  chmod +x "$desk/linkup.desktop"
+  gio set "$desk/linkup.desktop" metadata::trusted true 2>/dev/null || true
 }
 
-# Init par-utilisateur au tout premier lancement (idempotent via .initialized).
+# Init par-utilisateur au tout premier lancement (idempotent).
 ensure_init() {
   mkdir -p "$STATE"
   [ -f "$STATE/.initialized" ] && return 0
-
   command -v notify-send >/dev/null 2>&1 && \
-    notify-send -i linkup "Linkup" "Préparation au premier démarrage…" || true
+    notify-send -i "$(icon_abs)" "Linkup" "Préparation au premier démarrage…" || true
 
-  # Copie de l'app Laravel dans l'espace utilisateur (storage/.env/SQLite y sont
-  # inscriptibles, contrairement à /opt). Binaires + dashboard restent dans /opt.
   rm -rf "$AGENT"
   cp -a "$APP_DIR/agent" "$AGENT"
-
   local env_file="$AGENT/.env"
   [ -f "$env_file" ] || cp "$AGENT/.env.example" "$env_file" 2>/dev/null || : >"$env_file"
   set_env() {
@@ -117,7 +95,6 @@ ensure_init() {
   set_env DB_DATABASE "$AGENT/database/database.sqlite"
   set_env LINKUP_BRIDGE_AGENT_TOKEN \
     "$(openssl rand -hex 32 2>/dev/null || head -c32 /dev/urandom | xxd -p | tr -d '\n')"
-
   mkdir -p "$AGENT/database"
   : >"$AGENT/database/database.sqlite"
   "$APP_DIR/frankenphp" php-cli "$AGENT/artisan" key:generate --force
@@ -125,53 +102,61 @@ ensure_init() {
   touch "$STATE/.initialized"
 }
 
-# Démarre les deux services en avant-plan (bloque jusqu'à arrêt).
-run_services() {
+# Ouvre le dashboard dans une fenêtre-app dédiée (profil isolé → on peut
+# détecter sa fermeture). Renvoie 0 si Chromium (fermeture détectable),
+# 1 si fallback navigateur par défaut (non détectable).
+open_dashboard() {
+  local b
+  for b in google-chrome google-chrome-stable chromium chromium-browser brave-browser microsoft-edge; do
+    if command -v "$b" >/dev/null 2>&1; then
+      "$b" --app="$URL" --user-data-dir="$PROFILE" \
+           --no-first-run --no-default-browser-check >/dev/null 2>&1 &
+      return 0
+    fi
+  done
+  xdg-open "$URL" >/dev/null 2>&1 &
+  return 1
+}
+
+start_hub() {
   export LINKUP_AGENT_PUBLIC="$AGENT/public"
   export LINKUP_DASHBOARD_OUT="$APP_DIR/dashboard-out"
   export LINKUP_HTTP_PORT="$PORT"
+  export LINKUP_PAIRING_PORT="$PORT"        # le QR de pairing encode CE port
   export LINKUP_BRIDGE_HOST="0.0.0.0"
   export LINKUP_BRIDGE_PORT="${LINKUP_BRIDGE_PORT:-8765}"
   export LINKUP_BRIDGE_AGENT_TOKEN="$(grep '^LINKUP_BRIDGE_AGENT_TOKEN=' "$AGENT/.env" | cut -d= -f2-)"
   export LINKUP_BRIDGE_TRANSFERS_DIR="${LINKUP_BRIDGE_TRANSFERS_DIR:-$HOME/Linkup/Transfert}"
   mkdir -p "$HOME/Linkup/Transfert" "$HOME/Linkup/Outbox"
-
   "$APP_DIR/linkup-bridge" >/dev/null 2>&1 &
-  local bridge=$!
+  BRIDGE_PID=$!
   "$APP_DIR/frankenphp" run --config "$APP_DIR/Caddyfile" >/dev/null 2>&1 &
-  local franken=$!
-  trap 'kill "$bridge" "$franken" 2>/dev/null || true' EXIT INT TERM
-  log "hub démarré (bridge=$bridge frankenphp=$franken)"
-  wait
+  FRANKEN_PID=$!
 }
 
-MODE="${1:---open}"
+# --------------------------------------------------------------------------- run
+integrate_appimage
+place_desktop_icon
 
-case "$MODE" in
-  --serve)
-    integrate_appimage
-    # Déjà en route ailleurs ? On ne double pas (évite le conflit de port).
-    if health; then log "déjà démarré, --serve no-op"; exit 0; fi
-    ensure_init
-    place_desktop_icon
-    run_services
-    ;;
+# Déjà lancé (autre instance) ? On ouvre juste une fenêtre, sans gérer le cycle.
+if health; then
+  open_dashboard
+  exit 0
+fi
 
-  --open|*)
-    integrate_appimage
-    place_desktop_icon
-    if ! health; then
-      # Démarre le hub DÉTACHÉ (survit à la fermeture de ce process), puis attend.
-      # En AppImage, on relance via $APPIMAGE : son montage squashfs est éphémère,
-      # donc le service doit avoir SON propre process (et donc son propre montage).
-      ensure_init
-      if [ -n "${APPIMAGE:-}" ]; then
-        setsid "$APPIMAGE" --serve </dev/null >/dev/null 2>&1 &
-      else
-        setsid "$APP_DIR/bin/linkup" --serve </dev/null >/dev/null 2>&1 &
-      fi
-      for _ in $(seq 1 60); do health && break; sleep 0.25; done
-    fi
-    open_dashboard
-    ;;
-esac
+ensure_init
+start_hub
+trap 'kill "${BRIDGE_PID:-}" "${FRANKEN_PID:-}" 2>/dev/null || true' EXIT INT TERM
+for _ in $(seq 1 80); do health && break; sleep 0.25; done
+log "hub démarré (bridge=${BRIDGE_PID:-?} frankenphp=${FRANKEN_PID:-?}) sur $PORT"
+
+if open_dashboard; then
+  # Tant que la fenêtre dédiée est ouverte, on garde le hub. À sa fermeture,
+  # la boucle se termine → le trap arrête le hub (le port se libère).
+  sleep 2
+  while pgrep -f -- "--user-data-dir=$PROFILE" >/dev/null 2>&1; do sleep 2; done
+else
+  # Pas de Chromium : impossible de détecter la fermeture → on garde le hub
+  # vivant tant que le process tourne (l'utilisateur ferme via une déconnexion).
+  wait "$FRANKEN_PID"
+fi
