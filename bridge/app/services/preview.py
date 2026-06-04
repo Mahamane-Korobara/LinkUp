@@ -19,6 +19,7 @@ ci-dessous est inchangé, seul le listener gagne TLS. Cf. CDC §Dev Preview.
 
 import asyncio
 import os
+import ssl
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -153,10 +154,22 @@ class ProxyManager:
     l'interface d'écoute exposée au LAN (0.0.0.0 en prod).
     """
 
-    def __init__(self, host: str = "0.0.0.0", connect_host: str = "127.0.0.1") -> None:
+    def __init__(
+        self,
+        host: str = "0.0.0.0",
+        connect_host: str = "127.0.0.1",
+        ssl_context: ssl.SSLContext | None = None,
+    ) -> None:
         self._host = host
         self._connect_host = connect_host
+        # Si fourni, TLS est terminé au listener (le tél parle HTTPS) ; le relais
+        # vers le dev-server reste en clair, en local sur le PC.
+        self._ssl_context = ssl_context
         self._servers: dict[int, tuple[asyncio.AbstractServer, ProxyInfo]] = {}
+
+    @property
+    def scheme(self) -> str:
+        return "https" if self._ssl_context else "http"
 
     def listen_ports(self) -> set[int]:
         return {info.listen_port for _, info in self._servers.values()}
@@ -179,6 +192,7 @@ class ProxyManager:
             lambda r, w: self._relay(target_port, r, w),
             host=self._host,
             port=0,  # port éphémère choisi par l'OS
+            ssl=self._ssl_context,
         )
         listen_port = server.sockets[0].getsockname()[1]
         info = ProxyInfo(target_port=target_port, listen_port=listen_port, started_at=time.time())

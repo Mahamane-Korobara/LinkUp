@@ -639,11 +639,18 @@ Chaque semaine est structurée en :
 - ✅ T14.7 Tests `bridge/tests/test_preview.py` : 9 ✓ (relais bidirectionnel, idempotence,
   port injoignable → `ProxyError`/404, scan détecte/exclut, flux des routes).
 
-**Lot B — HTTPS + CA de confiance (bridge + tél) — 🔴 PROCHAIN (prérequis caméra/PWA)**
-- 🔴 T14.8 Génération d'une **CA Linkup** au 1ᵉʳ lancement (Python pur, sans droits admin)
-  + cert serveur ; `ssl.SSLContext` passé à `asyncio.start_server` (relais inchangé).
-- 🔴 T14.9 App tél : flux d'**installation/approbation de la CA** (1 fois) + ouverture du
-  projet `https://<host-bridge>:<listen_port>` dans le **navigateur externe**.
+**Lot B — HTTPS + CA de confiance — ✅ FAIT côté bridge (2026-06-04)**
+- ✅ T14.8 `bridge/app/services/cert.py::CertManager` : **CA Linkup** générée une fois
+  sous `~/.linkup/ca` (`cryptography`, Python pur, sans droits admin) + cert serveur
+  (SAN = IP LAN + 127.0.0.1 + localhost) régénéré au démarrage ; clé privée en `0o600`.
+  `ProxyManager(ssl_context=…)` → TLS terminé au listener, relais vers le dev-server en
+  clair en local. Route publique `GET /preview/ca.crt` (MIME `x-x509-ca-cert`) pour
+  l'install sur le tél. `cryptography` ajouté à `pyproject` + `collect_all` dans le `.spec`.
+- ✅ Tests `tests/test_cert.py` : 7 ✓ (CA = autorité, cert signé par la CA + SAN loopback,
+  CA stable entre démarrages, **relais HTTPS accepté si CA de confiance / refusé sinon**).
+- 🔴 T14.9 App tél (Flutter) : flux d'**installation/approbation de la CA** (1 fois, via
+  `/preview/ca.crt`) + ouverture du projet `https://<host-bridge>:<listen_port>` dans le
+  **navigateur externe**. → fait partie du Lot C.
 
 **Lot C — orchestration tél (Laravel + Flutter) — 🔴 À FAIRE**
 - 🔴 T14.10 Laravel `/api/preview/*` (auth.device) relaie vers le bridge (token agent).

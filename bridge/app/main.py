@@ -12,7 +12,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Request, Response
 
 from app import __version__
 from app.config import settings
@@ -21,6 +21,7 @@ from app.routes import clipboard as clipboard_routes
 from app.routes import mdns as mdns_routes
 from app.routes import preview as preview_routes
 from app.routes import transfer as transfer_routes
+from app.services.cert import CertManager
 from app.services.mdns import LinkupAnnouncer, LinkupBrowser
 from app.services.preview import ProxyManager
 from app.services.transfer import TransferService
@@ -56,9 +57,17 @@ async def lifespan(app: FastAPI):
         inbox_dir=Path(settings.transfers_dir).expanduser(),
         legacy_inbox_dirs=(Path(settings.transfers_dir_legacy).expanduser(),),
     )
-    # Dev Preview : écoute sur la même interface LAN que le bridge pour que le
-    # tél joigne les projets proxifiés. Les listeners sont fermés à l'arrêt.
-    app.state.proxy_manager = ProxyManager(host=settings.host)
+    # Dev Preview : CA Linkup + cert serveur (HTTPS obligatoire pour le contexte
+    # sécurisé côté tél). La CA est générée une fois sous ~/.linkup/ca, le cert
+    # serveur régénéré à chaque démarrage pour suivre l'IP LAN courante.
+    cert_manager = CertManager(ca_dir=Path.home() / ".linkup" / "ca")
+    cert_manager.ensure()
+    app.state.cert_manager = cert_manager
+    # Écoute sur la même interface LAN que le bridge pour que le tél joigne les
+    # projets proxifiés ; servis en HTTPS via la CA. Listeners fermés à l'arrêt.
+    app.state.proxy_manager = ProxyManager(
+        host=settings.host, ssl_context=cert_manager.ssl_context()
+    )
 
     try:
         yield
@@ -120,6 +129,23 @@ def health(request: Request) -> dict:
         "os_release": platform.release(),
         "python": platform.python_version(),
     }
+
+
+@app.get("/preview/ca.crt")
+def preview_ca(request: Request) -> Response:
+    """Certificat PUBLIC de la CA Linkup, à installer/approuver sur le tél.
+
+    Sans token : le tél doit pouvoir le récupérer AVANT toute confiance établie,
+    et un certificat de CA est public par nature (la clé privée, elle, ne quitte
+    jamais le PC). Le type MIME `application/x-x509-ca-cert` déclenche l'install
+    du certificat sur Android.
+    """
+    cert_manager: CertManager = request.app.state.cert_manager
+    return Response(
+        content=cert_manager.ca_pem(),
+        media_type="application/x-x509-ca-cert",
+        headers={"Content-Disposition": 'attachment; filename="linkup-ca.crt"'},
+    )
 
 
 @app.get("/system/info", dependencies=[Depends(require_agent_token)])
