@@ -83,6 +83,17 @@ _SNAP_POLLUTING_ENV = (
     "LOCPATH",
 )
 
+# Durée pendant laquelle on attend le lanceur (xdg-open/open) pour détecter un
+# échec IMMÉDIAT (pas de session graphique, aucune appli associée). Au-delà, le
+# lanceur a fork l'appli — un démarrage À FROID (Evince/LibreOffice) peut tenir
+# le terminal ~3 s avant de rendre la main — et on considère ça comme un succès.
+#
+# CRITIQUE : doit rester < au timeout HTTP de Laravel vers le bridge
+# (services.linkup_bridge.timeout_seconds, 2 s par défaut). Sinon Laravel coupe
+# la connexion AVANT la réponse et affiche « Bridge injoignable », alors que
+# l'appli s'ouvre bien (cas réel : un PDF dont Evince démarre à froid).
+_LAUNCH_DETECT_SECONDS = 1.5
+
 
 def _desktop_env() -> dict[str, str]:
     """Copie de l'environnement sans les variables snap qui cassent GTK."""
@@ -119,9 +130,9 @@ def _open_with_os(path: Path) -> None:
         raise TransferError(f"Lanceur « {cmd[0]} » introuvable sur ce PC.") from exc
 
     try:
-        _, stderr = proc.communicate(timeout=3)
+        _, stderr = proc.communicate(timeout=_LAUNCH_DETECT_SECONDS)
     except subprocess.TimeoutExpired:
-        return  # toujours vivant = l'appli tourne, succès
+        return  # toujours vivant = l'appli tourne (démarrage à froid), succès
 
     if proc.returncode != 0:
         detail = stderr.decode(errors="replace").strip() or f"code {proc.returncode}"

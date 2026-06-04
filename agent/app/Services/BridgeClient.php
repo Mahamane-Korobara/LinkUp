@@ -54,6 +54,15 @@ class BridgeClient
     {
         try {
             return $this->request()
+                // L'ouverture lance une appli GUI : le bridge bloque brièvement
+                // pour détecter un échec immédiat (cf. _LAUNCH_DETECT_SECONDS).
+                // Timeout dédié plus large que le défaut (2 s) pour absorber un
+                // démarrage à froid d'appli lourde sans afficher « injoignable ».
+                ->timeout(5)
+                // UNE seule tentative : ouvrir n'est pas idempotent. Un retry
+                // relancerait xdg-open → 2-3 activations D-Bus rapprochées de la
+                // même appli (Evince), course qui peut n'ouvrir AUCUNE fenêtre.
+                ->retry(1)
                 ->withHeaders(['X-Filename' => $filename])
                 ->post('/transfer/open')
                 ->throw()
