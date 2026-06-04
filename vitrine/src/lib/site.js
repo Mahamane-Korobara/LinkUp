@@ -13,10 +13,10 @@ export const SITE = {
   androidSize: "67 Mo",
   // PC : AppImage universelle (aucune installation, toutes distros) — primaire.
   pcBundle: "https://linkup.sahelstack.tech/dl/linkup.AppImage",
-  pcSize: "155 Mo",
+  pcSize: "159 Mo",
   // Option Debian/Ubuntu/Mint via gestionnaire de paquets.
   pcDeb: "https://linkup.sahelstack.tech/dl/linkup-pc.deb",
-  pcDebSize: "152 Mo",
+  pcDebSize: "149 Mo",
 
   repo: "https://github.com/Mahamane-Korobara/LinkUp",
 };
