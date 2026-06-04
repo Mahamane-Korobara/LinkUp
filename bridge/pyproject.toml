@@ -13,6 +13,7 @@ dependencies = [
     "python-multipart>=0.0.12",
     "aiofiles>=24.1",
     "zeroconf>=0.135",
+    "cryptography>=43",
 ]
 
 [project.optional-dependencies]
