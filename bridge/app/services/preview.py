@@ -1,0 +1,246 @@
+"""Dev Preview (localhost mobile) — détection de ports + proxy transparent.
+
+Deux briques, toutes deux self-contained (stdlib pure → reste bundlable dans
+l'AppImage/.deb sans dépendance système) :
+
+- ``scan_listening_ports`` : liste les serveurs de dev qui écoutent sur le PC
+  (Next/Vite/Laravel…), via ``/proc/net/tcp`` (Linux, cible des installeurs).
+- ``ProxyManager`` : pour un port choisi, ouvre un listener LAN dédié qui
+  **relaie les octets bruts** vers ``127.0.0.1:<port>``. Le relais brut traverse
+  HTTP **et** WebSocket (Reverb, Socket.io, Vite HMR, Next Fast Refresh) sans
+  rien parser — c'est ce qui garantit « même comportement que sur le PC ». Un
+  listener dédié par projet (et non un préfixe de path) préserve la racine ``/``,
+  donc les chemins absolus et les appels même-origine de l'app marchent tels quels.
+
+Le HTTPS (contexte sécurisé obligatoire pour caméra/géoloc/PWA côté tél) se
+branchera en passant un ``ssl.SSLContext`` à ``asyncio.start_server`` : le relais
+ci-dessous est inchangé, seul le listener gagne TLS. Cf. CDC §Dev Preview.
+"""
+
+import asyncio
+import os
+import time
+from dataclasses import dataclass
+from pathlib import Path
+
+# `0A` = TCP_LISTEN dans /proc/net/tcp (cf. include/net/tcp_states.h).
+_STATE_LISTEN = "0A"
+_PROC_TCP = ("/proc/net/tcp", "/proc/net/tcp6")
+_RELAY_CHUNK = 65536
+_CONNECT_TIMEOUT_SECONDS = 2.0
+
+
+class ProxyError(Exception):
+    """Levée quand un port à exposer n'a aucun service derrière lui."""
+
+
+@dataclass
+class ListeningPort:
+    port: int
+    process: str | None
+
+    def as_dict(self) -> dict:
+        return {"port": self.port, "process": self.process}
+
+
+@dataclass
+class ProxyInfo:
+    target_port: int
+    listen_port: int
+    started_at: float
+
+    def as_dict(self) -> dict:
+        return {
+            "target_port": self.target_port,
+            "listen_port": self.listen_port,
+            "started_at": self.started_at,
+        }
+
+
+# --------------------------------------------------------------- détection ports
+
+
+def scan_listening_ports(exclude: frozenset[int] | set[int] = frozenset()) -> list[ListeningPort]:
+    """Ports TCP en écoute sur la loopback/toutes interfaces (serveurs de dev).
+
+    Lit ``/proc/net/tcp{,6}`` (Linux). Sur un OS sans ``/proc`` ou en cas
+    d'erreur de lecture, retourne une liste vide plutôt que de planter (la
+    cible MVP des installeurs est Linux ; Windows/macOS = incrément futur).
+    """
+    inode_by_port: dict[int, str] = {}
+    for path in _PROC_TCP:
+        try:
+            with open(path) as fh:
+                next(fh, None)  # ligne d'en-tête
+                for line in fh:
+                    parts = line.split()
+                    if len(parts) < 10 or parts[3] != _STATE_LISTEN:
+                        continue
+                    try:
+                        port = int(parts[1].rsplit(":", 1)[-1], 16)
+                    except ValueError:
+                        continue
+                    if port in exclude or port in inode_by_port:
+                        continue
+                    inode_by_port[port] = parts[9]
+        except OSError:
+            continue
+
+    if not inode_by_port:
+        return []
+
+    names = _process_names(set(inode_by_port.values()))
+    return [
+        ListeningPort(port=port, process=names.get(inode))
+        for port, inode in sorted(inode_by_port.items())
+    ]
+
+
+def _process_names(inodes: set[str]) -> dict[str, str | None]:
+    """Mappe inode de socket → nom du process (``/proc/<pid>/comm``), best-effort.
+
+    Sert juste à afficher « node (3000) » plutôt qu'un port nu côté tél. Toute
+    erreur (process disparu, droits) est ignorée → le port reste listé sans nom.
+    """
+    if not inodes:
+        return {}
+    wanted = {inode: f"socket:[{inode}]" for inode in inodes}
+    targets = {link: inode for inode, link in wanted.items()}
+    found: dict[str, str | None] = {}
+    proc = Path("/proc")
+    try:
+        pid_dirs = [p for p in proc.iterdir() if p.name.isdigit()]
+    except OSError:
+        return {}
+
+    for pid_dir in pid_dirs:
+        try:
+            fds = list((pid_dir / "fd").iterdir())
+        except OSError:
+            continue  # process terminé / pas les droits
+        name: str | None = None
+        for fd in fds:
+            try:
+                link = os.readlink(fd)
+            except OSError:
+                continue
+            inode = targets.get(link)
+            if inode is None:
+                continue
+            if name is None:
+                name = _read_comm(pid_dir)
+            found[inode] = name
+        if len(found) == len(inodes):
+            break
+    return found
+
+
+def _read_comm(pid_dir: Path) -> str | None:
+    try:
+        return (pid_dir / "comm").read_text().strip() or None
+    except OSError:
+        return None
+
+
+# ------------------------------------------------------------------- proxy LAN
+
+
+class ProxyManager:
+    """Gère les listeners de proxy actifs (un par projet exposé).
+
+    ``connect_host`` reste 127.0.0.1 : on ne joint QUE des services locaux du PC
+    (jamais une IP arbitraire fournie par le tél → pas de SSRF). ``host`` est
+    l'interface d'écoute exposée au LAN (0.0.0.0 en prod).
+    """
+
+    def __init__(self, host: str = "0.0.0.0", connect_host: str = "127.0.0.1") -> None:
+        self._host = host
+        self._connect_host = connect_host
+        self._servers: dict[int, tuple[asyncio.AbstractServer, ProxyInfo]] = {}
+
+    def listen_ports(self) -> set[int]:
+        return {info.listen_port for _, info in self._servers.values()}
+
+    def list(self) -> list[ProxyInfo]:
+        return [info for _, info in self._servers.values()]
+
+    async def expose(self, target_port: int) -> ProxyInfo:
+        """Démarre (ou réutilise) le proxy vers ``127.0.0.1:target_port``.
+
+        Idempotent : ré-exposer un port déjà actif renvoie le même listener.
+        Lève ``ProxyError`` si rien n'écoute derrière le port demandé.
+        """
+        if target_port in self._servers:
+            return self._servers[target_port][1]
+
+        await self._assert_reachable(target_port)
+
+        server = await asyncio.start_server(
+            lambda r, w: self._relay(target_port, r, w),
+            host=self._host,
+            port=0,  # port éphémère choisi par l'OS
+        )
+        listen_port = server.sockets[0].getsockname()[1]
+        info = ProxyInfo(target_port=target_port, listen_port=listen_port, started_at=time.time())
+        self._servers[target_port] = (server, info)
+        return info
+
+    async def unexpose(self, target_port: int) -> bool:
+        entry = self._servers.pop(target_port, None)
+        if entry is None:
+            return False
+        server, _ = entry
+        server.close()
+        await server.wait_closed()
+        return True
+
+    async def shutdown(self) -> None:
+        for target_port in list(self._servers):
+            await self.unexpose(target_port)
+
+    async def _assert_reachable(self, target_port: int) -> None:
+        try:
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection(self._connect_host, target_port),
+                timeout=_CONNECT_TIMEOUT_SECONDS,
+            )
+        except (OSError, TimeoutError) as exc:
+            raise ProxyError(f"Aucun service n'écoute sur le port {target_port}.") from exc
+        writer.close()
+
+    async def _relay(
+        self,
+        target_port: int,
+        client_reader: asyncio.StreamReader,
+        client_writer: asyncio.StreamWriter,
+    ) -> None:
+        try:
+            server_reader, server_writer = await asyncio.open_connection(
+                self._connect_host, target_port
+            )
+        except OSError:
+            client_writer.close()
+            return
+
+        await asyncio.gather(
+            _pump(client_reader, server_writer),
+            _pump(server_reader, client_writer),
+        )
+
+
+async def _pump(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    """Copie un sens du flux jusqu'à EOF, puis ferme le côté écriture."""
+    try:
+        while True:
+            data = await reader.read(_RELAY_CHUNK)
+            if not data:
+                break
+            writer.write(data)
+            await writer.drain()
+    except OSError:
+        pass  # reset/peer parti : on laisse le finally fermer proprement
+    finally:
+        try:
+            writer.close()
+        except OSError:
+            pass

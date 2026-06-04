@@ -617,15 +617,50 @@ Chaque semaine est structurée en :
 - T14.2 🔴 Confirmation PC avant émission
 - T14.3 🔴 Réception : même en veille (foreground service permanent)
 
-### S14.J3-J5 — Preview localhost (reverse proxy L7)
-- T14.4 🔴 Endpoint pont Python `POST /tunnel/expose {port}` retourne URL
-- T14.5 🔴 Reverse proxy `httpx` async, écoute sur `<host>:<random_port>`
-- T14.6 🔴 Pour usage hors LAN, URL générée via VPS (en B7)
-- T14.7 🔴 UI dashboard : input port, bouton « Exposer », URL + QR
-- T14.8 🔴 Stockage actifs dans `localhost_tunnels`
-- T14.9 🧪 Manuel : `python -m http.server 3000`, exposer, ouvrir tel
+### S14.J3-J5 — Dev Preview (localhost mobile)
 
-**🧪 DoD S14 :** Tel sonne même en veille ; site localhost ouvrable depuis tel.
+> **Refonte 2026-06-04** (cf. CDC §16.5, [[linkup-dev-preview]]). Remplace l'ancien
+> « reverse proxy L7 httpx + tunnel VPS ». Le besoin réel : un dev teste sur son tél,
+> **sans déployer**, un projet web qui tourne sur le PC, avec le **même comportement**
+> que dans le navigateur du PC (multi-services, WebSocket, contexte sécurisé). Approche :
+> **proxy TCP transparent par projet** (relais d'octets bruts → HTTP **et** WS), servi en
+> **HTTPS** (caméra/PWA exigent un contexte sécurisé). Plus de tunnel VPS pour ce module
+> (LAN-only), plus de table `localhost_tunnels` (état en mémoire dans le bridge).
+
+**Lot A — proxy transparent multi-ports + WS (bridge) — ✅ FAIT (2026-06-04)**
+- ✅ T14.4 `bridge/app/services/preview.py::ProxyManager` : un listener LAN éphémère
+  par projet, relais d'octets bruts vers `127.0.0.1:<port>` (HTTP + WebSocket sans parsing),
+  idempotent, `connect_host` figé à 127.0.0.1 (anti-SSRF).
+- ✅ T14.5 Détection des serveurs de dev via `/proc/net/tcp{,6}` (`scan_listening_ports`,
+  Linux), nom de process best-effort, exclut le port du bridge + proxies actifs.
+- ✅ T14.6 Routes `bridge/app/routes/preview.py` (token agent) : `GET /preview/ports`,
+  `POST /preview/expose`, `GET /preview/exposed`, `POST /preview/unexpose`. Câblé dans
+  `main.py` (manager en `app.state`, fermé à l'arrêt).
+- ✅ T14.7 Tests `bridge/tests/test_preview.py` : 9 ✓ (relais bidirectionnel, idempotence,
+  port injoignable → `ProxyError`/404, scan détecte/exclut, flux des routes).
+
+**Lot B — HTTPS + CA de confiance (bridge + tél) — 🔴 PROCHAIN (prérequis caméra/PWA)**
+- 🔴 T14.8 Génération d'une **CA Linkup** au 1ᵉʳ lancement (Python pur, sans droits admin)
+  + cert serveur ; `ssl.SSLContext` passé à `asyncio.start_server` (relais inchangé).
+- 🔴 T14.9 App tél : flux d'**installation/approbation de la CA** (1 fois) + ouverture du
+  projet `https://<host-bridge>:<listen_port>` dans le **navigateur externe**.
+
+**Lot C — orchestration tél (Laravel + Flutter) — 🔴 À FAIRE**
+- 🔴 T14.10 Laravel `/api/preview/*` (auth.device) relaie vers le bridge (token agent).
+- 🔴 T14.11 Écran Flutter : liste des projets détectés → « Exposer » → ouvrir.
+
+**Lot D — détecteur de compatibilité — 🟠 PHASE 1.5**
+- 🟠 T14.12 Scan source : alerte sur `localhost`/`127.0.0.1` codés en dur, recommande
+  URL relative / variable d'env, liste les fichiers concernés.
+
+**Différé (version finale) :** « Mode Compatibilité » = réécriture auto des `localhost` en
+dur (HTML+JS+WS+CORS) — hors MVP.
+
+- T14.13 🧪 Manuel : `python -m http.server 3000` (puis un vrai projet Vite + Reverb),
+  exposer, ouvrir sur le tél, vérifier HMR + WebSocket + (en HTTPS) la caméra navigateur.
+
+**🧪 DoD S14 :** Tel sonne même en veille ; projet localhost (front + WS) ouvrable depuis le
+tél **en HTTPS**, avec HMR/temps réel fonctionnels.
 
 **🚦 Gate B4 :** 5 modules de contrôle PC stables. **Démo intermédiaire : terminal + contrôle Spotify + notif WhatsApp + faire sonner + exposer un Vite localhost.**
 
