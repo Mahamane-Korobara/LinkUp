@@ -11,7 +11,7 @@ import subprocess
 import sys
 from urllib.parse import urlparse
 
-from app.services.transfer import _desktop_env
+from app.services.transfer import _LAUNCH_DETECT_SECONDS, _desktop_env
 
 _ALLOWED_SCHEMES = {"http", "https"}
 
@@ -48,7 +48,7 @@ def open_url(url: str) -> str:
         raise LinkError(f"Lanceur « {cmd[0]} » introuvable sur ce PC.") from exc
 
     try:
-        _, stderr = proc.communicate(timeout=3)
+        _, stderr = proc.communicate(timeout=_LAUNCH_DETECT_SECONDS)
     except subprocess.TimeoutExpired:
         return cleaned  # navigateur lancé/exec en place = succès
 
