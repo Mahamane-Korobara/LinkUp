@@ -1,16 +1,21 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Inbox,
   FileText,
   ExternalLink,
-  HardDrive,
-  Clock,
   Images,
   Film,
   Play,
+  File,
+  FileSpreadsheet,
+  FileArchive,
+  FileAudio,
+  FileCode,
+  FileType,
+  type LucideIcon,
 } from 'lucide-react';
 
 import {
@@ -24,8 +29,6 @@ import {
 import { usePolling } from '@/hooks/usePolling';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/PageHeader';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { ErrorBanner, EmptyState } from '@/components/ui/states';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -54,6 +57,49 @@ async function loadFiles(): Promise<FileDto[]> {
   const data = await (await apiFetch('/api/files')).json();
   return (data.files ?? []) as FileDto[];
 }
+
+// --- Aperçu des documents (onglet Fichier) ---------------------------------
+// Le navigateur sait rendre INLINE les PDF et le texte brut → on les affiche en
+// aperçu, comme la galerie le fait pour les photos/vidéos. Les binaires (docx,
+// xlsx, zip, audio…) n'ont pas d'aperçu hors-ligne → carte à icône typée.
+
+/** Extensions dont le contenu est du texte lisible (aperçu via un extrait). */
+const TEXT_EXTS = new Set([
+  'txt', 'md', 'markdown', 'csv', 'tsv', 'log', 'json', 'xml', 'yml', 'yaml',
+  'ini', 'conf', 'env', 'toml', 'html', 'css', 'sql', 'sh', 'bash',
+  'js', 'ts', 'jsx', 'tsx', 'py', 'php', 'java', 'c', 'cpp', 'h', 'rs', 'go', 'rb',
+]);
+
+type DocPreview = 'pdf' | 'text' | 'icon';
+
+function extOf(filename: string): string {
+  const i = filename.lastIndexOf('.');
+  return i >= 0 ? filename.slice(i + 1).toLowerCase() : '';
+}
+
+function previewKind(ext: string): DocPreview {
+  if (ext === 'pdf') return 'pdf';
+  if (TEXT_EXTS.has(ext)) return 'text';
+  return 'icon';
+}
+
+/** Icône + couleur d'accent pour les fichiers sans aperçu visuel. */
+function iconFor(ext: string): { Icon: LucideIcon; cls: string } {
+  if (['zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz'].includes(ext))
+    return { Icon: FileArchive, cls: 'text-amber-600' };
+  if (['xls', 'xlsx', 'ods'].includes(ext))
+    return { Icon: FileSpreadsheet, cls: 'text-emerald-600' };
+  if (['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac'].includes(ext))
+    return { Icon: FileAudio, cls: 'text-fuchsia-600' };
+  if (['doc', 'docx', 'odt', 'rtf'].includes(ext))
+    return { Icon: FileType, cls: 'text-blue-600' };
+  if (TEXT_EXTS.has(ext)) return { Icon: FileCode, cls: 'text-violet-600' };
+  return { Icon: File, cls: 'text-zinc-500' };
+}
+
+// Contenu d'un transfert terminé = immuable → on cache l'extrait texte pour ne
+// pas le re-télécharger à chaque tick de polling.
+const textPreviewCache = new Map<string, string>();
 
 export default function FilesPage() {
   const { data: files, error, loadedOnce } = usePolling<FileDto[]>(
@@ -152,9 +198,9 @@ export default function FilesPage() {
       )}
 
       {tab === 'fichier' && docs.length > 0 && (
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
           {docs.map((f, i) => (
-            <FileRow
+            <FileTile
               key={f.transfer_id}
               file={f}
               index={i}
@@ -284,7 +330,7 @@ function GalleryTile({
   );
 }
 
-function FileRow({
+function FileTile({
   file,
   index,
   busy,
@@ -295,42 +341,101 @@ function FileRow({
   busy: boolean;
   onOpen: () => void;
 }) {
+  const ext = extOf(file.filename);
+  const kind = previewKind(ext);
+  const meta = [
+    formatBytes(file.size),
+    file.device ? `de ${file.device}` : null,
+    formatDate(file.completed_at) || null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: Math.min(index * 0.04, 0.3) }}
+    <motion.button
+      type="button"
+      onClick={onOpen}
+      disabled={busy}
+      title={`${file.filename}${meta ? ` — ${meta}` : ''} (cliquer pour ouvrir sur le PC)`}
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.3) }}
+      className="group relative flex aspect-[3/4] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white text-left outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50"
     >
-      <Card className="flex items-center justify-between gap-4 p-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-600">
-            <FileText className="size-5" />
-          </span>
-          <div className="min-w-0">
-            <div className="truncate font-semibold text-zinc-900">{file.filename}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-zinc-400">
-              <span className="inline-flex items-center gap-1">
-                <HardDrive className="size-3.5" /> {formatBytes(file.size)}
-              </span>
-              {file.device && <span>de {file.device}</span>}
-              {formatDate(file.completed_at) && (
-                <span className="inline-flex items-center gap-1">
-                  <Clock className="size-3.5" /> {formatDate(file.completed_at)}
-                </span>
-              )}
-            </div>
-          </div>
+      {/* Zone d'aperçu : PDF (1ʳᵉ page), extrait texte, ou icône typée. */}
+      <div className="relative flex-1 overflow-hidden bg-zinc-50">
+        {kind === 'pdf' && <PdfPreview id={file.transfer_id} />}
+        {kind === 'text' && <TextPreview id={file.transfer_id} />}
+        {kind === 'icon' && <IconPreview ext={ext} />}
+
+        <span className="absolute left-2 top-2 inline-flex items-center rounded-md bg-black/65 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white backdrop-blur-sm">
+          {ext || 'fichier'}
+        </span>
+      </div>
+
+      {/* Pied : nom + taille + action « ouvrir sur le PC ». */}
+      <div className="flex items-center justify-between gap-2 border-t border-zinc-100 px-2.5 py-2">
+        <div className="min-w-0">
+          <div className="truncate text-xs font-semibold text-zinc-800">{file.filename}</div>
+          <div className="truncate text-[11px] text-zinc-400">{formatBytes(file.size)}</div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onOpen}
-          disabled={busy}
-          className="shrink-0"
-        >
-          <ExternalLink /> {busy ? '…' : 'Ouvrir'}
-        </Button>
-      </Card>
-    </motion.div>
+        <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-zinc-100 text-zinc-500 transition-colors group-hover:bg-violet-600 group-hover:text-white">
+          {busy ? <span className="text-[10px]">…</span> : <ExternalLink className="size-3.5" />}
+        </span>
+      </div>
+    </motion.button>
+  );
+}
+
+function PdfPreview({ id }: { id: string }) {
+  // #toolbar=0… masque l'UI du viewer Chromium → vignette propre de la 1ʳᵉ page.
+  // loading=lazy : ne charge que les PDF réellement visibles (grille longue).
+  const src = `${fileRawUrl(id)}#toolbar=0&navpanes=0&scrollbar=0&view=FitH&page=1`;
+  return (
+    <iframe
+      src={src}
+      title="Aperçu PDF"
+      tabIndex={-1}
+      loading="lazy"
+      className="pointer-events-none absolute inset-0 size-full border-0 bg-white"
+    />
+  );
+}
+
+function TextPreview({ id }: { id: string }) {
+  const [text, setText] = useState<string | null>(textPreviewCache.get(id) ?? null);
+
+  useEffect(() => {
+    if (text !== null) return;
+    let active = true;
+    // Range : on ne tire que les 2 premiers Ko (suffisant pour l'aperçu).
+    fetch(fileRawUrl(id), { headers: { Range: 'bytes=0-2047' } })
+      .then((r) => r.text())
+      .then((t) => {
+        const snippet = t.slice(0, 1200);
+        textPreviewCache.set(id, snippet);
+        if (active) setText(snippet);
+      })
+      .catch(() => {
+        if (active) setText('');
+      });
+    return () => {
+      active = false;
+    };
+  }, [id, text]);
+
+  return (
+    <pre className="pointer-events-none absolute inset-0 size-full overflow-hidden whitespace-pre-wrap break-words p-2.5 text-[8px] leading-[1.35] text-zinc-600">
+      {text ?? ''}
+    </pre>
+  );
+}
+
+function IconPreview({ ext }: { ext: string }) {
+  const { Icon, cls } = iconFor(ext);
+  return (
+    <div className="absolute inset-0 grid place-items-center">
+      <Icon className={cn('size-14', cls)} strokeWidth={1.5} />
+    </div>
   );
 }
