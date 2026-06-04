@@ -41,13 +41,18 @@ Route::get('/pairing/qr', [PairingController::class, 'qrPayload']);
 
 // S2.J3 — handshake reçu du tel après scan QR. Le tel envoie sa pubkey +
 // l'OTP + signature(otp || tel_pubkey). Réponse : pc_pubkey + status.
-Route::post('/pairing/handshake', [PairingController::class, 'handshake']);
+// throttle:pairing (60/min/IP) : borne les tentatives de handshake.
+Route::post('/pairing/handshake', [PairingController::class, 'handshake'])
+    ->middleware('throttle:pairing');
 
 // S2.J4 — gestion des devices.
 // index/approve/reject = dashboard local UNIQUEMENT → protégés par
 // `dashboard.client` (header custom + CORS restreint, anti-CSRF). Sans ça,
 // n'importe quelle page web pouvait lister/approuver des devices.
-Route::middleware('dashboard.client')->group(function () {
+// dashboard.client = header anti-CSRF (navigateur) ; local.only = loopback
+// uniquement (bloque un hôte du LAN qui forgerait le header). Les deux ensemble
+// couvrent le navigateur ET le client non-navigateur (curl).
+Route::middleware(['dashboard.client', 'local.only'])->group(function () {
     Route::get('/pairing/devices', [DeviceController::class, 'index']);
     Route::post('/pairing/devices/{device}/approve', [DeviceController::class, 'approve']);
     Route::post('/pairing/devices/{device}/reject', [DeviceController::class, 'reject']);
@@ -67,11 +72,17 @@ Route::middleware('dashboard.client')->group(function () {
 // Aperçu d'un fichier reçu, servi INLINE pour les balises <img>/<video> du
 // dashboard (Galerie). Hors `dashboard.client` car ces balises ne peuvent pas
 // émettre le header custom ; lecture seule, fichiers terminés uniquement.
-Route::get('/files/{transfer}/raw', [FilesController::class, 'raw']);
+// MAIS local.only : les <img>/<video> du dashboard partent de la loopback, donc
+// un hôte du LAN ne peut pas aspirer les fichiers reçus via leur UUID.
+Route::get('/files/{transfer}/raw', [FilesController::class, 'raw'])
+    ->middleware('local.only');
 
 // poll = appelé par le TEL (authentifié par signature Ed25519), pas le
 // dashboard → reste ouvert (le tel ne peut pas envoyer le header dashboard).
-Route::post('/pairing/poll', [DeviceController::class, 'poll']);
+// throttle:pairing (60/min/IP) : couvre la cadence légitime du tél (2 s = 30/min)
+// et borne le flooding de signatures invalides (anti-amplification audit).
+Route::post('/pairing/poll', [DeviceController::class, 'poll'])
+    ->middleware('throttle:pairing');
 
 // Endpoints authentifiés par le token persistant du tel (middleware
 // auth.device : X-Device-Id + Bearer <token>).
