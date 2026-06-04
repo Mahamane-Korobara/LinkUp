@@ -10,6 +10,7 @@ import {
   Inbox,
   SendHorizontal,
   ClipboardList,
+  Globe,
   Link2,
   Menu,
   X,
@@ -27,6 +28,7 @@ const NAV: NavItem[] = [
   { href: "/files", label: "Fichiers reçus", icon: Inbox },
   { href: "/send", label: "Envoyer", icon: SendHorizontal },
   { href: "/clipboard", label: "Presse-papier", icon: ClipboardList },
+  { href: "/preview", label: "Dev Preview", icon: Globe },
 ];
 
 /** Ping périodique de l'agent local → état de connexion. */

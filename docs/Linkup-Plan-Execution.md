@@ -652,12 +652,31 @@ Chaque semaine est structurée en :
   `/preview/ca.crt`) + ouverture du projet `https://<host-bridge>:<listen_port>` dans le
   **navigateur externe**. → fait partie du Lot C.
 
-**Lot C — orchestration tél (Laravel + Flutter) — 🔴 À FAIRE**
-- 🔴 T14.10 Laravel `/api/preview/*` (auth.device) relaie vers le bridge (token agent).
-- 🔴 T14.11 Écran Flutter : liste des projets détectés → « Exposer » → ouvrir.
+**Lot C — orchestration (Laravel + Dashboard) — ✅ FAIT (2026-06-04)**
+- ✅ T14.10 Laravel : `BridgeClient::previewPorts/exposedPreviews/exposePreview/unexposePreview`
+  + `Dashboard\PreviewController` (relais, panne bridge → 503 lisible) + routes
+  `/api/preview/{ports,exposed,expose,unexpose}` sous `dashboard.client + local.only`.
+  Le bridge renvoie `hosts` (IP LAN) + `scheme` pour bâtir l'URL `https://<host>:<listen_port>`.
+  Tests `tests/Feature/Dashboard/PreviewTest.php` : 5 ✓ (liste, expose, 422, 503, 403 sans header).
+- ✅ T14.11 Dashboard : page `/preview` (détecte les serveurs de dev, Exposer/Arrêter, URL +
+  copie + Ouvrir, bandeau certificat HTTPS) + entrée de nav « Dev Preview ». tsc + eslint clean.
+
+**Lot C-bis — app tél (Flutter) — ✅ FAIT (2026-06-05)**
+- ✅ T14.12 Laravel : route `GET /api/preview/projects` (auth.device, le tél liste les projets) +
+  `GET /api/preview/ca.crt` **publique** (relais du cert CA, ouverte sans header par le navigateur).
+  `BridgeClient::previewCaCertificate` + `PreviewController::caCertificate`. Tests : 3 ✓
+  (liste tél, 401 sans token, CA publique servie en `x-x509-ca-cert`).
+- ✅ T14.13 Flutter : `services/preview/preview_client.dart` (+ modèles) + écran
+  `screens/preview/preview_screen.dart` (carte « Installer le certificat » → ouvre la CA dans le
+  navigateur ; liste des projets → « Ouvrir » `https://<host>:<listen_port>` en navigateur EXTERNE
+  via `url_launcher`). Bouton « Dev Preview » dans `agent_detail_screen`. `<queries>` VIEW http/https
+  ajouté au manifeste (Android 11+). Tests `test/preview_client_test.dart` : 4 ✓. `flutter analyze`
+  clean, suite mobile 118 ✓.
+- Dashboard : boutons « Copier/Ouvrir » retirés (redondants avec presse-papier + ouverture côté tél) —
+  le dashboard expose/arrête, le tél ouvre.
 
 **Lot D — détecteur de compatibilité — 🟠 PHASE 1.5**
-- 🟠 T14.12 Scan source : alerte sur `localhost`/`127.0.0.1` codés en dur, recommande
+- 🟠 T14.14 Scan source : alerte sur `localhost`/`127.0.0.1` codés en dur, recommande
   URL relative / variable d'env, liste les fichiers concernés.
 
 **Différé (version finale) :** « Mode Compatibilité » = réécriture auto des `localhost` en
