@@ -5,6 +5,7 @@ use App\Http\Controllers\Clipboard\ClipboardController;
 use App\Http\Controllers\Dashboard\ClipboardController as DashboardClipboardController;
 use App\Http\Controllers\Dashboard\FilesController;
 use App\Http\Controllers\Dashboard\OutboxController;
+use App\Http\Controllers\Dashboard\PreviewController;
 use App\Http\Controllers\Pairing\DeviceController;
 use App\Http\Controllers\Pairing\PairingController;
 use App\Http\Controllers\PingController;
@@ -67,6 +68,13 @@ Route::middleware(['dashboard.client', 'local.only'])->group(function () {
 
     // S6 — envoi PC → tél : le dashboard dépose un fichier pour un tél.
     Route::post('/outbox/{device}', [OutboxController::class, 'send']);
+
+    // S14 — Dev Preview : le dashboard liste/expose les serveurs de dev du PC
+    // (relais vers le bridge, qui fait le proxy HTTPS réel).
+    Route::get('/preview/ports', [PreviewController::class, 'ports']);
+    Route::get('/preview/exposed', [PreviewController::class, 'exposed']);
+    Route::post('/preview/expose', [PreviewController::class, 'expose']);
+    Route::post('/preview/unexpose', [PreviewController::class, 'unexpose']);
 });
 
 // Aperçu d'un fichier reçu, servi INLINE pour les balises <img>/<video> du
@@ -120,9 +128,19 @@ Route::middleware('auth.device')->group(function () {
     Route::get('/clipboard/pc', [ClipboardController::class, 'pc']);
     Route::post('/link/open', [ClipboardController::class, 'openLink']);
 
+    // S14 — Dev Preview : le tél liste les projets exposés depuis le dashboard,
+    // puis ouvre `https://<host>:<listen_port>` dans son navigateur. Lecture seule
+    // (c'est le dashboard PC qui décide quoi exposer, pas le tél).
+    Route::get('/preview/projects', [PreviewController::class, 'exposed']);
+
     // S6 — l'envoi des photos passe par le module transfert (/transfers) : le tél
     // choisit les médias et les pousse comme des fichiers normaux (pas d'index).
 });
+
+// S14 — certificat PUBLIC de la CA Linkup. HORS auth.device : le tél l'ouvre dans
+// son navigateur (qui n'émet aucun header) pour l'installer ; un cert de CA est
+// public (la clé privée reste sur le PC). Pas de local.only : le tél est sur le LAN.
+Route::get('/preview/ca.crt', [PreviewController::class, 'caCertificate']);
 
 Route::get('/user', function (Request $request) {
     return $request->user();

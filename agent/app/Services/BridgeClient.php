@@ -110,6 +110,66 @@ class BridgeClient
         return $this->safePost('/link/open', ['url' => $url]);
     }
 
+    /**
+     * Dev Preview (S14) — serveurs de dev qui écoutent sur le PC.
+     *
+     * @throws BridgeUnavailableException
+     */
+    public function previewPorts(): array
+    {
+        return $this->safeGet('/preview/ports');
+    }
+
+    /**
+     * Dev Preview — projets actuellement exposés au LAN (+ hosts/scheme).
+     *
+     * @throws BridgeUnavailableException
+     */
+    public function exposedPreviews(): array
+    {
+        return $this->safeGet('/preview/exposed');
+    }
+
+    /**
+     * Dev Preview — ouvre un proxy HTTPS vers `127.0.0.1:<port>`.
+     *
+     * @throws BridgeUnavailableException si rien n'écoute derrière le port (404)
+     */
+    public function exposePreview(int $port): array
+    {
+        return $this->safePost('/preview/expose', ['port' => $port]);
+    }
+
+    /**
+     * Dev Preview — ferme le proxy d'un projet.
+     *
+     * @throws BridgeUnavailableException
+     */
+    public function unexposePreview(int $port): array
+    {
+        return $this->safePost('/preview/unexpose', ['port' => $port]);
+    }
+
+    /**
+     * Dev Preview — certificat PUBLIC de la CA Linkup (PEM brut), à relayer au
+     * tél pour qu'il l'installe. Pas de `->json()` : c'est du texte, pas du JSON.
+     *
+     * @throws BridgeUnavailableException
+     */
+    public function previewCaCertificate(): string
+    {
+        try {
+            return $this->request()->get('/preview/ca.crt')->throw()->body();
+        } catch (ConnectionException $e) {
+            throw new BridgeUnavailableException(
+                "Bridge Python injoignable sur {$this->baseUrl()}. Est-il démarré ?",
+                previous: $e,
+            );
+        } catch (RequestException $e) {
+            throw $this->bridgeError($e, '/preview/ca.crt');
+        }
+    }
+
     private function safeGet(string $path): array
     {
         try {

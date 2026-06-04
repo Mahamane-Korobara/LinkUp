@@ -58,5 +58,16 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Linkup S14 — Dev Preview : url_launcher doit pouvoir résoudre un
+             navigateur pour ouvrir https://<host>:<port> et le certificat de la CA
+             (Android 11+ exige cette déclaration de visibilité). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="http"/>
+        </intent>
     </queries>
 </manifest>

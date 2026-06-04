@@ -8,6 +8,7 @@ import '../services/pairing/pairing_verifier.dart';
 import '../theme/app_colors.dart';
 import 'clipboard/clipboard_screen.dart';
 import 'pairing/pairing_flow_screen.dart';
+import 'preview/preview_screen.dart';
 import 'transfer/transfer_hub_screen.dart';
 
 /// Écran T1.19 : affiche les infos riches d'un agent sélectionné en appelant
@@ -163,6 +164,17 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
                 ),
               ),
               icon: const Icon(Icons.content_paste),
+            ),
+          // Dev Preview : ouvrir sur le tél un projet web exposé par le PC.
+          if (_isPaired == true && _paired != null)
+            IconButton(
+              tooltip: 'Dev Preview',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => PreviewScreen(device: _paired!),
+                ),
+              ),
+              icon: const Icon(Icons.public),
             ),
           // Toujours dispo (même « appairé ») : si le PC a oublié ce tél (ex.
           // migrate:fresh, révocation), le token local est invalide et il faut

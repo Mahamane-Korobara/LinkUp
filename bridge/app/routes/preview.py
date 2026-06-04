@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.deps import require_agent_token
+from app.services.cert import local_ips
 from app.services.preview import ProxyError, ProxyManager, scan_listening_ports
 
 router = APIRouter(prefix="/preview", tags=["preview"], dependencies=[Depends(require_agent_token)])
@@ -26,6 +27,12 @@ def _manager(request: Request) -> ProxyManager:
     return request.app.state.proxy_manager
 
 
+def _lan_hosts() -> list[str]:
+    """IP LAN où joindre les projets exposés (hors loopback) — pour bâtir l'URL
+    `<scheme>://<host>:<listen_port>` côté dashboard/tél."""
+    return sorted(ip for ip in local_ips() if not ip.startswith("127."))
+
+
 @router.get("/ports")
 def list_ports(request: Request) -> dict:
     """Ports de dev détectés sur le PC, hors port du bridge et proxies actifs."""
@@ -36,22 +43,27 @@ def list_ports(request: Request) -> dict:
 
 @router.get("/exposed")
 def list_exposed(request: Request) -> dict:
-    """Projets actuellement exposés au LAN."""
-    return {"exposed": [info.as_dict() for info in _manager(request).list()]}
+    """Projets actuellement exposés au LAN (+ hôtes/schéma pour bâtir l'URL)."""
+    manager = _manager(request)
+    return {
+        "exposed": [info.as_dict() for info in manager.list()],
+        "scheme": manager.scheme,
+        "hosts": _lan_hosts(),
+    }
 
 
 @router.post("/expose")
 async def expose(body: PortBody, request: Request) -> dict:
     """Ouvre un proxy vers ``127.0.0.1:<port>`` ; renvoie le port d'écoute LAN.
 
-    Le tél bâtit l'URL à ouvrir = ``<schéma>://<host-bridge>:<listen_port>`` (il
-    connaît déjà l'hôte du bridge auquel il est connecté).
+    L'URL à ouvrir = ``<scheme>://<host>:<listen_port>`` (``hosts`` = IP LAN du PC).
     """
+    manager = _manager(request)
     try:
-        info = await _manager(request).expose(body.port)
+        info = await manager.expose(body.port)
     except ProxyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return info.as_dict()
+    return {**info.as_dict(), "scheme": manager.scheme, "hosts": _lan_hosts()}
 
 
 @router.post("/unexpose")
