@@ -137,7 +137,7 @@ Tu scannes un QR code une seule fois — ton téléphone et ton PC sont reliés,
 | ⌨️ Terminal distant | Accès au shell du PC depuis le tel, **shell restreint configurable**, opt-in PC | Win (PowerShell) + Linux (bash) |
 | ▶️ Contrôle média | Play/pause/volume du PC pilotés depuis le tel (MPRIS Linux, SMTC Windows) | Win + Linux |
 | 📍 Faire sonner le tel | Localiser un téléphone perdu depuis le PC, foreground service Android | Win + Linux |
-| 🌍 Preview localhost | Exposer un port local du PC → ouvrable sur le tel via QR (reverse proxy L7) | Win + Linux |
+| 🌍 Dev Preview (localhost mobile) | Tester sur le tél, sans déploiement, un projet web qui tourne sur le PC — **même comportement que dans le navigateur du PC**. Proxy transparent multi-ports (HTTP + WebSocket) servi en HTTPS. Cf. §16.5 | Linux (Win/macOS plus tard) |
 
 **Total Phase 1 : 16 modules** (4 + 3 + 4 + 5).
 
@@ -317,7 +317,7 @@ Pour éviter la duplication entre 16 modules :
 | **Caméra** | **WebRTC** (signaling via Reverb) | Vidéo SRTP, NAT traversal via coturn |
 | **Micro** | **WebRTC** (mux dans la même PeerConnection que caméra si actives) | Audio Opus SRTP |
 | **Terminal distant** | **WebSocket binaire dédié** | Streaming PTY, latence critique |
-| **Preview localhost** | **HTTP reverse proxy L7** (tunnel) | URL accessible navigateur |
+| **Dev Preview (localhost mobile)** | **Proxy TCP transparent par projet, servi en HTTPS** (relais d'octets bruts → HTTP **et** WebSocket) | Même comportement que sur le PC ; contexte sécurisé requis (caméra/PWA) — cf. §16.5 |
 | **Téléchargeur yt-dlp** | Reverb event (trigger) + HTTP (résultat) | Lance le job, livre le fichier |
 | **Transcription Whisper** | Reverb event (trigger) + HTTP (résultat) | Lance le job, livre le texte |
 | **Conversion média** | Reverb event (trigger) + HTTP (résultat) | Lance le job, livre le fichier |
@@ -620,6 +620,34 @@ on receive(content, hash, origin_device_id, ts):
   recent_hashes.add(hash, ts)
   broadcast_to_others(content, hash, self.id, ts)
 ```
+
+## 16.5 Dev Preview (localhost mobile)
+
+**Vision.** Un dev fait tourner son projet sur le PC (front `:3000`/`:5173`, back `:8000`, Reverb `:8080`, workers, BDD…). Tout marche dans le navigateur du PC. Il veut le tester **sur son tél, sans déployer** (ni ngrok, ni Vercel, ni VPS). Linkup fait que **le même projet tourne sur le tél, avec le même comportement**. Objectif : projet PC → ouvrir Linkup → tester sur tél en **< 30 s**.
+
+**Principe — un listener dédié par projet, relais d'octets bruts.**
+- Quand l'utilisateur « expose » un port, le bridge ouvre un **listener LAN dédié** (port éphémère) qui **relaie les octets bruts** vers `127.0.0.1:<port>` du PC. Le relais brut traverse **HTTP et WebSocket** (Reverb, Socket.io, Pusher, Livewire, Vite HMR, Next Fast Refresh) sans rien parser — c'est ce qui garantit le « même comportement ».
+- **Un listener par projet** (et non un préfixe de path type `/preview/3000`) **préserve la racine `/`** : les chemins absolus (`/assets/x.js`) et les appels même-origine de l'app résolvent vers la même origine proxifiée.
+- `connect_host` est figé à `127.0.0.1` : on ne joint **que** des services locaux du PC (jamais une IP fournie par le tél → pas de SSRF).
+
+**Multi-services.** On expose seulement ce que **le navigateur** touche (front + API que le front appelle). Le reste (BDD, Redis, queue, workers Python) **reste sur le PC**, joint en local par le back, jamais exposé au tél. Le « sans intervention » ne tient que si le front passe par **une seule origine** (proxy Vite `server.proxy` / URLs relatives / `VITE_REVERB_HOST=window.location.hostname`).
+
+**HTTPS obligatoire (pas optionnel).** `http://<ip-LAN>:port` **n'est pas un contexte sécurisé** → le navigateur du tél **bloque** caméra, géolocalisation, notifications web, **PWA**, service workers (précisément ce qu'un dev veut tester sur mobile). Le bridge sert donc les projets proxifiés en **HTTPS** avec une **CA Linkup** que l'app tél **installe et approuve une fois** (sinon avertissement de certificat à chaque ouverture). TLS terminé au listener (`ssl.SSLContext` passé à `asyncio.start_server`) ; le relais vers le dev-server reste en clair, en local sur le PC.
+
+**Endpoints (plan de contrôle, bridge, token agent).** Le plan de données — le navigateur du tél qui charge le projet — frappe **directement** le listener de proxy, pas ces routes.
+- `GET /preview/ports` — serveurs de dev détectés (via `/proc/net/tcp`), hors port du bridge et proxies actifs.
+- `POST /preview/expose {port}` → `{target_port, listen_port, started_at}` ; idempotent ; `404` si rien n'écoute derrière le port.
+- `GET /preview/exposed` — projets actifs.
+- `POST /preview/unexpose {port}`.
+- Le tél bâtit l'URL à ouvrir = `https://<host-bridge>:<listen_port>` puis l'ouvre dans le **navigateur externe** (Chrome — meilleur support contexte sécurisé/API qu'un WebView in-app).
+
+**Détecteur de compatibilité (phase 1.5).** Avant exposition, scan de la source du projet : alerte si des `localhost`/`127.0.0.1` sont **codés en dur** (`http://localhost:8000`, `ws://localhost:8080`) — un appareil distant ne peut pas joindre le localhost **du tél**. Recommande URL relative / variable d'env, en listant les fichiers concernés.
+
+**Hors MVP (version finale) — « Mode Compatibilité ».** Réécriture automatique des `localhost` codés en dur vers l'origine proxifiée, sans toucher au code. Complexe (HTML + JS + WebSocket + CORS) → différé.
+
+**Non supporté.** Apps natives Android/iOS, Flutter/React Native natifs, émulateurs, APK — rien qui ne soit pas exposé en HTTP(S) via localhost.
+
+**Packaging.** 100 % dans le bridge déjà embarqué (AppImage/.deb) : proxy + WS + TLS en **Python pur**, zéro dépendance système. CA générée au 1ᵉʳ lancement (pas de droits admin PC) ; seul geste manuel = approuver la CA **sur le tél**, une fois.
 
 # 17. Matrice « Module × OS × Dépendances Python »
 

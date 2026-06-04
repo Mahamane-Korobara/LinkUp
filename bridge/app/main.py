@@ -19,8 +19,10 @@ from app.config import settings
 from app.deps import require_agent_token
 from app.routes import clipboard as clipboard_routes
 from app.routes import mdns as mdns_routes
+from app.routes import preview as preview_routes
 from app.routes import transfer as transfer_routes
 from app.services.mdns import LinkupAnnouncer, LinkupBrowser
+from app.services.preview import ProxyManager
 from app.services.transfer import TransferService
 
 
@@ -54,10 +56,14 @@ async def lifespan(app: FastAPI):
         inbox_dir=Path(settings.transfers_dir).expanduser(),
         legacy_inbox_dirs=(Path(settings.transfers_dir_legacy).expanduser(),),
     )
+    # Dev Preview : écoute sur la même interface LAN que le bridge pour que le
+    # tél joigne les projets proxifiés. Les listeners sont fermés à l'arrêt.
+    app.state.proxy_manager = ProxyManager(host=settings.host)
 
     try:
         yield
     finally:
+        await app.state.proxy_manager.shutdown()
         await browser.stop()
         await announcer.stop()
 
@@ -72,6 +78,7 @@ app = FastAPI(
 app.include_router(mdns_routes.router)
 app.include_router(transfer_routes.router)
 app.include_router(clipboard_routes.router)
+app.include_router(preview_routes.router)
 
 
 def _safe_username() -> str:
