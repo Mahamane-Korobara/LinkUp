@@ -37,7 +37,13 @@ def _lan_hosts() -> list[str]:
 def list_ports(request: Request) -> dict:
     """Ports de dev détectés sur le PC, hors port du bridge et proxies actifs."""
     manager = _manager(request)
-    exclude = {settings.port} | manager.listen_ports()
+    # Exclut les ports de Linkup lui-même (bridge, agent Laravel, Reverb) + les
+    # proxies déjà actifs, pour ne pas se proposer soi-même à l'exposition.
+    exclude = {
+        settings.port,
+        settings.laravel_port,
+        settings.reverb_port,
+    } | manager.listen_ports()
     return {"ports": [p.as_dict() for p in scan_listening_ports(exclude=exclude)]}
 
 

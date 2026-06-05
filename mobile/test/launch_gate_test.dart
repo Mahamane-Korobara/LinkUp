@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:linkup_mobile/models/linkup_agent.dart';
+import 'package:linkup_mobile/screens/agent_picker_screen.dart';
 import 'package:linkup_mobile/screens/launch_gate.dart';
 import 'package:linkup_mobile/services/agent_info_client.dart';
 import 'package:linkup_mobile/services/pairing/paired_device_store.dart';
@@ -44,9 +45,8 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      // Le picker est identifié par son FAB de saisie manuelle (le titre est
-      // désormais le logo Linkup).
-      expect(find.text('Saisie manuelle'), findsOneWidget);
+      // Le picker est affiché (le titre est le logo Linkup).
+      expect(find.byType(AgentPickerScreen), findsOneWidget);
       // Pas de saut vers le détail.
       expect(find.text('Appairé — appareil approuvé'), findsNothing);
     });

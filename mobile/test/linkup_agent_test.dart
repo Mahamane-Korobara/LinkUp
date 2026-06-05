@@ -17,11 +17,11 @@ void main() {
 
     test('uniqueKey falls back to address:port when agentId is null', () {
       const agent = LinkupAgent(
-        instanceName: 'manual:10.0.0.5:8765',
+        instanceName: 'sweep:10.0.0.5:8765',
         address: '10.0.0.5',
         reverbPort: 8080,
         bridgePort: 8765,
-        source: LinkupAgentSource.manual,
+        source: LinkupAgentSource.lanSweep,
       );
       expect(agent.uniqueKey, '10.0.0.5:8765');
     });
@@ -72,7 +72,7 @@ void main() {
         reverbPort: 9090,
         bridgePort: 9999,
         agentId: 'linkup-abc',
-        source: LinkupAgentSource.manual,
+        source: LinkupAgentSource.lanSweep,
       );
       expect(a, equals(b));
       expect(a.hashCode, equals(b.hashCode));

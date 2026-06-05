@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:linkup_mobile/config/linkup_ports.dart';
 import 'package:linkup_mobile/models/linkup_agent.dart';
 import 'package:linkup_mobile/services/agent_discovery.dart';
 
@@ -35,24 +34,6 @@ class FakeDiscovery implements AgentDiscovery {
   @override
   Future<void> scanOnce() async {
     scanCount++;
-  }
-
-  @override
-  LinkupAgent addManualAgent({
-    required String address,
-    int bridgePort = LinkupPorts.bridge,
-    int reverbPort = LinkupPorts.reverb,
-    String? label,
-  }) {
-    final agent = LinkupAgent(
-      instanceName: label ?? 'manual:$address:$bridgePort',
-      address: address,
-      reverbPort: reverbPort,
-      bridgePort: bridgePort,
-      source: LinkupAgentSource.manual,
-    );
-    emit([..._items, agent]);
-    return agent;
   }
 
   @override

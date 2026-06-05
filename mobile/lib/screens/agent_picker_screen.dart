@@ -8,10 +8,10 @@ import '../services/linkup_discovery.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_logo.dart';
 import 'agent_picker/empty_state.dart';
-import 'agent_picker/manual_agent_dialog.dart';
 
 /// Écran principal du flow d'appairage : liste les agents découverts sur le LAN
-/// via mDNS (T1.15) avec un bouton de saisie manuelle d'IP en fallback (T1.17).
+/// via mDNS + sweep /24 (le sweep couvre les cas où le multicast est bloqué,
+/// ex. hotspot). Aucune saisie manuelle : la découverte doit juste marcher.
 class AgentPickerScreen extends StatefulWidget {
   final AgentDiscovery? discovery;
   final ValueChanged<LinkupAgent>? onAgentSelected;
@@ -116,26 +116,6 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
     }
   }
 
-  Future<void> _addManual() async {
-    final result = await showDialog<ManualAgentInput>(
-      context: context,
-      builder: (context) => const ManualAgentDialog(),
-    );
-    if (result == null || !mounted) return;
-    try {
-      final agent = _discovery.addManualAgent(
-        address: result.address,
-        bridgePort: result.bridgePort,
-      );
-      _notifySelection(agent);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saisie invalide : $e')),
-      );
-    }
-  }
-
   void _notifySelection(LinkupAgent agent) {
     widget.onAgentSelected?.call(agent);
   }
@@ -167,11 +147,6 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
             ),
           Expanded(child: _buildAgentList()),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addManual,
-        icon: const Icon(Icons.keyboard_rounded),
-        label: const Text('Saisie manuelle'),
       ),
     );
   }

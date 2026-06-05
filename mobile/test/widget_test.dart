@@ -16,7 +16,6 @@ void main() {
 
     // Pendant l'auto-scan, l'empty state affiche « Recherche en cours… ».
     expect(find.text('Recherche en cours…'), findsOneWidget);
-    expect(find.text('Saisie manuelle'), findsOneWidget);
   });
 
   testWidgets('Discovered agents render in the list', (tester) async {

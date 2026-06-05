@@ -25,14 +25,29 @@ def make_client() -> TestClient:
     return TestClient(app)
 
 
+def listen_dev_port() -> socket.socket:
+    """Socket en écoute sur un port LIBRE dans la plage dev [1024, 32768).
+
+    Nécessaire car `scan_listening_ports` filtre les ports éphémères (>= 32768) :
+    bind(0) donnerait justement un port éphémère, invisible au scan.
+    """
+    for port in range(20000, 20200):
+        srv = socket.socket()
+        try:
+            srv.bind(("127.0.0.1", port))
+            srv.listen()
+            return srv
+        except OSError:
+            srv.close()
+    raise RuntimeError("aucun port dev libre pour le test")
+
+
 # ------------------------------------------------------------- détection ports
 
 
 @linux_only
 def test_scan_detects_a_listening_port():
-    srv = socket.socket()
-    srv.bind(("127.0.0.1", 0))
-    srv.listen()
+    srv = listen_dev_port()
     port = srv.getsockname()[1]
     try:
         ports = {p.port for p in scan_listening_ports()}
@@ -43,13 +58,27 @@ def test_scan_detects_a_listening_port():
 
 @linux_only
 def test_scan_honors_exclude():
-    srv = socket.socket()
-    srv.bind(("127.0.0.1", 0))
-    srv.listen()
+    srv = listen_dev_port()
     port = srv.getsockname()[1]
     try:
         ports = {p.port for p in scan_listening_ports(exclude={port})}
         assert port not in ports
+    finally:
+        srv.close()
+
+
+@linux_only
+def test_scan_filters_system_and_infra_ports():
+    # Un port d'infra (Redis 6379) ou éphémère ne doit jamais apparaître, même
+    # s'il écoute. On vérifie qu'un port éphémère bind(0) est bien masqué.
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))  # port éphémère >= 32768
+    srv.listen()
+    ephemeral = srv.getsockname()[1]
+    try:
+        ports = {p.port for p in scan_listening_ports()}
+        assert ephemeral not in ports
+        assert all(1024 <= p < 32768 for p in ports)
     finally:
         srv.close()
 
@@ -152,9 +181,7 @@ def test_expose_unreachable_returns_404():
 
 @linux_only
 def test_list_ports_route():
-    srv = socket.socket()
-    srv.bind(("127.0.0.1", 0))
-    srv.listen()
+    srv = listen_dev_port()
     port = srv.getsockname()[1]
     client = make_client()
     try:
@@ -162,3 +189,23 @@ def test_list_ports_route():
         assert any(p["port"] == port for p in ports)
     finally:
         srv.close()
+
+
+async def test_listen_port_is_stable_across_restarts(tmp_path):
+    # URL stable : un projet ré-exposé après redémarrage garde le même port.
+    state = tmp_path / "preview_ports.json"
+    backend = await asyncio.start_server(lambda r, w: w.close(), "127.0.0.1", 0)
+    target = backend.sockets[0].getsockname()[1]
+    try:
+        mgr1 = ProxyManager(host="127.0.0.1", state_file=state)
+        first = (await mgr1.expose(target)).listen_port
+        await mgr1.shutdown()  # « redémarrage » : on libère le port
+
+        mgr2 = ProxyManager(host="127.0.0.1", state_file=state)
+        second = (await mgr2.expose(target)).listen_port
+        await mgr2.shutdown()
+
+        assert first == second  # même port repris depuis le state persistant
+    finally:
+        backend.close()
+        await backend.wait_closed()

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 
 /// Empty state du picker : affiche un loader « Recherche en cours… » pendant
-/// l'auto-scan, sinon le hint « Aucun agent détecté » avec le bouton manuel.
+/// l'auto-scan, sinon le hint « Aucun PC détecté » + bouton « Rescanner ».
 class EmptyState extends StatelessWidget {
   final bool scanning;
   final VoidCallback onRetry;
@@ -48,8 +48,7 @@ class EmptyState extends StatelessWidget {
             Text(
               scanning
                   ? 'On scanne le Wi-Fi pour trouver ton PC.\nÇa peut prendre quelques secondes.'
-                  : 'Vérifie que ton PC est sur le même Wi-Fi et que Linkup tourne.\n'
-                      'Si le multicast est bloqué, utilise « Saisie manuelle ».',
+                  : 'Vérifie que ton PC est sur le même Wi-Fi et que Linkup tourne.',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: AppColors.muted,

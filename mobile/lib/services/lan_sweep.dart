@@ -58,23 +58,23 @@ class LanSweepDiscovery {
     void Function(LinkupAgent agent)? onAgentFound,
     bool Function()? isCancelled,
   }) async {
-    final localIp = await _localIPv4();
-    if (localIp == null) return const [];
-
-    final subnet = _subnet24(localIp);
-    if (subnet == null) return const [];
+    final targets = await _scanTargets();
+    if (targets.subnets.isEmpty) return const [];
 
     final discovered = <LinkupAgent>[];
     final ips = <String>[];
-    for (int i = 1; i <= 254; i++) {
-      final ip = '$subnet.$i';
-      if (ip == localIp) continue;
-      ips.add(ip);
+    for (final subnet in targets.subnets) {
+      for (int i = 1; i <= 254; i++) {
+        final ip = '$subnet.$i';
+        if (targets.localIps.contains(ip)) continue; // nos propres IPs
+        ips.add(ip);
+      }
     }
 
     developer.log(
-      'sweep start: subnet=$subnet.0/24, ${ips.length} IPs, '
-      'batchSize=$maxParallel, timeout=${requestTimeout.inMilliseconds}ms',
+      'sweep start: subnets=${targets.subnets.map((s) => '$s.0/24').join(',')}, '
+      '${ips.length} IPs, batchSize=$maxParallel, '
+      'timeout=${requestTimeout.inMilliseconds}ms',
       name: 'linkup.sweep',
     );
 
@@ -163,17 +163,23 @@ class LanSweepDiscovery {
     }
   }
 
-  Future<String?> _localIPv4() async {
+  /// Sous-réseaux /24 à balayer + nos propres IPs (à ignorer).
+  ///
+  /// On scanne TOUTES les interfaces privées **non-cellulaires**, pas une seule :
+  /// le Wi-Fi normal ET le partage de connexion (le tél est le point d'accès, et
+  /// son interface AP peut s'appeler `ap0`/`softap0`/`wlan1`/`swlan0` selon le
+  /// constructeur). Avant, on ne prenait que la 1ʳᵉ interface → en hotspot avec
+  /// data mobile active, on tombait sur le mauvais sous-réseau et on ne trouvait
+  /// jamais le PC. Les interfaces cellular (`rmnet*`…) sont exclues pour ne pas
+  /// balayer 254 IPs du carrier dans le vide.
+  Future<({List<String> subnets, Set<String> localIps})> _scanTargets() async {
     try {
       final interfaces = await NetworkInterface.list(
         type: InternetAddressType.IPv4,
         includeLoopback: false,
         includeLinkLocal: false,
       );
-      // Priorise les interfaces Wi-Fi (wlan0, swlan0 sur Samsung) sur les
-      // interfaces cellular (rmnet*). Sans ça, sur un tel avec data mobile +
-      // Wi-Fi, on peut tomber sur l'IP 10.x.x.x du carrier et balayer 254 IPs
-      // qui n'aboutissent pas.
+      // Wi-Fi/hotspot d'abord → on scanne le bon sous-réseau en premier (UX).
       interfaces.sort((a, b) {
         final aWifi = isLikelyWifiInterface(a.name);
         final bWifi = isLikelyWifiInterface(b.name);
@@ -181,16 +187,22 @@ class LanSweepDiscovery {
         return aWifi ? -1 : 1;
       });
 
+      final subnets = <String>[];
+      final localIps = <String>{};
       for (final iface in interfaces) {
+        if (isCellularInterface(iface.name)) continue; // jamais le réseau mobile
         for (final addr in iface.addresses) {
           final ip = addr.address;
-          if (_subnet24(ip) != null) return ip;
+          if (!isPrivateIPv4(ip)) continue;
+          localIps.add(ip);
+          final subnet = _subnet24(ip);
+          if (subnet != null && !subnets.contains(subnet)) subnets.add(subnet);
         }
       }
+      return (subnets: subnets, localIps: localIps);
     } on SocketException {
-      return null;
+      return (subnets: const <String>[], localIps: <String>{});
     }
-    return null;
   }
 
   /// Vrai si le nom d'interface ressemble à du Wi-Fi.
@@ -204,9 +216,36 @@ class LanSweepDiscovery {
     final lower = name.toLowerCase();
     if (lower.startsWith('wlan')) return true;
     if (lower.startsWith('swlan')) return true;
+    // Interfaces de partage de connexion (le tél est l'AP) : ap0, softap0.
+    if (lower.startsWith('ap') || lower.startsWith('softap')) return true;
     if (lower == 'wifi') return true;
     // macOS/iOS Wi-Fi : en0, en1 — pattern `en` + digit uniquement.
     if (RegExp(r'^en\d+$').hasMatch(lower)) return true;
+    return false;
+  }
+
+  /// Vrai pour une interface de données mobiles (à ne jamais balayer).
+  static bool isCellularInterface(String name) {
+    final lower = name.toLowerCase();
+    return lower.startsWith('rmnet') ||
+        lower.startsWith('ccmni') ||
+        lower.startsWith('pdp') ||
+        lower.startsWith('qmi') ||
+        lower.startsWith('clat');
+  }
+
+  /// Vrai si l'IPv4 est dans une plage privée RFC 1918 (10/8, 172.16/12,
+  /// 192.168/16) — les seules pertinentes pour un LAN/hotspot.
+  static bool isPrivateIPv4(String ip) {
+    final parts = ip.split('.');
+    if (parts.length != 4) return false;
+    final octets = parts.map(int.tryParse).toList();
+    if (octets.any((n) => n == null || n < 0 || n > 255)) return false;
+    final a = octets[0]!;
+    final b = octets[1]!;
+    if (a == 10) return true;
+    if (a == 172 && b >= 16 && b <= 31) return true;
+    if (a == 192 && b == 168) return true;
     return false;
   }
 
