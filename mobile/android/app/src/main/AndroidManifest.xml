@@ -5,9 +5,17 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
 
-    <!-- Linkup S2.J3 — scan QR de pairing -->
+    <!-- Linkup S2.J3 — scan QR de pairing (CAMERA aussi réutilisé par la WebView
+         Dev Preview pour getUserMedia). -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
+
+    <!-- Linkup S14 — Dev Preview : la WebView in-app expose à la page web les
+         vrais capteurs du tél (micro pour getUserMedia, position pour
+         geolocation). Permissions accordées à la demande via permission_handler. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
     <!-- Linkup S6 — galerie distante : lecture des médias pour l'indexation.
          Android 13+ = READ_MEDIA_*, plus anciens = READ_EXTERNAL_STORAGE. -->

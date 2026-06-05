@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
+import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -30,6 +32,7 @@ void main() {
             ],
             'scheme': 'https',
             'hosts': ['192.168.1.42'],
+            'cert_sha256': 'ab' * 32,
           }),
           200,
           headers: {'content-type': 'application/json'},
@@ -46,6 +49,7 @@ void main() {
 
       expect(listing.projects, hasLength(1));
       expect(listing.projects.first.targetPort, 5173);
+      expect(listing.certSha256, 'ab' * 32); // empreinte à épingler
 
       final uri = client.projectUri(_device, listing, listing.projects.first);
       expect(uri.toString(), 'https://192.168.1.42:41234');
@@ -83,6 +87,34 @@ void main() {
         'http://192.168.1.42:8000/api/preview/ca.crt',
       );
       client.close();
+    });
+  });
+
+  group('certMatchesPin', () {
+    final der = Uint8List.fromList([1, 2, 3, 4, 5]);
+
+    Future<String> hexOf(Uint8List data) async =>
+        (await Sha256().hash(data)).bytes
+            .map((b) => b.toRadixString(16).padLeft(2, '0'))
+            .join();
+
+    test('accepts the cert whose SHA-256 matches the pin', () async {
+      expect(await certMatchesPin(der, await hexOf(der)), isTrue);
+    });
+
+    test('is case-insensitive on the pinned hex', () async {
+      expect(await certMatchesPin(der, (await hexOf(der)).toUpperCase()), isTrue);
+    });
+
+    test('rejects a different cert (potential MITM)', () async {
+      final other = Uint8List.fromList([9, 9, 9]);
+      expect(await certMatchesPin(other, await hexOf(der)), isFalse);
+    });
+
+    test('rejects when the pin is null or empty (no fallback to trust-all)',
+        () async {
+      expect(await certMatchesPin(der, null), isFalse);
+      expect(await certMatchesPin(der, ''), isFalse);
     });
   });
 }

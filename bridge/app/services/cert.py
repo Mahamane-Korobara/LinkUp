@@ -72,6 +72,17 @@ class CertManager:
         """Certificat public de la CA (téléchargé par le tél pour l'approuver)."""
         return self.ca_cert_path.read_bytes()
 
+    def server_fingerprint_sha256(self) -> str:
+        """SHA-256 (hex) du certificat serveur (DER) — à épingler côté tél.
+
+        Le tél le reçoit via le canal de contrôle token-auth (`/api/preview/...`)
+        et, dans sa WebView in-app, n'accepte QUE le cert dont l'empreinte égale
+        celle-ci → HTTPS de confiance sans installer la CA dans l'OS. Recalculé à
+        la lecture : suit la régénération du cert au démarrage du bridge.
+        """
+        cert = x509.load_pem_x509_certificate(self.server_cert_path.read_bytes())
+        return cert.fingerprint(hashes.SHA256()).hex()
+
     def ssl_context(self) -> ssl.SSLContext:
         """Contexte TLS serveur prêt pour ``asyncio.start_server(ssl=...)``."""
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

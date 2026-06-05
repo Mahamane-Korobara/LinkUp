@@ -1,10 +1,27 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:cryptography/cryptography.dart';
 import 'package:http/http.dart' as http;
 
 import '../pairing/paired_device_store.dart';
+
+/// Vrai si le cert feuille présenté (DER) correspond à l'empreinte épinglée.
+///
+/// C'est le cœur sécurité du Dev Preview in-app : la WebView n'accepte le HTTPS
+/// que si le SHA-256 du cert serveur égale celui que le bridge a annoncé via le
+/// canal de contrôle token-auth → confiance sans installer la CA dans l'OS, et
+/// bien plus sûr qu'un « accepter tout » (qui laisserait passer un MITM).
+/// Comparaison hex insensible à la casse. Fonction pure → testable sans WebView.
+Future<bool> certMatchesPin(Uint8List leafDer, String? pinnedHex) async {
+  if (pinnedHex == null || pinnedHex.isEmpty) return false;
+  final digest = await Sha256().hash(leafDer);
+  final actual =
+      digest.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  return actual.toLowerCase() == pinnedHex.toLowerCase();
+}
 
 /// Erreur Dev Preview affichable.
 class PreviewException implements Exception {
@@ -36,10 +53,15 @@ class PreviewListing {
   final String scheme; // 'https'
   final List<String> hosts; // IP LAN du PC
 
+  /// SHA-256 (hex) du cert serveur du bridge, à épingler par la WebView in-app.
+  /// Null si le PC est sur une version antérieure → repli sur la voie navigateur.
+  final String? certSha256;
+
   const PreviewListing({
     required this.projects,
     required this.scheme,
     required this.hosts,
+    this.certSha256,
   });
 }
 
@@ -73,6 +95,7 @@ class PreviewClient {
           .toList(),
       scheme: data['scheme'] as String? ?? 'https',
       hosts: ((data['hosts'] as List?) ?? const []).map((e) => e.toString()).toList(),
+      certSha256: data['cert_sha256'] as String?,
     );
   }
 

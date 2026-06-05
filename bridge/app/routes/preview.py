@@ -14,7 +14,12 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.deps import require_agent_token
 from app.services.cert import local_ips
-from app.services.preview import ProxyError, ProxyManager, scan_listening_ports
+from app.services.preview import (
+    ProxyError,
+    ProxyManager,
+    filter_http_ports,
+    scan_listening_ports,
+)
 
 router = APIRouter(prefix="/preview", tags=["preview"], dependencies=[Depends(require_agent_token)])
 
@@ -27,6 +32,11 @@ def _manager(request: Request) -> ProxyManager:
     return request.app.state.proxy_manager
 
 
+def _cert_sha256(request: Request) -> str:
+    """Empreinte du cert serveur, à épingler par la WebView du tél (zéro install CA)."""
+    return request.app.state.cert_manager.server_fingerprint_sha256()
+
+
 def _lan_hosts() -> list[str]:
     """IP LAN où joindre les projets exposés (hors loopback) — pour bâtir l'URL
     `<scheme>://<host>:<listen_port>` côté dashboard/tél."""
@@ -34,17 +44,23 @@ def _lan_hosts() -> list[str]:
 
 
 @router.get("/ports")
-def list_ports(request: Request) -> dict:
-    """Ports de dev détectés sur le PC, hors port du bridge et proxies actifs."""
+async def list_ports(request: Request) -> dict:
+    """Serveurs de dev HTTP détectés sur le PC (hors Linkup lui-même)."""
     manager = _manager(request)
-    # Exclut les ports de Linkup lui-même (bridge, agent Laravel, Reverb) + les
-    # proxies déjà actifs, pour ne pas se proposer soi-même à l'exposition.
+    # Exclut les ports de Linkup lui-même (bridge, agent Laravel, Reverb, et le
+    # dashboard en dev) + les proxies déjà actifs, pour ne pas se proposer
+    # soi-même à l'exposition.
     exclude = {
         settings.port,
         settings.laravel_port,
         settings.reverb_port,
     } | manager.listen_ports()
-    return {"ports": [p.as_dict() for p in scan_listening_ports(exclude=exclude)]}
+    if settings.dashboard_port:
+        exclude.add(settings.dashboard_port)
+    candidates = scan_listening_ports(exclude=exclude)
+    # Ne garde que ce qui parle vraiment HTTP (écarte les démons IDE/java, etc.).
+    http_ports = await filter_http_ports(candidates)
+    return {"ports": [p.as_dict() for p in http_ports]}
 
 
 @router.get("/exposed")
@@ -55,6 +71,7 @@ def list_exposed(request: Request) -> dict:
         "exposed": [info.as_dict() for info in manager.list()],
         "scheme": manager.scheme,
         "hosts": _lan_hosts(),
+        "cert_sha256": _cert_sha256(request),
     }
 
 
@@ -69,7 +86,12 @@ async def expose(body: PortBody, request: Request) -> dict:
         info = await manager.expose(body.port)
     except ProxyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {**info.as_dict(), "scheme": manager.scheme, "hosts": _lan_hosts()}
+    return {
+        **info.as_dict(),
+        "scheme": manager.scheme,
+        "hosts": _lan_hosts(),
+        "cert_sha256": _cert_sha256(request),
+    }
 
 
 @router.post("/unexpose")
