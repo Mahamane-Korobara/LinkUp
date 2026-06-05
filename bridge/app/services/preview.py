@@ -25,6 +25,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+import httpx
+
 # `0A` = TCP_LISTEN dans /proc/net/tcp (cf. include/net/tcp_states.h).
 _STATE_LISTEN = "0A"
 _PROC_TCP = ("/proc/net/tcp", "/proc/net/tcp6")
@@ -159,6 +161,44 @@ def _read_comm(pid_dir: Path) -> str | None:
         return (pid_dir / "comm").read_text().strip() or None
     except OSError:
         return None
+
+
+# ------------------------------------------------------ filtre « serveur HTTP ? »
+
+_HTTP_PROBE_TIMEOUT = 0.7
+# TTL du cache : on ne re-sonde pas un port à chaque poll du dashboard (2.5 s),
+# pour ne pas spammer les logs des serveurs de dev avec des GET / répétés.
+_HTTP_CACHE_TTL = 12.0
+_http_cache: dict[int, tuple[bool, float]] = {}
+
+
+async def _is_http_server(client: httpx.AsyncClient, port: int) -> bool:
+    """Vrai si ``127.0.0.1:port`` répond en HTTP (n'importe quel statut).
+
+    Distingue un vrai serveur web (Next/Vite/php/Spring…) d'un process qui écoute
+    sans parler HTTP (démon IDE/Gradle/java, base, etc.) → seuls les premiers sont
+    « previewables » dans un navigateur. Résultat mis en cache (TTL).
+    """
+    now = time.monotonic()
+    cached = _http_cache.get(port)
+    if cached and now - cached[1] < _HTTP_CACHE_TTL:
+        return cached[0]
+    try:
+        await client.get(f"http://127.0.0.1:{port}/", timeout=_HTTP_PROBE_TIMEOUT)
+        alive = True  # une réponse HTTP (même 4xx/5xx) = c'est bien un serveur HTTP
+    except (httpx.HTTPError, OSError):
+        alive = False  # pas de réponse / protocole non-HTTP / timeout → on écarte
+    _http_cache[port] = (alive, now)
+    return alive
+
+
+async def filter_http_ports(ports: list[ListeningPort]) -> list[ListeningPort]:
+    """Ne garde que les ports qui répondent réellement en HTTP."""
+    if not ports:
+        return []
+    async with httpx.AsyncClient() as client:
+        results = await asyncio.gather(*(_is_http_server(client, p.port) for p in ports))
+    return [port for port, ok in zip(ports, results, strict=True) if ok]
 
 
 # ------------------------------------------------------------------- proxy LAN

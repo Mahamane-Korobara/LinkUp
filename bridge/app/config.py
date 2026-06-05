@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     # pour que le téléphone joigne /api/agent/info sur le BON port sans le coder
     # en dur (8000 en dev, 8770 dans le bundle PC — cf. linkup-launch.sh).
     laravel_port: int = Field(default=8000, ge=1, le=65535)
+    # Port du dashboard Next en DEV (3000) : exclu de la détection Dev Preview
+    # (on n'expose pas le dashboard Linkup lui-même). 0 = aucun (cas du bundle,
+    # où le dashboard est servi en même-origine par FrankenPHP, pas sur un port
+    # séparé) → là, 3000 redevient un port utilisateur normal et reste listable.
+    dashboard_port: int = Field(default=0, ge=0, le=65535)
     # Token Bearer partagé avec Laravel. Pas de valeur par défaut : refus de démarrer
     # si non configuré (cf. ADR-002 sécurité). En prod, généré par les installeurs S6.5.
     agent_token: str = Field(min_length=16)

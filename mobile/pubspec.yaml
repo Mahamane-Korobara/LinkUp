@@ -58,9 +58,16 @@ dependencies:
   open_filex: ^4.5.0
   photo_manager: ^3.9.0
 
-  # Linkup S14 — Dev Preview : ouvrir le projet (https://host:port) et le
-  # certificat de la CA dans le navigateur EXTERNE (contexte sécurisé + API
-  # caméra/PWA, impossibles dans un WebView in-app).
+  # Linkup S14 — Dev Preview : voie PRINCIPALE = WebView in-app qui ÉPINGLE le
+  # cert serveur du bridge (onReceivedServerTrustAuthRequest) → HTTPS de confiance
+  # SANS installer la CA dans l'OS. La WebView Android gère caméra/micro/géoloc
+  # (avec permission_handler) et les service workers.
+  flutter_inappwebview: ^6.1.5
+  permission_handler: ^11.3.1
+  # Voie de SECOURS : ouvrir le projet (ou la CA) dans le navigateur EXTERNE —
+  # pour ce que la WebView ne fait pas (install PWA sur l'écran d'accueil, Web
+  # Push) ou pour utiliser les DevTools du navigateur du dev. Nécessite alors
+  # d'installer la CA Linkup.
   url_launcher: ^6.3.1
 
 dev_dependencies:

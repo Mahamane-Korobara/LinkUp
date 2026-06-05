@@ -3,13 +3,15 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/pairing/paired_device_store.dart';
 import '../../services/preview/preview_client.dart';
+import 'preview_webview_screen.dart';
 
 /// Écran Dev Preview (S14) : liste les projets web que le PC a exposés (depuis
-/// son dashboard) et les ouvre dans le navigateur du téléphone.
+/// son dashboard) et les ouvre sur le téléphone.
 ///
-/// La première fois, il faut installer le **certificat Linkup** (bouton dédié) :
-/// les projets sont servis en HTTPS, et sans ce certificat le navigateur affiche
-/// un avertissement de sécurité et bloque caméra / PWA.
+/// Voie PRINCIPALE : « Ouvrir » rend le projet dans une WebView in-app qui épingle
+/// le certificat du PC → HTTPS de confiance SANS installer la CA. Voie de SECOURS :
+/// « Ouvrir dans Chrome » (pour PWA-install / Web Push / DevTools) nécessite, elle,
+/// d'installer le **certificat Linkup** (carte repliable en bas).
 class PreviewScreen extends StatefulWidget {
   final PairedDevice device;
   final PreviewClient? client;
@@ -69,6 +71,26 @@ class _PreviewScreenState extends State<PreviewScreen> {
     }
   }
 
+  /// Voie principale : rendre le projet dans la WebView in-app (cert épinglé).
+  /// Sans empreinte (PC trop ancien), on bascule sur le navigateur externe.
+  void _openInApp(PreviewProject p) {
+    final uri = _client.projectUri(widget.device, _listing!, p);
+    final certSha256 = _listing!.certSha256;
+    if (certSha256 == null) {
+      _open(uri); // pas de pin possible → repli navigateur (avec install CA)
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PreviewWebViewScreen(
+          url: uri,
+          certSha256: certSha256,
+          targetPort: p.targetPort,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -87,9 +109,9 @@ class _PreviewScreenState extends State<PreviewScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _certificateCard(),
-            const SizedBox(height: 16),
             ..._buildContent(),
+            const SizedBox(height: 16),
+            _certificateCard(),
           ],
         ),
       ),
@@ -110,7 +132,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'Certificat Linkup',
+                    'Certificat Linkup (pour Chrome)',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -118,9 +140,10 @@ class _PreviewScreenState extends State<PreviewScreen> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'À installer une seule fois : les projets sont servis en HTTPS. '
-              'Sans ce certificat, le navigateur affiche un avertissement et '
-              'bloque caméra / PWA.',
+              'Inutile pour « Ouvrir » (la WebView in-app gère le HTTPS toute '
+              'seule). À installer une seule fois UNIQUEMENT si tu utilises '
+              '« Ouvrir dans Chrome » (PWA / DevTools), sinon le navigateur '
+              'affiche un avertissement.',
               style: TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 10),
@@ -176,11 +199,22 @@ class _PreviewScreenState extends State<PreviewScreen> {
         leading: const Icon(Icons.dns_outlined),
         title: Text('Port ${p.targetPort}'),
         subtitle: const Text('Exposé en HTTPS'),
-        trailing: FilledButton.icon(
-          onPressed: () =>
-              _open(_client.projectUri(widget.device, _listing!, p)),
-          icon: const Icon(Icons.open_in_new),
-          label: const Text('Ouvrir'),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Ouvrir dans Chrome (PWA / DevTools)',
+              onPressed: () =>
+                  _open(_client.projectUri(widget.device, _listing!, p)),
+              icon: const Icon(Icons.open_in_browser),
+            ),
+            const SizedBox(width: 4),
+            FilledButton.icon(
+              onPressed: () => _openInApp(p),
+              icon: const Icon(Icons.open_in_new),
+              label: const Text('Ouvrir'),
+            ),
+          ],
         ),
       ),
     );
