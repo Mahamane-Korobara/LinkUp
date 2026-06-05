@@ -212,38 +212,6 @@ class LinkupDiscovery implements AgentDiscovery {
     return props;
   }
 
-  /// Ajoute un agent saisi manuellement (T1.17).
-  ///
-  /// L'IP est validée superficiellement (format) et le port doit être > 0.
-  @override
-  LinkupAgent addManualAgent({
-    required String address,
-    int bridgePort = LinkupPorts.bridge,
-    int reverbPort = LinkupPorts.reverb,
-    String? label,
-  }) {
-    final trimmed = address.trim();
-    if (trimmed.isEmpty) {
-      throw ArgumentError('Adresse vide');
-    }
-    if (bridgePort <= 0 || bridgePort > 65535) {
-      throw ArgumentError('Port bridge invalide');
-    }
-
-    final agent = LinkupAgent(
-      instanceName: label ?? 'manual:$trimmed:$bridgePort',
-      address: trimmed,
-      reverbPort: reverbPort,
-      bridgePort: bridgePort,
-      source: LinkupAgentSource.manual,
-    );
-    // Passe par _mergeAgent comme sweep et mDNS : si l'IP saisie correspond à
-    // un agent déjà découvert (avec user/hostname riches), on ne perd pas ces
-    // champs.
-    _mergeAgent(agent);
-    return agent;
-  }
-
   /// Arrête le client mDNS, signale au sweep en cours de s'arrêter, libère le
   /// verrou multicast + le client HTTP du sweep. Idempotent.
   @override

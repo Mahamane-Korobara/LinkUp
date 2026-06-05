@@ -1,10 +1,9 @@
 import '../config/linkup_ports.dart';
 
-/// Représente un agent Linkup détecté sur le LAN ou saisi manuellement.
+/// Représente un agent Linkup détecté sur le LAN (mDNS ou sweep /24).
 ///
-/// La source `mdns` signifie que l'agent a été découvert via zeroconf.
-/// La source `manual` signifie que l'utilisateur a saisi son IP à la main
-/// (fallback T1.17 quand le multicast ne passe pas).
+/// La source `mdns` = découvert via zeroconf ; `lanSweep` = trouvé en frappant
+/// `/health` sur le sous-réseau (fallback quand le multicast ne passe pas).
 class LinkupAgent {
   final String instanceName;
   final String address;
@@ -122,5 +121,5 @@ class LinkupAgent {
 /// - [mdns] : annonce zeroconf reçue (TXT record SRV+TXT+A).
 /// - [lanSweep] : trouvé en frappant `/health` sur le sous-réseau /24.
 ///   Utile quand le multicast est bloqué (hotspot, Wi-Fi public).
-/// - [manual] : saisi par l'utilisateur dans le dialog IP.
-enum LinkupAgentSource { mdns, lanSweep, manual, paired }
+/// - [paired] : agent déjà appairé, reconstitué depuis le stockage local.
+enum LinkupAgentSource { mdns, lanSweep, paired }

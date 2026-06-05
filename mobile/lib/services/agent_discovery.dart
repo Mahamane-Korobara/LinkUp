@@ -10,11 +10,5 @@ abstract class AgentDiscovery {
 
   Future<void> start();
   Future<void> scanOnce();
-  LinkupAgent addManualAgent({
-    required String address,
-    int bridgePort,
-    int reverbPort,
-    String? label,
-  });
   Future<void> dispose();
 }

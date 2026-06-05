@@ -66,7 +66,10 @@ async def lifespan(app: FastAPI):
     # Écoute sur la même interface LAN que le bridge pour que le tél joigne les
     # projets proxifiés ; servis en HTTPS via la CA. Listeners fermés à l'arrêt.
     app.state.proxy_manager = ProxyManager(
-        host=settings.host, ssl_context=cert_manager.ssl_context()
+        host=settings.host,
+        ssl_context=cert_manager.ssl_context(),
+        # Ports stables entre redémarrages → URL figeable dans un .env.
+        state_file=Path.home() / ".linkup" / "preview_ports.json",
     )
 
     try:

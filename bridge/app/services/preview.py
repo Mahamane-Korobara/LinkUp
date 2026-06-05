@@ -18,6 +18,7 @@ ci-dessous est inchangé, seul le listener gagne TLS. Cf. CDC §Dev Preview.
 """
 
 import asyncio
+import json
 import os
 import ssl
 import time
@@ -29,6 +30,17 @@ _STATE_LISTEN = "0A"
 _PROC_TCP = ("/proc/net/tcp", "/proc/net/tcp6")
 _RELAY_CHUNK = 65536
 _CONNECT_TIMEOUT_SECONDS = 2.0
+
+# --- Filtrage du bruit : ne montrer que ce qui ressemble à un serveur de dev ---
+# Ports < 1024 = système (FTP 21, DNS 53, HTTP 80, HTTPS 443, CUPS 631…) ; un dev
+# ne les bind quasi jamais (root requis). Ports >= 32768 = plage éphémère Linux
+# (clients/VM debug : ports VS Code, dart VM service…), pas des serveurs de dev.
+_MIN_DEV_PORT = 1024
+_MAX_DEV_PORT = 32768
+# Services d'infra que le NAVIGATEUR ne charge jamais (DB, cache, adb, exporters…).
+_INFRA_PORTS = frozenset({3306, 5432, 6379, 27017, 11211, 9100, 5037, 9229, 9200})
+# Process clairement non-web (outillage), exclus même dans la plage dev.
+_DENY_PROCESS = ("adb", "code", "containerd", "dockerd")
 
 
 class ProxyError(Exception):
@@ -62,11 +74,12 @@ class ProxyInfo:
 
 
 def scan_listening_ports(exclude: frozenset[int] | set[int] = frozenset()) -> list[ListeningPort]:
-    """Ports TCP en écoute sur la loopback/toutes interfaces (serveurs de dev).
+    """Serveurs de dev en écoute sur le PC, **filtrés du bruit système/infra**.
 
-    Lit ``/proc/net/tcp{,6}`` (Linux). Sur un OS sans ``/proc`` ou en cas
-    d'erreur de lecture, retourne une liste vide plutôt que de planter (la
-    cible MVP des installeurs est Linux ; Windows/macOS = incrément futur).
+    Lit ``/proc/net/tcp{,6}`` (Linux). Écarte les ports hors plage dev
+    (< 1024 système, >= 32768 éphémères), les services d'infra (DB/cache/adb…)
+    et les process non-web (VS Code, adb…) — sinon la liste serait noyée sous
+    FTP/DNS/MySQL/Redis/ports d'éditeur. Sur un OS sans ``/proc``, retourne [].
     """
     inode_by_port: dict[int, str] = {}
     for path in _PROC_TCP:
@@ -83,6 +96,8 @@ def scan_listening_ports(exclude: frozenset[int] | set[int] = frozenset()) -> li
                         continue
                     if port in exclude or port in inode_by_port:
                         continue
+                    if port < _MIN_DEV_PORT or port >= _MAX_DEV_PORT or port in _INFRA_PORTS:
+                        continue
                     inode_by_port[port] = parts[9]
         except OSError:
             continue
@@ -91,10 +106,13 @@ def scan_listening_ports(exclude: frozenset[int] | set[int] = frozenset()) -> li
         return []
 
     names = _process_names(set(inode_by_port.values()))
-    return [
-        ListeningPort(port=port, process=names.get(inode))
-        for port, inode in sorted(inode_by_port.items())
-    ]
+    result: list[ListeningPort] = []
+    for port, inode in sorted(inode_by_port.items()):
+        proc = names.get(inode)
+        if proc and any(deny in proc.lower() for deny in _DENY_PROCESS):
+            continue  # outillage (éditeur, adb…), pas un serveur web
+        result.append(ListeningPort(port=port, process=proc))
+    return result
 
 
 def _process_names(inodes: set[str]) -> dict[str, str | None]:
@@ -159,6 +177,7 @@ class ProxyManager:
         host: str = "0.0.0.0",
         connect_host: str = "127.0.0.1",
         ssl_context: ssl.SSLContext | None = None,
+        state_file: Path | None = None,
     ) -> None:
         self._host = host
         self._connect_host = connect_host
@@ -166,6 +185,31 @@ class ProxyManager:
         # vers le dev-server reste en clair, en local sur le PC.
         self._ssl_context = ssl_context
         self._servers: dict[int, tuple[asyncio.AbstractServer, ProxyInfo]] = {}
+        # Mapping PERSISTANT target_port → listen_port : un projet garde la même
+        # URL entre redémarrages (donc figeable dans un .env), tout en évitant les
+        # conflits (port choisi libre la 1ʳᵉ fois, re-choisi si pris ensuite).
+        self._state_file = state_file
+        self._preferred: dict[int, int] = self._load_state()
+
+    def _load_state(self) -> dict[int, int]:
+        if not self._state_file or not self._state_file.exists():
+            return {}
+        try:
+            data = json.loads(self._state_file.read_text())
+            return {int(k): int(v) for k, v in data.items()}
+        except (OSError, ValueError):
+            return {}
+
+    def _save_state(self) -> None:
+        if not self._state_file:
+            return
+        try:
+            self._state_file.parent.mkdir(parents=True, exist_ok=True)
+            self._state_file.write_text(
+                json.dumps({str(k): v for k, v in self._preferred.items()})
+            )
+        except OSError:
+            pass
 
     @property
     def scheme(self) -> str:
@@ -188,16 +232,37 @@ class ProxyManager:
 
         await self._assert_reachable(target_port)
 
-        server = await asyncio.start_server(
-            lambda r, w: self._relay(target_port, r, w),
-            host=self._host,
-            port=0,  # port éphémère choisi par l'OS
-            ssl=self._ssl_context,
-        )
+        server = await self._start_listener(target_port)
         listen_port = server.sockets[0].getsockname()[1]
+        if self._preferred.get(target_port) != listen_port:
+            self._preferred[target_port] = listen_port
+            self._save_state()
         info = ProxyInfo(target_port=target_port, listen_port=listen_port, started_at=time.time())
         self._servers[target_port] = (server, info)
         return info
+
+    async def _start_listener(self, target_port: int) -> asyncio.AbstractServer:
+        """Ouvre le listener, en réutilisant le port mémorisé si possible.
+
+        Tente d'abord le port persistant (URL stable) ; s'il est déjà pris,
+        retombe sur un port libre choisi par l'OS (pas de conflit). ``port=0``
+        laisse l'OS choisir.
+        """
+
+        def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+            return self._relay(target_port, reader, writer)
+
+        preferred = self._preferred.get(target_port)
+        if preferred:
+            try:
+                return await asyncio.start_server(
+                    handler, host=self._host, port=preferred, ssl=self._ssl_context
+                )
+            except OSError:
+                pass  # port mémorisé occupé → on en prend un libre
+        return await asyncio.start_server(
+            handler, host=self._host, port=0, ssl=self._ssl_context
+        )
 
     async def unexpose(self, target_port: int) -> bool:
         entry = self._servers.pop(target_port, None)

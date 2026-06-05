@@ -43,6 +43,39 @@ void main() {
       expect(LanSweepDiscovery.isLikelyWifiInterface('wifi'), isTrue);
       expect(LanSweepDiscovery.isLikelyWifiInterface('WiFi'), isTrue);
     });
+
+    test('accepts tethering AP interfaces (phone is hotspot)', () {
+      expect(LanSweepDiscovery.isLikelyWifiInterface('ap0'), isTrue);
+      expect(LanSweepDiscovery.isLikelyWifiInterface('softap0'), isTrue);
+    });
+  });
+
+  group('LanSweepDiscovery.isCellularInterface', () {
+    test('matches mobile-data interfaces', () {
+      for (final n in ['rmnet0', 'rmnet_data1', 'ccmni0', 'pdp_ip0', 'clat4']) {
+        expect(LanSweepDiscovery.isCellularInterface(n), isTrue, reason: n);
+      }
+    });
+
+    test('does not match Wi-Fi / hotspot interfaces', () {
+      for (final n in ['wlan0', 'swlan0', 'ap0', 'en0']) {
+        expect(LanSweepDiscovery.isCellularInterface(n), isFalse, reason: n);
+      }
+    });
+  });
+
+  group('LanSweepDiscovery.isPrivateIPv4', () {
+    test('accepts RFC 1918 ranges', () {
+      for (final ip in ['10.0.0.5', '172.16.4.2', '172.31.9.9', '192.168.1.10', '192.168.43.1']) {
+        expect(LanSweepDiscovery.isPrivateIPv4(ip), isTrue, reason: ip);
+      }
+    });
+
+    test('rejects public / CGNAT / malformed', () {
+      for (final ip in ['8.8.8.8', '100.64.0.1', '172.32.0.1', '1.2.3', 'abc']) {
+        expect(LanSweepDiscovery.isPrivateIPv4(ip), isFalse, reason: ip);
+      }
+    });
   });
 
   group('LanSweepDiscovery.probe (retry on timeout)', () {
