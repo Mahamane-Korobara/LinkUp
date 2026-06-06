@@ -1,9 +1,12 @@
+import 'dart:collection';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/preview/preview_client.dart';
+import '../../services/preview/preview_shim.dart';
 
 /// Rend un projet de dev exposé par le PC dans une WebView in-app (S14).
 ///
@@ -25,11 +28,17 @@ class PreviewWebViewScreen extends StatefulWidget {
   /// Port d'origine du serveur de dev (ex. 5173), pour le titre.
   final int targetPort;
 
+  /// Tous les ports de dev exposés par le PC. Le shim réseau injecté réécrit les
+  /// appels `localhost:<port>` de la page vers `<origine>/__linkup/<port>/` pour
+  /// chacun d'eux → la com front↔back passe sans CORS (cf. [buildNetworkShim]).
+  final List<int> exposedPorts;
+
   const PreviewWebViewScreen({
     super.key,
     required this.url,
     required this.certSha256,
     required this.targetPort,
+    this.exposedPorts = const [],
   });
 
   @override
@@ -89,6 +98,15 @@ class _PreviewWebViewScreenState extends State<PreviewWebViewScreen> {
   Widget _webView() {
     return InAppWebView(
       initialUrlRequest: URLRequest(url: WebUri(widget.url.toString())),
+      // Injecté AVANT tout script de la page : réécrit les appels localhost:<port>
+      // vers l'origine courante + /__linkup/<port> (single-origin → pas de CORS).
+      initialUserScripts: UnmodifiableListView([
+        UserScript(
+          source: buildNetworkShim(widget.exposedPorts),
+          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          forMainFrameOnly: false,
+        ),
+      ]),
       initialSettings: InAppWebViewSettings(
         // getUserMedia (caméra/micro) sans exiger un geste utilisateur préalable.
         mediaPlaybackRequiresUserGesture: false,

@@ -84,16 +84,26 @@ export default function PreviewPage() {
       <PageHeader
         icon={Globe}
         title="Dev Preview"
-        subtitle="Teste un projet web qui tourne sur ce PC directement sur ton téléphone, sans déploiement. Choisis le port à exposer."
+        subtitle="Teste un projet web qui tourne sur ce PC directement sur ton téléphone, sans déploiement. Choisis le(s) port(s) à exposer."
       />
 
-      {/* Rappel certificat : HTTPS = contexte sécurisé requis côté téléphone. */}
+      {/* Com front↔back : pour que le front joigne son API/WS, expose AUSSI le back. */}
+      <div className="mb-3 flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 p-3.5 text-sm text-sky-800">
+        <Server className="mt-0.5 size-4.5 shrink-0" />
+        <p>
+          Expose aussi ton <strong>backend</strong> (API, WebSocket) : depuis le téléphone, les
+          appels du front vers <code className="font-mono">localhost</code> seront redirigés
+          automatiquement vers le service exposé — pas besoin de toucher au code du projet.
+        </p>
+      </div>
+
+      {/* Rappel certificat : la WebView in-app gère le HTTPS ; cert utile pour Chrome. */}
       <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800">
         <ShieldCheck className="mt-0.5 size-4.5 shrink-0" />
         <p>
-          Les projets sont servis en <strong>HTTPS</strong>. La première fois, installe le{' '}
-          <strong>certificat Linkup</strong> sur ton téléphone (l’app Linkup le propose) pour
-          éviter l’avertissement de sécurité et débloquer caméra / PWA.
+          Les projets sont servis en <strong>HTTPS</strong>. L’app Linkup ouvre tout dans une
+          WebView de confiance (rien à installer). Le <strong>certificat Linkup</strong> n’est
+          requis que pour « Ouvrir dans Chrome » (PWA / Web Push / DevTools).
         </p>
       </div>
 

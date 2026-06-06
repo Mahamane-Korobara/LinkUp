@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/pairing/paired_device_store.dart';
 import '../../services/preview/preview_client.dart';
+import 'certificate_screen.dart';
 import 'preview_webview_screen.dart';
 
 /// Écran Dev Preview (S14) : liste les projets web que le PC a exposés (depuis
@@ -86,6 +87,8 @@ class _PreviewScreenState extends State<PreviewScreen> {
           url: uri,
           certSha256: certSha256,
           targetPort: p.targetPort,
+          // Tous les ports exposés : le shim relie front↔back de façon transparente.
+          exposedPorts: _listing!.projects.map((p) => p.targetPort).toList(),
         ),
       ),
     );
@@ -98,6 +101,11 @@ class _PreviewScreenState extends State<PreviewScreen> {
         title: Text('Dev Preview — ${widget.device.pcName}'),
         actions: [
           IconButton(
+            tooltip: 'Certificat (pour Chrome)',
+            onPressed: _openCertificate,
+            icon: const Icon(Icons.verified_user_outlined),
+          ),
+          IconButton(
             tooltip: 'Recharger',
             onPressed: _loading ? null : _load,
             icon: const Icon(Icons.refresh),
@@ -108,54 +116,18 @@ class _PreviewScreenState extends State<PreviewScreen> {
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.all(16),
-          children: [
-            ..._buildContent(),
-            const SizedBox(height: 16),
-            _certificateCard(),
-          ],
+          children: _buildContent(),
         ),
       ),
     );
   }
 
-  Widget _certificateCard() {
-    return Card(
-      color: Colors.amber.shade50,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.verified_user_outlined, color: Colors.amber.shade800),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'Certificat Linkup (pour Chrome)',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Inutile pour « Ouvrir » (la WebView in-app gère le HTTPS toute '
-              'seule). À installer une seule fois UNIQUEMENT si tu utilises '
-              '« Ouvrir dans Chrome » (PWA / DevTools), sinon le navigateur '
-              'affiche un avertissement.',
-              style: TextStyle(fontSize: 13),
-            ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                onPressed: () => _open(_client.caCertificateUri(widget.device)),
-                icon: const Icon(Icons.download),
-                label: const Text('Installer le certificat'),
-              ),
-            ),
-          ],
+  /// Ouvre la page dédiée au certificat (accès direct depuis l'AppBar).
+  void _openCertificate() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CertificateScreen(
+          caCertificateUri: _client.caCertificateUri(widget.device),
         ),
       ),
     );
