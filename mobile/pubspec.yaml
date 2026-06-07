@@ -63,7 +63,7 @@ dependencies:
   # SANS installer la CA dans l'OS. La WebView Android gère caméra/micro/géoloc
   # (avec permission_handler) et les service workers.
   flutter_inappwebview: ^6.1.5
-  permission_handler: ^11.3.1
+  permission_handler: ^12.0.3
   # Voie de SECOURS : ouvrir le projet (ou la CA) dans le navigateur EXTERNE —
   # pour ce que la WebView ne fait pas (install PWA sur l'écran d'accueil, Web
   # Push) ou pour utiliser les DevTools du navigateur du dev. Nécessite alors
