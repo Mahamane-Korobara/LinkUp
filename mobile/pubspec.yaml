@@ -75,6 +75,12 @@ dependencies:
   # d'installer la CA Linkup.
   url_launcher: ^6.3.1
 
+  # Linkup tél↔tél (Mode Hôte) — le téléphone hôte AFFICHE un QR d'appairage
+  # (scanné par le pair via mobile_scanner), et garde son serveur HTTP embarqué
+  # (services/host/) vivant en arrière-plan via un service de premier plan Android.
+  qr_flutter: ^4.1.0
+  flutter_foreground_task: ^8.17.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

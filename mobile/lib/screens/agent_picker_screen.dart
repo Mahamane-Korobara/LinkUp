@@ -8,6 +8,7 @@ import '../services/linkup_discovery.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_logo.dart';
 import 'agent_picker/empty_state.dart';
+import 'host/host_screen.dart';
 
 /// Écran principal du flow d'appairage : liste les agents découverts sur le LAN
 /// via mDNS + sweep /24 (le sweep couvre les cas où le multicast est bloqué,
@@ -127,6 +128,13 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
         titleSpacing: 16,
         title: const AppLogo(size: 30, showWordmark: true),
         actions: [
+          IconButton(
+            tooltip: 'Héberger (sans PC)',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const HostScreen()),
+            ),
+            icon: const Icon(Icons.wifi_tethering_rounded),
+          ),
           IconButton(
             tooltip: 'Rescanner le LAN',
             onPressed: _scanning ? null : _runScan,
