@@ -18,7 +18,6 @@ from app.services.preview import (
     ProxyError,
     ProxyManager,
     filter_http_ports,
-    route_and_rewrite,
     scan_listening_ports,
 )
 
@@ -131,9 +130,12 @@ def test_scan_filters_system_and_infra_ports():
 
 
 async def test_proxy_relays_bytes_both_ways():
+    # Le relais est HTTP-aware (force Connection: close) : on envoie donc une vraie
+    # requête HTTP ; le back renvoie le corps en écho pour vérifier les deux sens.
     async def handle(reader, writer):
-        data = await reader.read(100)
-        writer.write(b"echo:" + data)
+        await reader.readuntil(b"\r\n\r\n")  # en-têtes (réécrits par le proxy)
+        body = await reader.read(5)
+        writer.write(b"echo:" + body)
         await writer.drain()
         writer.close()
 
@@ -146,7 +148,7 @@ async def test_proxy_relays_bytes_both_ways():
         assert info.listen_port > 0
 
         reader, writer = await asyncio.open_connection("127.0.0.1", info.listen_port)
-        writer.write(b"hello")
+        writer.write(b"POST / HTTP/1.1\r\nHost: x\r\nConnection: keep-alive\r\n\r\nhello")
         await writer.drain()
         out = await reader.read(100)
         assert out == b"echo:hello"
@@ -155,6 +157,41 @@ async def test_proxy_relays_bytes_both_ways():
         await manager.shutdown()
         backend.close()
         await backend.wait_closed()
+
+
+async def test_relay_forces_connection_close_on_http():
+    """Le relais réécrit la requête HTTP pour imposer Connection: close.
+
+    Sans ça, php artisan serve & co. gardent la connexion en keep-alive sans
+    Content-Length → le navigateur attend la fermeture (~30 s). Cf. _relay."""
+    received: list[bytes] = []
+
+    async def handle(reader, writer):
+        head = await reader.readuntil(b"\r\n\r\n")
+        received.append(head)
+        writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+        await writer.drain()
+        writer.close()
+
+    backend = await asyncio.start_server(handle, "127.0.0.1", 0)
+    target = backend.sockets[0].getsockname()[1]
+    manager = ProxyManager(host="127.0.0.1")
+    try:
+        info = await manager.expose(target)
+        reader, writer = await asyncio.open_connection("127.0.0.1", info.listen_port)
+        writer.write(b"GET /api HTTP/1.1\r\nHost: x\r\nConnection: keep-alive\r\n\r\n")
+        await writer.drain()
+        await reader.read(100)
+        writer.close()
+    finally:
+        await manager.shutdown()
+        backend.close()
+        await backend.wait_closed()
+
+    assert received, "le back n'a pas reçu la requête"
+    head = received[0].lower()
+    assert b"connection: close" in head  # imposé
+    assert b"keep-alive" not in head  # l'ancien Connection retiré
 
 
 async def test_expose_is_idempotent():
@@ -188,109 +225,53 @@ async def test_unexpose_unknown_returns_false():
     assert await manager.unexpose(12345) is False
 
 
-# ------------------------------------------ routage single-origin (route_and_rewrite)
+# ------------------------------------------------ relais brut (HTTP + WebSocket)
 
 
-def test_route_default_no_prefix_forces_connection_close():
-    req = b"GET /api/users HTTP/1.1\r\nHost: x\r\nConnection: keep-alive\r\n\r\n"
-    dest, out = route_and_rewrite(3000, {3000, 8000}, req)
-    assert dest == 3000  # pas de préfixe → port du listener
-    assert b"GET /api/users HTTP/1.1" in out  # path inchangé
-    assert b"Connection: close" in out
-    assert b"keep-alive" not in out  # ancien Connection retiré
+async def test_proxy_passes_websocket_upgrade_through():
+    """Le relais brut laisse passer un handshake WebSocket (101) + les frames.
 
-
-def test_route_prefix_to_exposed_strips_and_routes():
-    req = b"GET /__linkup/8000/api/ping HTTP/1.1\r\nHost: x\r\n\r\n"
-    dest, out = route_and_rewrite(3000, {3000, 8000}, req)
-    assert dest == 8000  # routé vers l'autre service exposé
-    assert out.startswith(b"GET /api/ping HTTP/1.1\r\n")  # préfixe /__linkup/8000 retiré
-    assert b"Connection: close" in out
-
-
-def test_route_prefix_bare_port_becomes_root():
-    req = b"GET /__linkup/8000 HTTP/1.1\r\nHost: x\r\n\r\n"
-    dest, out = route_and_rewrite(3000, {8000}, req)
-    assert dest == 8000
-    assert out.startswith(b"GET / HTTP/1.1\r\n")
-
-
-def test_route_prefix_to_unexposed_falls_back_to_default():
-    req = b"GET /__linkup/9999/x HTTP/1.1\r\nHost: x\r\n\r\n"
-    dest, out = route_and_rewrite(3000, {3000, 8000}, req)
-    assert dest == 3000  # 9999 pas exposé → port du listener
-    assert out.startswith(b"GET /__linkup/9999/x HTTP/1.1\r\n")  # path inchangé (404 côté app)
-
-
-def test_route_websocket_upgrade_preserved():
-    req = (
-        b"GET /__linkup/8000/socket HTTP/1.1\r\nHost: x\r\n"
-        b"Upgrade: websocket\r\nConnection: Upgrade\r\n\r\n"
-    )
-    dest, out = route_and_rewrite(3000, {8000}, req)
-    assert dest == 8000
-    assert out.startswith(b"GET /socket HTTP/1.1\r\n")  # préfixe strippé
-    assert b"Upgrade: websocket" in out
-    assert b"Connection: Upgrade" in out  # handshake intact
-    assert b"Connection: close" not in out
-
-
-def test_route_non_http_passthrough():
-    junk = b"\x16\x03\x01 not http at all"
-    dest, out = route_and_rewrite(3000, {3000}, junk)
-    assert dest == 3000
-    assert out == junk  # renvoyé tel quel
-
-
-def _make_http_backend(tag: str):
-    """Backend HTTP minimal qui renvoie `<tag> <path-reçu>` (pour vérifier le routage)."""
+    C'est l'exigence cœur du module (HMR Next/Vite, Reverb, Socket.io) : le proxy
+    ne doit RIEN parser ni forcer (pas de Connection: close), sinon Next renvoie une
+    réponse invalide et l'upgrade échoue."""
 
     async def handle(reader, writer):
-        data = await reader.readuntil(b"\r\n\r\n")
-        path = data.split(b"\r\n", 1)[0].split(b" ")[1]
-        body = tag.encode() + b" " + path
-        writer.write(
-            b"HTTP/1.1 200 OK\r\nContent-Length: %d\r\nConnection: close\r\n\r\n" % len(body)
-            + body
-        )
-        await writer.drain()
+        req = await reader.readuntil(b"\r\n\r\n")
+        if b"upgrade: websocket" in req.lower():
+            writer.write(
+                b"HTTP/1.1 101 Switching Protocols\r\n"
+                b"Upgrade: websocket\r\nConnection: Upgrade\r\n"
+                b"Sec-WebSocket-Accept: dummy\r\n\r\n"
+            )
+            await writer.drain()
+            data = await reader.read(100)
+            writer.write(b"ECHO:" + data)
+            await writer.drain()
         writer.close()
 
-    return handle
-
-
-async def _http_get(listen_port: int, path: str) -> bytes:
-    reader, writer = await asyncio.open_connection("127.0.0.1", listen_port)
-    writer.write(f"GET {path} HTTP/1.1\r\nHost: x\r\n\r\n".encode())
-    await writer.drain()
-    out = await reader.read(4096)
-    writer.close()
-    return out
-
-
-async def test_single_origin_prefix_reaches_other_exposed_service():
-    front = await asyncio.start_server(_make_http_backend("front"), "127.0.0.1", 0)
-    back = await asyncio.start_server(_make_http_backend("back"), "127.0.0.1", 0)
-    front_port = front.sockets[0].getsockname()[1]
-    back_port = back.sockets[0].getsockname()[1]
+    backend = await asyncio.start_server(handle, "127.0.0.1", 0)
+    target = backend.sockets[0].getsockname()[1]
     manager = ProxyManager(host="127.0.0.1")
     try:
-        front_info = await manager.expose(front_port)
-        await manager.expose(back_port)
-
-        # Racine → le projet du listener (le front).
-        root = await _http_get(front_info.listen_port, "/")
-        assert b"front /" in root
-
-        # Préfixe → l'autre service exposé (le back), préfixe retiré.
-        api = await _http_get(front_info.listen_port, f"/__linkup/{back_port}/api/ping")
-        assert b"back /api/ping" in api
+        info = await manager.expose(target)
+        reader, writer = await asyncio.open_connection("127.0.0.1", info.listen_port)
+        writer.write(
+            b"GET /_next/webpack-hmr HTTP/1.1\r\nHost: x\r\n"
+            b"Upgrade: websocket\r\nConnection: Upgrade\r\n"
+            b"Sec-WebSocket-Key: abc==\r\nSec-WebSocket-Version: 13\r\n\r\n"
+        )
+        await writer.drain()
+        resp = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), timeout=3)
+        assert b"101 Switching Protocols" in resp  # upgrade accepté, relayé intact
+        writer.write(b"hello")
+        await writer.drain()
+        echo = await asyncio.wait_for(reader.read(100), timeout=3)
+        assert echo == b"ECHO:hello"  # frames relayées en brut
+        writer.close()
     finally:
         await manager.shutdown()
-        front.close()
-        back.close()
-        await front.wait_closed()
-        await back.wait_closed()
+        backend.close()
+        await backend.wait_closed()
 
 
 # ------------------------------------------------------------------ HTTP routes

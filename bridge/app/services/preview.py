@@ -5,21 +5,14 @@ l'AppImage/.deb sans dépendance système) :
 
 - ``scan_listening_ports`` : liste les serveurs de dev qui écoutent sur le PC
   (Next/Vite/Laravel…), via ``/proc/net/tcp`` (Linux, cible des installeurs).
-- ``ProxyManager`` : pour un port choisi, ouvre un listener LAN dédié qui relaie
-  vers ``127.0.0.1:<port>``. Le corps des échanges reste un **relais d'octets
-  bruts** (HTTP **et** WebSocket : Reverb, Socket.io, Vite HMR, Next Fast Refresh,
-  sans rien parser du contenu) — c'est ce qui garantit « même comportement que sur
-  le PC ». La racine ``/`` de chaque listener sert le projet tel quel (chemins
-  absolus + appels même-origine intacts).
-
-  **Single-origin (Lot F)** : chaque listener route EN PLUS un préfixe sentinelle
-  ``/__linkup/<port>/…`` vers ``127.0.0.1:<port>`` (s'il est exposé). Ainsi, depuis
-  la page du front, le shim injecté côté tél réécrit ``http://localhost:8000`` en
-  ``<origine>/__linkup/8000/…`` → **même origine** que le front → zéro CORS, zéro
-  mixed-content. Seule la *request-line* + quelques headers sont lus/réécrits
-  (``route_and_rewrite``), le reste du flux reste du relais brut. ``Connection:
-  close`` est forcé hors upgrade WebSocket pour un routage déterministe (une requête
-  par connexion TCP, pas de multiplexing keep-alive vers des cibles différentes).
+- ``ProxyManager`` : pour un port choisi, ouvre un listener LAN dédié qui **relaie
+  les octets bruts** vers ``127.0.0.1:<port>``. Le relais brut traverse HTTP **et**
+  WebSocket (Reverb, Socket.io, Vite HMR, Next Fast Refresh) sans rien parser, et
+  préserve le **keep-alive** (une seule connexion réutilisée → pas de handshake TLS
+  par requête) — c'est ce qui garantit « même comportement, et même rapidité, que
+  sur le PC ». Côté tél (cf. ``local_proxy.dart``), un proxy par port recrée chaque
+  service sur ``127.0.0.1:<même port>`` : l'app tourne comme sur le PC (``localhost:
+  3001`` ↔ ``localhost:8001``, cross-origin natif), sans réécriture d'URL.
 
 Le HTTPS (contexte sécurisé obligatoire pour caméra/géoloc/PWA côté tél) est servi
 en passant un ``ssl.SSLContext`` à ``asyncio.start_server`` : TLS terminé au
@@ -29,6 +22,7 @@ listener, le relais vers le dev-server reste en clair, en local. Cf. CDC §Dev P
 import asyncio
 import json
 import os
+import socket
 import ssl
 import time
 from dataclasses import dataclass
@@ -41,29 +35,7 @@ _STATE_LISTEN = "0A"
 _PROC_TCP = ("/proc/net/tcp", "/proc/net/tcp6")
 _RELAY_CHUNK = 65536
 _CONNECT_TIMEOUT_SECONDS = 2.0
-
-# Préfixe sentinelle du routage single-origin : depuis la page d'un projet exposé,
-# `<origine>/__linkup/<port>/…` atteint un AUTRE service exposé (même origine → pas
-# de CORS). Double underscore + nom produit → collision quasi nulle avec une vraie
-# route d'app. Cf. shim côté tél (`buildNetworkShim`).
-_LINKUP_PREFIX = b"/__linkup/"
-# Méthodes HTTP : si le 1ᵉʳ octet d'une connexion en commence une, on parse la
-# requête pour router (single-origin). Sinon (flux non-HTTP), relais brut intégral
-# — on ne bloque jamais à attendre des en-têtes sur un protocole qu'on ne parse pas.
-_HTTP_METHODS = (
-    b"GET ",
-    b"POST ",
-    b"PUT ",
-    b"DELETE ",
-    b"HEAD ",
-    b"OPTIONS ",
-    b"PATCH ",
-    b"CONNECT ",
-    b"TRACE ",
-)
-# Garde-fou : au-delà, on cesse d'accumuler les en-têtes et on relaie brut (un cas
-# qui n'arrive jamais avec un vrai navigateur).
-_MAX_HEADER_BYTES = 65536
+_HEADER_TERMINATOR = b"\r\n\r\n"
 
 # --- Filtrage du bruit : ne montrer que ce qui ressemble à un serveur de dev ---
 # Ports < 1024 = système (FTP 21, DNS 53, HTTP 80, HTTPS 443, CUPS 631…) ; un dev
@@ -233,72 +205,6 @@ async def filter_http_ports(ports: list[ListeningPort]) -> list[ListeningPort]:
     return [port for port, ok in zip(ports, results, strict=True) if ok]
 
 
-# ------------------------------------------------- routage HTTP single-origin
-
-
-def _is_ws_upgrade(header_lines: list[bytes]) -> bool:
-    """Vrai si la requête demande une upgrade WebSocket (``Upgrade: websocket``).
-
-    On ne touche alors NI à la request-line des headers de connexion (``Connection``/
-    ``Upgrade``) : le handshake doit passer intact pour que le relais brut des frames
-    qui suit fonctionne (Vite HMR, Reverb, Socket.io…)."""
-    for line in header_lines:
-        name, _, value = line.partition(b":")
-        if name.strip().lower() == b"upgrade" and b"websocket" in value.strip().lower():
-            return True
-    return False
-
-
-def route_and_rewrite(
-    default_port: int,
-    exposed_ports: set[int] | frozenset[int],
-    header_bytes: bytes,
-) -> tuple[int, bytes]:
-    """Décide la cible d'une requête HTTP et réécrit ses en-têtes. Fonction **pure**.
-
-    - ``header_bytes`` = request-line + en-têtes jusqu'au ``\\r\\n\\r\\n`` inclus.
-    - Si le path est ``/__linkup/<N>/…`` et que ``N`` est exposé → cible ``N`` et le
-      préfixe est retiré (le back voit ``/…`` comme s'il était appelé en direct).
-      Sinon → ``default_port`` (le projet du listener), path inchangé.
-    - Hors upgrade WebSocket : ``Connection: close`` est forcé (routage déterministe).
-    - Non parsable (pas du HTTP) → ``(default_port, header_bytes)`` tel quel.
-
-    Retourne ``(port_cible, requête_réécrite)``.
-    """
-    request_line, sep, rest = header_bytes.partition(b"\r\n")
-    if not sep:
-        return default_port, header_bytes
-    parts = request_line.split(b" ")
-    if len(parts) < 3:
-        return default_port, header_bytes
-    method, version = parts[0], parts[-1]
-    path = b" ".join(parts[1:-1])
-
-    dest_port = default_port
-    new_path = path
-    if path.startswith(_LINKUP_PREFIX):
-        num, _, tail = path[len(_LINKUP_PREFIX) :].partition(b"/")
-        if num.isdigit() and int(num) in exposed_ports:
-            dest_port = int(num)
-            new_path = b"/" + tail  # strip /__linkup/<N> → le back voit sa propre racine
-
-    # rest se termine par la ligne vide (\r\n\r\n) ; on isole le bloc d'en-têtes.
-    header_block = rest
-    for suffix in (b"\r\n\r\n", b"\r\n"):
-        if header_block.endswith(suffix):
-            header_block = header_block[: -len(suffix)]
-            break
-    lines = header_block.split(b"\r\n") if header_block else []
-
-    new_request_line = method + b" " + new_path + b" " + version
-    if _is_ws_upgrade(lines):
-        kept = lines  # handshake intact
-    else:
-        kept = [ln for ln in lines if ln.partition(b":")[0].strip().lower() != b"connection"]
-        kept.append(b"Connection: close")
-    return dest_port, new_request_line + b"\r\n" + b"\r\n".join(kept) + b"\r\n\r\n"
-
-
 # ------------------------------------------------------------------- proxy LAN
 
 
@@ -431,57 +337,34 @@ class ProxyManager:
         client_reader: asyncio.StreamReader,
         client_writer: asyncio.StreamWriter,
     ) -> None:
-        """Aiguille une connexion entrante.
+        """Relais HTTP vers ``127.0.0.1:target_port`` qui force ``Connection: close``.
 
-        Si elle commence par une requête HTTP, on lit ses en-têtes pour router un
-        éventuel préfixe ``/__linkup/<port>`` (single-origin) puis on relaie le reste
-        en brut. Tout flux non-HTTP est relayé brut intégralement — on ne bloque
-        jamais à attendre des en-têtes sur un protocole qu'on ne parse pas."""
+        Beaucoup de serveurs de dev (``php artisan serve``, Flask, Django runserver…)
+        répondent en HTTP/1.1 **keep-alive sans ``Content-Length`` ni ``chunked``**. À
+        travers le tunnel, le navigateur ne sait alors jamais que la réponse est finie :
+        il attend la fermeture de la connexion (timeout ~30 s) → l'app paraît figée
+        alors que le back a répondu en quelques ms. En réécrivant la requête pour
+        imposer ``Connection: close``, le serveur **ferme après chaque réponse** →
+        délimitation déterministe → réponse immédiate. (Diagnostiqué sur appareil réel :
+        TTFB ~300 ms mais fermeture à +30 000 ms.)
+
+        Les upgrades **WebSocket** (HMR Vite/Next, Reverb, Socket.io) sont laissées
+        intactes (relais brut), sinon l'upgrade casserait. ``TCP_NODELAY`` des deux côtés.
+        """
+        _set_tcp_nodelay(client_writer)
+        # Lire les en-têtes de la 1ʳᵉ requête AVANT d'ouvrir le back : une connexion
+        # spéculative du navigateur (qui n'envoie jamais de requête) n'ouvre ainsi
+        # aucune connexion côté serveur de dev.
+        head: bytes | None = None
+        rewrite = False
         try:
-            first = await client_reader.read(_RELAY_CHUNK)
-        except OSError:
-            client_writer.close()
-            return
-        if not first:  # connexion fermée d'emblée
-            client_writer.close()
-            return
-        if not first.startswith(_HTTP_METHODS):
-            await self._raw_relay(target_port, client_reader, client_writer, prefix=first)
-            return
+            head = await client_reader.readuntil(_HEADER_TERMINATOR)
+            rewrite = True  # en-têtes complets → on peut réécrire en sécurité
+        except asyncio.IncompleteReadError as exc:
+            head = exc.partial or None  # EOF avant la fin : relayer brut tel quel
+        except (asyncio.LimitOverflowError, ValueError):
+            head = None  # en-têtes géants : restent dans le buffer, relayés par _pump
 
-        # Requête HTTP : accumuler jusqu'à la fin des en-têtes (\r\n\r\n).
-        buf = first
-        while b"\r\n\r\n" not in buf and len(buf) < _MAX_HEADER_BYTES:
-            try:
-                more = await client_reader.read(_RELAY_CHUNK)
-            except OSError:
-                more = b""
-            if not more:
-                break
-            buf += more
-
-        head, sep, body = buf.partition(b"\r\n\r\n")
-        if not sep:  # en-têtes incomplets/démesurés → relais brut sans réécriture
-            await self._raw_relay(target_port, client_reader, client_writer, prefix=buf)
-            return
-        dest_port, rewritten = route_and_rewrite(
-            target_port, set(self._servers), head + b"\r\n\r\n"
-        )
-        # `body` = octets déjà lus après les en-têtes (corps de POST arrivé dans le
-        # même paquet) ; réémis après la request-line réécrite, le reste suit en brut.
-        await self._raw_relay(dest_port, client_reader, client_writer, prefix=rewritten + body)
-
-    async def _raw_relay(
-        self,
-        target_port: int,
-        client_reader: asyncio.StreamReader,
-        client_writer: asyncio.StreamWriter,
-        prefix: bytes = b"",
-    ) -> None:
-        """Relais d'octets bruts bidirectionnel vers ``127.0.0.1:target_port``.
-
-        ``prefix`` (request-line + en-têtes déjà lus/réécrits) est réémis en tête du
-        flux client→serveur ; le body et la réponse suivent en brut (WS inclus)."""
         try:
             server_reader, server_writer = await asyncio.open_connection(
                 self._connect_host, target_port
@@ -489,20 +372,55 @@ class ProxyManager:
         except OSError:
             client_writer.close()
             return
+        _set_tcp_nodelay(server_writer)
 
-        if prefix:
+        if head is not None:
+            if rewrite and not _is_ws_upgrade(head):
+                head = _force_connection_close(head)
             try:
-                server_writer.write(prefix)
+                server_writer.write(head)
                 await server_writer.drain()
             except OSError:
-                server_writer.close()
                 client_writer.close()
+                server_writer.close()
                 return
 
         await asyncio.gather(
             _pump(client_reader, server_writer),
             _pump(server_reader, client_writer),
         )
+
+
+def _set_tcp_nodelay(writer: asyncio.StreamWriter) -> None:
+    """Désactive l'algorithme de Nagle sur le socket (latence basse pour le relais)."""
+    sock = writer.get_extra_info("socket")
+    if sock is not None:
+        try:
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, True)
+        except OSError:
+            pass
+
+
+def _is_ws_upgrade(head: bytes) -> bool:
+    """Vrai si la requête est une upgrade WebSocket (à relayer telle quelle)."""
+    return b"upgrade: websocket" in head.lower()
+
+
+def _force_connection_close(head: bytes) -> bytes:
+    """Réécrit les en-têtes de requête pour imposer ``Connection: close``.
+
+    Retire tout ``Connection`` / ``Proxy-Connection`` / ``Keep-Alive`` existant puis
+    ajoute ``Connection: close``. Ne touche ni la request-line ni le corps (le corps
+    arrive après le terminateur et est relayé brut)."""
+    block = head.split(_HEADER_TERMINATOR, 1)[0]
+    lines = block.split(b"\r\n")
+    out = [lines[0]]  # request-line inchangée
+    for line in lines[1:]:
+        if line.lower().startswith((b"connection:", b"proxy-connection:", b"keep-alive:")):
+            continue
+        out.append(line)
+    out.append(b"Connection: close")
+    return b"\r\n".join(out) + _HEADER_TERMINATOR
 
 
 async def _pump(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:

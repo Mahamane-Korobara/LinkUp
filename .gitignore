@@ -9,8 +9,13 @@ Thumbs.db
 .vscode/
 *.iml
 
-# Claude Code (local-only)
+# AI coding agents (local-only — jamais sur GitHub)
 .claude/
+.codex/
+.cursor/
+.aider*
+.continue/
+.windsurf/
 
 # Logs
 *.log

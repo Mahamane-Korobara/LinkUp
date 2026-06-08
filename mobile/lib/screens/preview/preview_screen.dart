@@ -81,14 +81,19 @@ class _PreviewScreenState extends State<PreviewScreen> {
       _open(uri); // pas de pin possible → repli navigateur (avec install CA)
       return;
     }
+    // Map port d'origine → port d'écoute du bridge, pour TOUS les projets exposés :
+    // on recrée chacun à l'identique sur le 127.0.0.1 du tél (même port) → l'app
+    // tourne comme sur le PC (localhost:3001 ↔ localhost:8001, cross-origin natif).
+    final portToListen = {
+      for (final proj in _listing!.projects) proj.targetPort: proj.listenPort,
+    };
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PreviewWebViewScreen(
           url: uri,
           certSha256: certSha256,
-          targetPort: p.targetPort,
-          // Tous les ports exposés : le shim relie front↔back de façon transparente.
-          exposedPorts: _listing!.projects.map((p) => p.targetPort).toList(),
+          frontPort: p.targetPort,
+          portToListen: portToListen,
         ),
       ),
     );
