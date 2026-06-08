@@ -34,6 +34,8 @@ export const metadata = {
     "alternative AirDrop pour Android et Linux",
     "partage local sans cloud ni compte",
     "appairage QR code",
+    "partage de fichiers entre deux téléphones sans PC",
+    "tester localhost sur téléphone mobile",
     "Linkup",
   ],
   alternates: { canonical: "/" },

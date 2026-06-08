@@ -4,6 +4,8 @@ import {
   FileUp,
   ClipboardCheck,
   Images,
+  MonitorSmartphone,
+  Smartphone,
   Sparkles,
   Check,
   Link as LinkIcon,
@@ -19,7 +21,7 @@ import {
   BellRing,
 } from "lucide-react";
 
-// Les 3 outils réellement disponibles aujourd'hui (alpha LAN).
+// Les outils réellement disponibles aujourd'hui (alpha LAN).
 const AVAILABLE = [
   {
     icon: FileUp,
@@ -38,6 +40,18 @@ const AVAILABLE = [
     title: "Galerie à distance",
     text: "Parcours les photos et vidéos de ton téléphone depuis le PC, et récupère exactement celles que tu veux, en pleine qualité.",
     points: ["Qualité d’origine", "Sélection multiple", "Aperçu rapide"],
+  },
+  {
+    icon: Smartphone,
+    title: "De téléphone à téléphone",
+    text: "Pas de PC sous la main ? Un téléphone devient le point de partage, l’autre scanne son QR — et vous échangez fichiers, photos et vidéos directement.",
+    points: ["Sans aucun PC", "Un scan pour relier", "Fichiers, photos, vidéos"],
+  },
+  {
+    icon: MonitorSmartphone,
+    title: "Aperçu de dev sur le téléphone",
+    text: "Tu développes un site ou une app sur ton PC ? Ouvre-le tel quel sur ton téléphone, en vrai HTTPS de confiance — sans rien installer.",
+    points: ["Le localhost du PC sur le tél", "Caméra, micro & géoloc actifs", "Zéro certificat à installer"],
   },
 ];
 
@@ -79,8 +93,9 @@ export default function Features() {
             </span>
           </h2>
           <p className="mt-5 text-base leading-relaxed text-zinc-500 sm:text-lg">
-            Linkup démarre avec les trois ponts les plus utiles entre ton
-            téléphone et ton PC. Ils marchent maintenant, sur ton réseau Wi-Fi.
+            Linkup réunit les ponts les plus utiles entre ton téléphone et ton
+            PC — et même entre deux téléphones. Ils marchent maintenant, sur ton
+            réseau Wi-Fi.
           </p>
         </motion.header>
 

@@ -26,4 +26,12 @@ export const FAQ = [
     q: "Que puis-je transférer entre mon téléphone et mon PC ?",
     a: "Des fichiers et documents, des photos et vidéos depuis ta galerie, et le presse-papier (texte et liens) — dans les deux sens, sans câble.",
   },
+  {
+    q: "Puis-je partager entre deux téléphones, sans PC ?",
+    a: "Oui. Un téléphone devient le point de partage et affiche un QR ; l'autre le scanne, et vous échangez fichiers, photos et vidéos directement sur votre Wi-Fi — même en partage de connexion, sans aucun PC.",
+  },
+  {
+    q: "C'est quoi l'aperçu de développement (Dev Preview) ?",
+    a: "Un outil pour les développeurs : ouvre le site ou l'application en cours de développement sur ton PC (ton localhost) directement sur ton téléphone, en HTTPS de confiance, avec la caméra, le micro et la géolocalisation — sans installer le moindre certificat.",
+  },
 ];
