@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Globe,
   Link2,
+  Trash2,
   Menu,
   X,
   type LucideIcon,
@@ -29,6 +30,7 @@ const NAV: NavItem[] = [
   { href: "/send", label: "Envoyer", icon: SendHorizontal },
   { href: "/clipboard", label: "Presse-papier", icon: ClipboardList },
   { href: "/preview", label: "Dev Preview", icon: Globe },
+  { href: "/data", label: "Réinitialiser", icon: Trash2 },
 ];
 
 /** Ping périodique de l'agent local → état de connexion. */

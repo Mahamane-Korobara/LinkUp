@@ -101,6 +101,19 @@ void main() {
       );
     });
 
+    test('pollOnce treats 404 as a terminal rejection', () async {
+      // Le device n'existe plus côté PC = il a été refusé/supprimé pendant
+      // l'attente. C'est un refus, pas une erreur réseau à retenter.
+      final keyManager = KeyManager(storage: _MemoryStorage());
+      final mock = MockClient((req) async => http.Response('', 404));
+
+      final client = PairingPollClient(keyManager: keyManager, httpClient: mock);
+      final result = await client.pollOnce(_baseUri, 'dev-1');
+
+      expect(result.status, PollStatus.rejected);
+      expect(result.isTerminal, isTrue);
+    });
+
     test('waitForResolution polls until approved', () async {
       final keyManager = KeyManager(storage: _MemoryStorage());
       var calls = 0;

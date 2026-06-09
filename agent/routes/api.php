@@ -3,6 +3,7 @@
 use App\Http\Controllers\AgentInfoController;
 use App\Http\Controllers\Clipboard\ClipboardController;
 use App\Http\Controllers\Dashboard\ClipboardController as DashboardClipboardController;
+use App\Http\Controllers\Dashboard\DataController;
 use App\Http\Controllers\Dashboard\FilesController;
 use App\Http\Controllers\Dashboard\OutboxController;
 use App\Http\Controllers\Dashboard\PreviewController;
@@ -47,7 +48,7 @@ Route::post('/pairing/handshake', [PairingController::class, 'handshake'])
     ->middleware('throttle:pairing');
 
 // S2.J4 — gestion des devices.
-// index/approve/reject = dashboard local UNIQUEMENT → protégés par
+// index/approve/destroy = dashboard local UNIQUEMENT → protégés par
 // `dashboard.client` (header custom + CORS restreint, anti-CSRF). Sans ça,
 // n'importe quelle page web pouvait lister/approuver des devices.
 // dashboard.client = header anti-CSRF (navigateur) ; local.only = loopback
@@ -56,7 +57,8 @@ Route::post('/pairing/handshake', [PairingController::class, 'handshake'])
 Route::middleware(['dashboard.client', 'local.only'])->group(function () {
     Route::get('/pairing/devices', [DeviceController::class, 'index']);
     Route::post('/pairing/devices/{device}/approve', [DeviceController::class, 'approve']);
-    Route::post('/pairing/devices/{device}/reject', [DeviceController::class, 'reject']);
+    // Refuser (pending) / révoquer (approuvé) = supprimer le device.
+    Route::delete('/pairing/devices/{device}', [DeviceController::class, 'destroy']);
     Route::post('/pairing/devices/{device}/rename', [DeviceController::class, 'rename']);
 
     // S4 — fichiers reçus, vus depuis le dashboard (ouverture sur le PC).
@@ -75,6 +77,11 @@ Route::middleware(['dashboard.client', 'local.only'])->group(function () {
     Route::get('/preview/exposed', [PreviewController::class, 'exposed']);
     Route::post('/preview/expose', [PreviewController::class, 'expose']);
     Route::post('/preview/unexpose', [PreviewController::class, 'unexpose']);
+
+    // Réinitialisation : aperçu + suppression de TOUT ce que les tél ont laissé
+    // sur ce PC (fichiers reçus, transferts, presse-papier, pairing).
+    Route::get('/data/summary', [DataController::class, 'summary']);
+    Route::delete('/data', [DataController::class, 'destroy']);
 });
 
 // Aperçu d'un fichier reçu, servi INLINE pour les balises <img>/<video> du

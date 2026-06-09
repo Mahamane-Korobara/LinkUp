@@ -14,7 +14,11 @@ use Illuminate\Support\Facades\Log;
  *
  * Règles :
  * - approve() : flippe `approved`, horodate, broadcast DeviceApproved.
- * - reject()  : pose `revoked_at`, le device ne pourra plus se reconnecter.
+ * - remove()  : SUPPRIME le device (refus d'un pending OU révocation d'un
+ *   approuvé). Un device refusé/révoqué ne sert plus à rien : on l'efface au
+ *   lieu de garder une ligne « refusé » dans le dashboard. Les tokens partent
+ *   en cascade ; le tél concerné le découvre via un poll 404 (pending) ou un
+ *   401 (approuvé, device + token disparus).
  * - issueTokenOnce() : génère un token 32 bytes UNE seule fois par device,
  *   stocke uniquement son hash argon2id, renvoie le token en clair (jamais
  *   re-récupérable). Appelé par la poll du tel après approbation.
@@ -39,7 +43,7 @@ class DeviceApprovalService
     }
 
     /**
-     * Révoque en masse les devices pending expirés. Renvoie le nombre révoqué.
+     * Supprime en masse les devices pending expirés. Renvoie le nombre supprimé.
      * Appelé paresseusement avant de lister / poller (pas de scheduler en S2).
      */
     public function expireStalePending(): int
@@ -48,7 +52,7 @@ class DeviceApprovalService
             ->whereNull('revoked_at')
             ->where('approved', false)
             ->where('paired_at', '<', now()->subSeconds(self::APPROVAL_TTL_SECONDS))
-            ->update(['revoked_at' => now()]);
+            ->delete();
     }
 
     /**
@@ -83,20 +87,13 @@ class DeviceApprovalService
     }
 
     /**
-     * Refuse / révoque un device. Idempotent.
+     * Refuse (pending) ou révoque (approuvé) un device : suppression complète.
+     * Les tokens partent en cascade (FK). Idempotent : supprimer un device déjà
+     * absent ne fait rien.
      */
-    public function reject(Device $device): Device
+    public function remove(Device $device): void
     {
-        if ($device->revoked_at !== null) {
-            return $device;
-        }
-
-        $device->forceFill([
-            'approved' => false,
-            'revoked_at' => now(),
-        ])->save();
-
-        return $device;
+        $device->delete();
     }
 
     /**

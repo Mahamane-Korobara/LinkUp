@@ -20,6 +20,9 @@ class SecurityAuditService
     public const DASHBOARD_FORBIDDEN = 'dashboard_forbidden';
     public const DEVICE_REJECTED = 'device_rejected';
     public const DEVICE_AUTH_FAILED = 'device_auth_failed';
+    // Réinitialisation complète du PC depuis le dashboard (fichiers reçus,
+    // transferts, presse-papier, pairing). Geste destructeur → tracé.
+    public const DATA_WIPED = 'data_wiped';
     // Requête sur une route réservée au PC local, venue d'une IP non-loopback
     // (ex. un hôte du LAN qui forge le header dashboard). Cf. LocalhostOnly.
     public const NON_LOCAL_FORBIDDEN = 'non_local_forbidden';

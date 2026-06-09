@@ -7,7 +7,7 @@ import {
   Check,
   X,
   Pencil,
-  ShieldOff,
+  Trash2,
   Fingerprint,
   Clock,
   ShieldCheck,
@@ -63,11 +63,29 @@ export default function DevicesPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const act = useCallback(
-    async (deviceId: string, action: 'approve' | 'reject') => {
+  const approve = useCallback(
+    async (deviceId: string) => {
       setBusyId(deviceId);
       try {
-        await apiFetch(`/api/pairing/devices/${deviceId}/${action}`, { method: 'POST' });
+        await apiFetch(`/api/pairing/devices/${deviceId}/approve`, { method: 'POST' });
+        setData(await loadDevices());
+        setActionError(null);
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [setData],
+  );
+
+  // Refuser (pending) comme révoquer (approuvé) suppriment le device côté PC :
+  // une fois écarté, il ne sert plus à rien, on le retire du dashboard.
+  const remove = useCallback(
+    async (deviceId: string) => {
+      setBusyId(deviceId);
+      try {
+        await apiFetch(`/api/pairing/devices/${deviceId}`, { method: 'DELETE' });
         setData(await loadDevices());
         setActionError(null);
       } catch (e) {
@@ -145,8 +163,8 @@ export default function DevicesPage() {
                   key={d.device_id}
                   device={d}
                   busy={busyId === d.device_id}
-                  onApprove={() => act(d.device_id, 'approve')}
-                  onReject={() => act(d.device_id, 'reject')}
+                  onApprove={() => approve(d.device_id)}
+                  onReject={() => remove(d.device_id)}
                 />
               ))}
             </AnimatePresence>
@@ -156,21 +174,21 @@ export default function DevicesPage() {
 
       {others.length > 0 && (
         <section>
-          <SectionTitle icon={ShieldCheck}>Historique</SectionTitle>
+          <SectionTitle icon={ShieldCheck}>Appareils approuvés</SectionTitle>
           <div className="space-y-3">
-            {others.map((d) => (
-              <DeviceCard
-                key={d.device_id}
-                device={d}
-                busy={busyId === d.device_id}
-                onRename={() => rename(d.device_id, d.name)}
-                onRevoke={
-                  d.status === 'approved'
-                    ? () => act(d.device_id, 'reject')
-                    : undefined
-                }
-              />
-            ))}
+            <AnimatePresence initial={false}>
+              {others.map((d) => (
+                <DeviceCard
+                  key={d.device_id}
+                  device={d}
+                  busy={busyId === d.device_id}
+                  onRename={() => rename(d.device_id, d.name)}
+                  onRevoke={
+                    d.status === 'approved' ? () => remove(d.device_id) : undefined
+                  }
+                />
+              ))}
+            </AnimatePresence>
           </div>
         </section>
       )}
@@ -269,7 +287,7 @@ function DeviceCard({
             )}
             {onRevoke && (
               <Button variant="destructive" size="sm" onClick={onRevoke} disabled={busy}>
-                <ShieldOff /> {busy ? '…' : 'Révoquer'}
+                <Trash2 /> {busy ? '…' : 'Supprimer'}
               </Button>
             )}
           </div>

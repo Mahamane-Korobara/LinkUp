@@ -14,7 +14,7 @@ use Illuminate\Http\Request;
 /**
  * S2.J4 — gestion des devices côté PC.
  *
- * - index / approve / reject : pilotés par le dashboard `/devices`.
+ * - index / approve / destroy : pilotés par le dashboard `/devices`.
  * - poll : appelé par le tel après son handshake pour savoir s'il a été
  *   approuvé, et récupérer son token persistant (une seule fois).
  */
@@ -60,18 +60,24 @@ class DeviceController extends Controller
     }
 
     /**
-     * POST /api/pairing/devices/{device}/reject
+     * DELETE /api/pairing/devices/{device}
+     *
+     * Refuse un pending OU révoque un approuvé : dans les deux cas le device ne
+     * sert plus à rien, on le SUPPRIME (au lieu de garder une ligne « refusé »
+     * dans le dashboard). Le tél le découvre via un poll 404 (pending) ou un 401
+     * (approuvé : device + token disparus).
      */
-    public function reject(Request $request, Device $device): JsonResponse
+    public function destroy(Request $request, Device $device): JsonResponse
     {
-        $this->approval->reject($device);
+        $deviceId = $device->id;
+        $this->approval->remove($device);
         $this->audit->log(
             SecurityAuditService::DEVICE_REJECTED,
-            deviceId: $device->id,
+            deviceId: $deviceId,
             ip: $request->ip(),
         );
 
-        return response()->json($this->present($device));
+        return response()->json(['deleted' => true]);
     }
 
     /**
@@ -128,10 +134,14 @@ class DeviceController extends Controller
             return response()->json(['message' => 'Signature invalide.'], 403);
         }
 
-        // Expiration paresseuse : un pending trop vieux est révoqué ici même,
-        // si bien que la poll suivante remonte « rejected » au tel.
+        // Expiration paresseuse : un pending trop vieux est supprimé ici même.
+        // On répond « rejected » dans la foulée (le device est encore en mémoire) ;
+        // la poll suivante tombera sur un 404, que le tel interprète aussi comme
+        // un refus.
         if ($this->approval->isStalePending($device)) {
-            $this->approval->reject($device);
+            $this->approval->remove($device);
+
+            return response()->json(['status' => 'rejected']);
         }
 
         $status = $device->status();

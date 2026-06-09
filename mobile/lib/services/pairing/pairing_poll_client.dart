@@ -87,13 +87,15 @@ class PairingPollClient {
       throw PollNetworkException('Erreur HTTP : ${e.message}');
     }
 
-    // 403 (signature) / 404 (device inconnu) : terminal côté serveur, on les
-    // remonte comme erreurs réseau pour que l'UI propose de recommencer.
     if (response.statusCode == 403) {
       throw const PollNetworkException('Signature refusée par le PC.');
     }
+    // 404 : le device n'existe plus côté PC. Pendant l'attente d'approbation,
+    // ça ne peut vouloir dire qu'une chose — le PC a refusé/supprimé l'appareil
+    // (le handshake l'avait créé juste avant de commencer à poller). On le
+    // traite comme un refus terminal plutôt que de retenter jusqu'au timeout.
     if (response.statusCode == 404) {
-      throw const PollNetworkException('Device inconnu du PC (re-scanne le QR).');
+      return const PollResult(PollStatus.rejected);
     }
     if (response.statusCode != 200) {
       throw PollNetworkException('PC a répondu ${response.statusCode}.');

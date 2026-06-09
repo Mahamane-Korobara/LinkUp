@@ -55,9 +55,9 @@ it('rejects device management routes without the dashboard header (403)', functi
     // Sans header → 403 (anti-CSRF), aucune mutation.
     $this->getJson('/api/pairing/devices')->assertStatus(403);
     $this->postJson("/api/pairing/devices/{$device->id}/approve")->assertStatus(403);
-    $this->postJson("/api/pairing/devices/{$device->id}/reject")->assertStatus(403);
+    $this->deleteJson("/api/pairing/devices/{$device->id}")->assertStatus(403);
+    expect($device->fresh())->not->toBeNull();
     expect($device->fresh()->approved)->toBeFalse();
-    expect($device->fresh()->revoked_at)->toBeNull();
 
     // Et chaque rejet est tracé dans l'audit sécurité (S3.J3).
     expect(SecurityAudit::where('event', SecurityAuditService::DASHBOARD_FORBIDDEN)->count())
@@ -112,15 +112,29 @@ it('approves a pending device and broadcasts DeviceApproved', function () {
     Event::assertDispatched(DeviceApproved::class);
 });
 
-it('rejects a device and marks it revoked', function () {
+it('deletes a device on refuse/revoke', function () {
     [$device] = pendingDevice();
 
-    $this->withHeaders(dashboardHeaders())->postJson("/api/pairing/devices/{$device->id}/reject")
+    $this->withHeaders(dashboardHeaders())->deleteJson("/api/pairing/devices/{$device->id}")
         ->assertOk()
-        ->assertJsonPath('status', 'rejected');
+        ->assertJsonPath('deleted', true);
 
-    expect($device->fresh()->revoked_at)->not->toBeNull();
-    expect($device->fresh()->approved)->toBeFalse();
+    expect(Device::find($device->id))->toBeNull();
+});
+
+it('cascade-deletes the device token on revoke', function () {
+    [$device] = pendingDevice();
+    $device->forceFill(['approved' => true, 'approved_at' => now()])->save();
+    DeviceToken::create([
+        'device_id' => $device->id,
+        'token_hash' => Hash::driver('argon2id')->make('whatever'),
+    ]);
+
+    $this->withHeaders(dashboardHeaders())->deleteJson("/api/pairing/devices/{$device->id}")
+        ->assertOk();
+
+    expect(Device::find($device->id))->toBeNull();
+    expect(DeviceToken::where('device_id', $device->id)->exists())->toBeFalse();
 });
 
 it('refuses to approve a revoked device (409)', function () {
@@ -204,7 +218,7 @@ it('poll returns 404 for an unknown device', function () {
     ])->assertStatus(404);
 });
 
-it('auto-rejects a pending device older than the approval TTL on poll', function () {
+it('auto-deletes a pending device older than the approval TTL on poll', function () {
     [$device, $tel] = pendingDevice();
     // Appairé il y a plus de 2 min sans approbation.
     $device->forceFill(['paired_at' => now()->subSeconds(121)])->save();
@@ -216,16 +230,16 @@ it('auto-rejects a pending device older than the approval TTL on poll', function
         ->assertOk()
         ->assertJsonPath('status', 'rejected');
 
-    expect($device->fresh()->revoked_at)->not->toBeNull();
+    expect(Device::find($device->id))->toBeNull();
 });
 
-it('auto-rejects stale pending devices when listing', function () {
+it('auto-deletes stale pending devices when listing', function () {
     [$stale] = pendingDevice();
     $stale->forceFill(['paired_at' => now()->subSeconds(121)])->save();
     [$fresh] = pendingDevice();
 
     $this->withHeaders(dashboardHeaders())->getJson('/api/pairing/devices')->assertOk();
 
-    expect($stale->fresh()->status())->toBe('rejected');
+    expect(Device::find($stale->id))->toBeNull();
     expect($fresh->fresh()->status())->toBe('pending');
 });
