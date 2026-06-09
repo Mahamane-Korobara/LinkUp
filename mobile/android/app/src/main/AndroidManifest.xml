@@ -30,6 +30,12 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
+    <!-- Linkup tél↔tél — ENVOYER une app installée à un autre téléphone (façon
+         Xender) suppose d'énumérer les apps de l'utilisateur. Android 11+ exige
+         cette permission pour voir l'ensemble des paquets. LinkUp étant distribué
+         hors Play Store (APK direct), elle est autorisée. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
+
     <application
         android:label="linkup_mobile"
         android:name="${applicationName}"

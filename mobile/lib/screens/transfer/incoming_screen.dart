@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -68,6 +69,34 @@ class _IncomingScreenState extends State<IncomingScreen> {
   int _total = 0;
   String? _error;
   Timer? _poll;
+
+  /// Cache des vignettes (octets de l'image) par id de transfert, + suivi des
+  /// téléchargements en cours / échoués pour ne pas reboucler. On ne pré-charge
+  /// QUE les images (un aperçu vidéo demanderait de rapatrier toute la vidéo) et
+  /// seulement sous une taille raisonnable.
+  static const int _thumbMaxBytes = 12 * 1024 * 1024;
+  final Map<String, Uint8List> _thumbs = {};
+  final Set<String> _thumbBusy = {};
+
+  /// Télécharge l'image en tâche de fond pour l'aperçu (idempotent : protégé par
+  /// les sets). Le décodage est borné via `cacheWidth` côté widget.
+  void _ensureThumb(TransferSummary t) {
+    if (_kindOf(t.filename) != _Kind.image) return;
+    if (t.size > _thumbMaxBytes) return;
+    if (_thumbs.containsKey(t.id) || _thumbBusy.contains(t.id)) return;
+    _thumbBusy.add(t.id);
+    () async {
+      try {
+        final bytes = await _receiver.transfers.downloadBytes(widget.device, t.id);
+        if (!mounted) return;
+        setState(() => _thumbs[t.id] = Uint8List.fromList(bytes));
+      } catch (_) {
+        // aperçu best-effort : on laisse l'icône typée si le download échoue.
+      } finally {
+        _thumbBusy.remove(t.id);
+      }
+    }();
+  }
 
   @override
   void initState() {
@@ -291,19 +320,131 @@ class _IncomingScreenState extends State<IncomingScreen> {
     }
     return ListView.separated(
       itemCount: items.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, i) {
         final t = items[i];
         final kind = _kindOf(t.filename);
-        return ListTile(
-          leading: Icon(switch (kind) {
-            _Kind.image => Icons.image,
-            _Kind.video => Icons.videocam,
-            _Kind.document => Icons.description,
-          }),
-          title: Text(t.filename, maxLines: 1, overflow: TextOverflow.ellipsis),
+        // Lance (au besoin) le chargement de l'aperçu image pendant le build :
+        // idempotent, le setState arrive plus tard sans rebuild synchrone.
+        _ensureThumb(t);
+        return _ReceivedTile(
+          filename: t.filename,
+          size: t.size,
+          kind: kind,
+          thumb: _thumbs[t.id],
         );
       },
+    );
+  }
+}
+
+/// Une ligne « reçu » avec aperçu : vignette image (si chargée), tuile vidéo
+/// stylée, ou icône typée pour les documents — façon Xender.
+class _ReceivedTile extends StatelessWidget {
+  final String filename;
+  final int size;
+  final _Kind kind;
+  final Uint8List? thumb;
+
+  const _ReceivedTile({
+    required this.filename,
+    required this.size,
+    required this.kind,
+    this.thumb,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _Thumb(kind: kind, thumb: thumb),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                filename,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.ink,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${_kindLabel(kind)} · ${_formatBytes(size)}',
+                style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String _kindLabel(_Kind k) => switch (k) {
+        _Kind.image => 'Image',
+        _Kind.video => 'Vidéo',
+        _Kind.document => 'Document',
+      };
+
+  static String _formatBytes(int b) {
+    if (b <= 0) return '—';
+    const units = ['o', 'Ko', 'Mo', 'Go'];
+    var v = b.toDouble();
+    var u = 0;
+    while (v >= 1024 && u < units.length - 1) {
+      v /= 1024;
+      u++;
+    }
+    return '${v.toStringAsFixed(v >= 10 || u == 0 ? 0 : 1)} ${units[u]}';
+  }
+}
+
+/// Vignette 52×52 : image décodée si dispo, sinon visuel typé (vidéo = tuile
+/// sombre + ▶, document = icône violette).
+class _Thumb extends StatelessWidget {
+  final _Kind kind;
+  final Uint8List? thumb;
+
+  const _Thumb({required this.kind, this.thumb});
+
+  static const double _size = 52;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(12);
+    if (kind == _Kind.image && thumb != null) {
+      return ClipRRect(
+        borderRadius: radius,
+        child: Image.memory(
+          thumb!,
+          width: _size,
+          height: _size,
+          fit: BoxFit.cover,
+          cacheWidth: 156, // borne le décodage (≈ 3× la taille affichée)
+          gaplessPlayback: true,
+        ),
+      );
+    }
+
+    final (Color bg, Color fg, IconData icon) = switch (kind) {
+      _Kind.image => (AppColors.brandSoft, AppColors.brand, Icons.image_rounded),
+      _Kind.video => (AppColors.ink, Colors.white, Icons.play_arrow_rounded),
+      _Kind.document => (
+          AppColors.brandSoft,
+          AppColors.brand,
+          Icons.description_rounded
+        ),
+    };
+    return Container(
+      width: _size,
+      height: _size,
+      decoration: BoxDecoration(color: bg, borderRadius: radius),
+      child: Icon(icon, color: fg, size: kind == _Kind.video ? 28 : 24),
     );
   }
 }

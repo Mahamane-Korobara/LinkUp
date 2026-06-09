@@ -200,17 +200,9 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
   /// Appairé → hub de transfert (galerie/fichier/reçus) ; sinon → appairage.
   Widget? _buildFab(BuildContext context) {
     if (_info == null) return null;
-    if (_isPaired == true && _paired != null) {
-      return FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => TransferHubScreen(device: _paired!),
-          ),
-        ),
-        icon: const Icon(Icons.swap_vert),
-        label: const Text('Transfert'),
-      );
-    }
+    // Appairé : plus de FAB « Transfert » — il devient la 1ʳᵉ carte des Outils
+    // (à côté du presse-papier et du Dev Preview), comme demandé.
+    if (_isPaired == true && _paired != null) return null;
     return FloatingActionButton.extended(
       onPressed: () => _openPairingFlow(context),
       icon: const Icon(Icons.qr_code_scanner),
@@ -307,6 +299,20 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
           const SizedBox(height: 24),
           const SectionLabel('Outils'),
           const SizedBox(height: 14),
+          // Action principale (anciennement un FAB) : envoyer/recevoir des
+          // fichiers, photos et vidéos avec le PC.
+          _ToolCard(
+            icon: Icons.swap_vert_rounded,
+            title: 'Transfert',
+            subtitle: 'Envoyer / recevoir fichiers, photos et vidéos',
+            primary: true,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => TransferHubScreen(device: paired),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           _ToolCard(
             icon: Icons.content_paste_rounded,
             title: 'Presse-papier partagé',
@@ -354,11 +360,15 @@ class _ToolCard extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
 
+  /// Met en avant l'action principale (icône violette pleine) parmi les outils.
+  final bool primary;
+
   const _ToolCard({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.primary = false,
   });
 
   @override
@@ -372,10 +382,11 @@ class _ToolCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: AppColors.brandSoft,
+              color: primary ? AppColors.brand : AppColors.brandSoft,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: AppColors.brand, size: 22),
+            child: Icon(icon,
+                color: primary ? Colors.white : AppColors.brand, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(
