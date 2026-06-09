@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/pairing/paired_device_store.dart';
 import '../../services/transfer/transfer_client.dart';
+import '../../theme/app_colors.dart';
 
 /// Fichier choisi par l'utilisateur (nom + octets).
 class PickedFile {
@@ -123,7 +124,7 @@ class _FileTransferScreenState extends State<FileTransferScreen> {
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.description, size: 96, color: Colors.deepPurple.shade300),
+            const Icon(Icons.description, size: 96, color: AppColors.brand),
             const SizedBox(height: 24),
             const Text(
               'Envoyer un fichier (document) au PC',
@@ -134,7 +135,7 @@ class _FileTransferScreenState extends State<FileTransferScreen> {
             Text(
               'PDF, archives, docs… Pour tes photos et vidéos, utilise plutôt l\'écran « Galerie ».',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
+              style: const TextStyle(color: AppColors.muted),
             ),
             const SizedBox(height: 32),
             FilledButton.icon(
@@ -154,7 +155,7 @@ class _FileTransferScreenState extends State<FileTransferScreen> {
             const SizedBox(height: 16),
             LinearProgressIndicator(value: _fraction == 0 ? null : _fraction),
             const SizedBox(height: 8),
-            Text('Envoi… $percent %', style: const TextStyle(color: Colors.grey)),
+            Text('Envoi… $percent %', style: const TextStyle(color: AppColors.muted)),
           ],
         );
 
@@ -162,7 +163,7 @@ class _FileTransferScreenState extends State<FileTransferScreen> {
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.check_circle, size: 96, color: Colors.green.shade500),
+            const Icon(Icons.check_circle, size: 96, color: AppColors.success),
             const SizedBox(height: 16),
             Text(
               'Envoyé 🎉\n${_current?.name ?? ''}',
@@ -182,7 +183,7 @@ class _FileTransferScreenState extends State<FileTransferScreen> {
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 96, color: Colors.red.shade400),
+            const Icon(Icons.error_outline, size: 96, color: AppColors.danger),
             const SizedBox(height: 16),
             const Text('Échec de l\'envoi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),

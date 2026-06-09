@@ -45,13 +45,18 @@ abstract final class AppTheme {
         iconTheme: IconThemeData(color: AppColors.body),
       ),
 
+      // Cartes « Stripe/Notion » : ombre douce diffuse + hairline à peine
+      // visible, au lieu de la bordure 1px sèche (effet wireframe). Le
+      // surfaceTint transparent évite le voile coloré M3.
       cardTheme: CardThemeData(
         color: AppColors.surface,
-        elevation: 0,
+        elevation: 6,
+        shadowColor: const Color(0x141A2433),
+        surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: AppColors.line),
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: AppColors.hairline),
         ),
       ),
 

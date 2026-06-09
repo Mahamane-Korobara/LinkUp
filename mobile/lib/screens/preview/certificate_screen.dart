@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../theme/app_colors.dart';
+
 /// Page dédiée au certificat Linkup (S14, Lot F).
 ///
 /// La WebView in-app n'a **pas** besoin de ce certificat (elle épingle le cert du
@@ -33,12 +35,12 @@ class CertificateScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           Card(
-            color: Colors.blue.shade50,
+            color: AppColors.brandSoft,
             child: const Padding(
               padding: EdgeInsets.all(14),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue),
+                  Icon(Icons.info_outline, color: AppColors.brand),
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -70,7 +72,7 @@ class CertificateScreen extends StatelessWidget {
             'Astuce : si Android demande à quoi sert le certificat, choisis '
             '« CA » (autorité de certification). Un verrou/PIN d\'écran peut être '
             'exigé par le système.',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+            style: TextStyle(fontSize: 12, color: AppColors.muted),
           ),
         ],
       ),

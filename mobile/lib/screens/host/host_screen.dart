@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../services/host/host_controller.dart';
 import '../../services/host/host_device_store.dart';
+import '../../theme/app_colors.dart';
 
 /// Écran « Mode Hôte » : ce téléphone joue le serveur pour qu'un autre
 /// téléphone (sans PC) puisse lui envoyer/recevoir des fichiers.
@@ -214,14 +215,18 @@ class _HostScreenState extends State<HostScreen> {
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.errorContainer,
-          borderRadius: BorderRadius.circular(10),
+          color: AppColors.dangerSoft,
+          borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
           children: [
-            const Icon(Icons.error_outline_rounded, size: 20),
+            const Icon(Icons.error_outline_rounded,
+                size: 20, color: AppColors.danger),
             const SizedBox(width: 10),
-            Expanded(child: Text(message)),
+            Expanded(
+              child: Text(message,
+                  style: const TextStyle(color: AppColors.danger, fontSize: 13)),
+            ),
           ],
         ),
       );

@@ -158,7 +158,7 @@ export default function PairPage() {
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.4 }}
-              className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-card"
+              className="rounded-2xl border border-zinc-100 bg-white p-3 shadow-card"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img

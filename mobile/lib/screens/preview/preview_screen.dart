@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/pairing/paired_device_store.dart';
 import '../../services/preview/preview_client.dart';
+import '../../theme/app_colors.dart';
 import 'certificate_screen.dart';
 import 'preview_webview_screen.dart';
 
@@ -104,16 +105,13 @@ class _PreviewScreenState extends State<PreviewScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Dev Preview — ${widget.device.pcName}'),
+        // Recharger retiré : le pull-to-refresh du corps le couvre. On garde
+        // seulement l'accès au certificat (action sans équivalent gestuel).
         actions: [
           IconButton(
             tooltip: 'Certificat (pour Chrome)',
             onPressed: _openCertificate,
             icon: const Icon(Icons.verified_user_outlined),
-          ),
-          IconButton(
-            tooltip: 'Recharger',
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
           ),
         ],
       ),
@@ -206,14 +204,14 @@ class _PreviewScreenState extends State<PreviewScreen> {
       padding: const EdgeInsets.only(top: 48),
       child: Column(
         children: [
-          Icon(icon, size: 48, color: Colors.grey),
+          Icon(icon, size: 48, color: AppColors.faint),
           const SizedBox(height: 12),
           Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 6),
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.grey),
+            style: const TextStyle(color: AppColors.muted),
           ),
         ],
       ),

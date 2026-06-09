@@ -9,12 +9,17 @@
 
 :root {
   /* Neutres PURS (chroma 0) alignés sur la vitrine et l'app mobile (palette
-     zinc), au lieu du léger voile bleuté précédent. */
-  --background: oklch(0.99 0 0);
+     zinc), au lieu du léger voile bleuté précédent.
+     Fond off-white doux (type Notion) ≈ #F7F7F8 → les cartes blanches
+     « flottent » au lieu de se fondre dans la page. */
+  --background: oklch(0.972 0 0);
   --foreground: oklch(0.145 0 0);
-  --shadow-card: 0 1px 2px rgba(15, 15, 15, 0.04), 0 1px 3px rgba(15, 15, 15, 0.06);
-  --shadow-elevated: 0 10px 40px -12px rgba(15, 15, 15, 0.18);
-  --shadow-pop: 0 20px 60px -20px rgba(15, 15, 15, 0.25);
+  /* Ombre « Stripe/Notion » : une couche serrée + une couche large et diffuse,
+     teinte ardoise (#1A2433, pas du noir pur) → profondeur sans lourdeur.
+     Identique à AppColors.cardShadow côté mobile. */
+  --shadow-card: 0 1px 2px rgba(26, 36, 51, 0.05), 0 8px 24px -6px rgba(26, 36, 51, 0.10);
+  --shadow-elevated: 0 10px 40px -12px rgba(26, 36, 51, 0.18);
+  --shadow-pop: 0 20px 60px -20px rgba(26, 36, 51, 0.25);
   --shadow-violet: 0 20px 50px -15px rgba(124, 58, 237, 0.3), 0 5px 15px -5px rgba(0, 0, 0, 0.06);
 }
 

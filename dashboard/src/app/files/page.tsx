@@ -289,7 +289,7 @@ function GalleryTile({
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.3) }}
-      className="group relative aspect-square overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-100 text-left outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50"
+      className="group relative aspect-square overflow-hidden rounded-2xl border border-zinc-100 bg-zinc-100 text-left shadow-card outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50"
     >
       {isVideo ? (
         <video
@@ -360,7 +360,7 @@ function FileTile({
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.3) }}
-      className="group relative flex aspect-[3/4] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white text-left outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50"
+      className="group relative flex aspect-[3/4] flex-col overflow-hidden rounded-2xl border border-zinc-100 bg-white text-left shadow-card outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50"
     >
       {/* Zone d'aperçu : PDF (1ʳᵉ page), extrait texte, ou icône typée. */}
       <div className="relative flex-1 overflow-hidden bg-zinc-50">

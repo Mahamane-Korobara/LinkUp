@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../services/clipboard/clipboard_client.dart';
 import '../../services/clipboard/clipboard_watcher.dart';
 import '../../services/pairing/paired_device_store.dart';
+import '../../theme/app_colors.dart';
 
 /// Lit le presse-papier du téléphone (injectable pour les widget tests).
 typedef PhoneClipboardReader = Future<String?> Function();
@@ -338,7 +339,7 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
       return ListView(
         children: [
           const SizedBox(height: 80),
-          Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+          const Icon(Icons.error_outline, size: 64, color: AppColors.danger),
           const SizedBox(height: 12),
           Center(child: Text(_error!, textAlign: TextAlign.center)),
           const SizedBox(height: 16),
@@ -358,7 +359,7 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
       return ListView(
         children: [
           const SizedBox(height: 100),
-          Icon(Icons.content_paste_off, size: 72, color: Colors.grey.shade300),
+          const Icon(Icons.content_paste_off, size: 72, color: AppColors.faint),
           const SizedBox(height: 12),
           Center(
             child: Text(all.isEmpty
@@ -368,7 +369,7 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
           const SizedBox(height: 8),
           const Center(
             child: Text('Le presse-papier est effacé automatiquement après 2 jours.',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
+                style: TextStyle(fontSize: 12, color: AppColors.muted)),
           ),
         ],
       );
@@ -381,7 +382,7 @@ class _ClipboardScreenState extends State<ClipboardScreen> {
         return ListTile(
           leading: Icon(
             item.isFromPc ? Icons.desktop_windows : Icons.phone_android,
-            color: item.isFromPc ? Colors.indigo : Colors.green,
+            color: item.isFromPc ? AppColors.brand : AppColors.success,
           ),
           title: Text(item.content, maxLines: 2, overflow: TextOverflow.ellipsis),
           subtitle: Text(

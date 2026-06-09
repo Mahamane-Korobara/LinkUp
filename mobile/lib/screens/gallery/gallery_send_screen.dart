@@ -5,6 +5,7 @@ import '../../services/gallery/gallery_source.dart';
 import '../../services/gallery/photo_manager_source.dart';
 import '../../services/pairing/paired_device_store.dart';
 import '../../services/transfer/transfer_client.dart';
+import '../../theme/app_colors.dart';
 
 /// Picker d'envoi de photos vers le PC (S6 — modèle « je choisis sur le tél »).
 ///
@@ -231,7 +232,7 @@ class _GallerySendScreenState extends State<GallerySendScreen> {
       case _Phase.error:
         return _centered(
           Icons.error_outline,
-          Colors.red.shade400,
+          AppColors.danger,
           'Impossible',
           _error ?? '',
           action: FilledButton.icon(
@@ -271,12 +272,12 @@ class _GallerySendScreenState extends State<GallerySendScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
+                  color: AppColors.warnSoft,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.amber.shade800, size: 20),
+                    const Icon(Icons.info_outline, color: AppColors.warn, size: 20),
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text(
@@ -300,7 +301,7 @@ class _GallerySendScreenState extends State<GallerySendScreen> {
         final r = _result!;
         return _centered(
           Icons.check_circle,
-          Colors.green.shade500,
+          AppColors.success,
           'Envoi terminé',
           '${r.sent} photo(s) envoyée(s) au PC'
               '${r.failed > 0 ? '\n${r.failed} échec(s)' : ''}.\nRetrouve-les dans « Fichiers » sur le PC.',
@@ -433,7 +434,7 @@ class _Tile extends StatelessWidget {
             builder: (context, snap) {
               final bytes = snap.data;
               if (bytes == null) {
-                return Container(color: Colors.grey.shade200);
+                return Container(color: AppColors.line);
               }
               return Image.memory(bytes, fit: BoxFit.cover);
             },
@@ -446,14 +447,14 @@ class _Tile extends StatelessWidget {
             ),
           if (selected)
             Container(
-              color: Colors.indigo.withValues(alpha: 0.35),
+              color: AppColors.brand.withValues(alpha: 0.35),
               child: const Align(
                 alignment: Alignment.topRight,
                 child: Padding(
                   padding: EdgeInsets.all(4),
                   child: CircleAvatar(
                     radius: 11,
-                    backgroundColor: Colors.indigo,
+                    backgroundColor: AppColors.brand,
                     child: Icon(Icons.check, size: 14, color: Colors.white),
                   ),
                 ),

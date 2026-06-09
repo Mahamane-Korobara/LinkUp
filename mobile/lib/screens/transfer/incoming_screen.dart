@@ -6,6 +6,7 @@ import '../../services/pairing/paired_device_store.dart';
 import '../../services/transfer/incoming_receiver.dart';
 import '../../services/transfer/received_saver.dart';
 import '../../services/transfer/transfer_client.dart';
+import '../../theme/app_colors.dart';
 
 /// Type d'un fichier reçu (pour le filtre + l'icône).
 enum _Kind { image, video, document }
@@ -218,7 +219,7 @@ class _IncomingScreenState extends State<IncomingScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 72, color: Colors.red.shade400),
+              const Icon(Icons.error_outline, size: 72, color: AppColors.danger),
               const SizedBox(height: 12),
               const Text('Récupération impossible', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),

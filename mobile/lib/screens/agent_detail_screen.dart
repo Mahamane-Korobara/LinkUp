@@ -6,6 +6,8 @@ import '../services/agent_info_client.dart';
 import '../services/pairing/paired_device_store.dart';
 import '../services/pairing/pairing_verifier.dart';
 import '../theme/app_colors.dart';
+import '../widgets/app_card.dart';
+import '../widgets/section_label.dart';
 import 'clipboard/clipboard_screen.dart';
 import 'pairing/pairing_flow_screen.dart';
 import 'preview/preview_screen.dart';
@@ -152,44 +154,42 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.agent.displayName),
+        // AppBar épurée : les actions utilitaires (recharger, ré-appairer)
+        // passent dans un menu débordant ; les outils (presse-papier, preview)
+        // sont des cartes dans le corps. Plus lisible que 4 icônes en barre.
         actions: [
-          // Presse-papier partagé : seulement quand l'appairage est confirmé
-          // (l'écran appelle l'API authentifiée par le token device).
-          if (_isPaired == true && _paired != null)
-            IconButton(
-              tooltip: 'Presse-papier',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ClipboardScreen(device: _paired!),
-                ),
-              ),
-              icon: const Icon(Icons.content_paste),
-            ),
-          // Dev Preview : ouvrir sur le tél un projet web exposé par le PC.
-          if (_isPaired == true && _paired != null)
-            IconButton(
-              tooltip: 'Dev Preview',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => PreviewScreen(device: _paired!),
-                ),
-              ),
-              icon: const Icon(Icons.public),
-            ),
-          // Toujours dispo (même « appairé ») : si le PC a oublié ce tél (ex.
-          // migrate:fresh, révocation), le token local est invalide et il faut
-          // re-scanner un QR pour repartir avec un device + token frais.
           if (_info != null)
-            IconButton(
-              tooltip: 'Ré-appairer',
-              onPressed: () => _openPairingFlow(context),
-              icon: const Icon(Icons.qr_code),
+            PopupMenuButton<String>(
+              tooltip: 'Plus',
+              icon: const Icon(Icons.more_vert_rounded),
+              onSelected: (v) {
+                if (v == 'reload') {
+                  if (!_loading) _load();
+                } else if (v == 'repair') {
+                  _openPairingFlow(context);
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'reload',
+                  child: ListTile(
+                    leading: Icon(Icons.refresh_rounded),
+                    title: Text('Recharger'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                // Ré-appairer : si le PC a oublié ce tél (migrate:fresh /
+                // révocation), le token local est invalide → re-scan d'un QR.
+                const PopupMenuItem(
+                  value: 'repair',
+                  child: ListTile(
+                    leading: Icon(Icons.qr_code_rounded),
+                    title: Text('Ré-appairer'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
             ),
-          IconButton(
-            tooltip: 'Recharger',
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
-          ),
         ],
       ),
       body: _buildBody(),
@@ -285,6 +285,8 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
 
   Widget _buildInfo(AgentInfo info) {
     final isPending = info.fingerprint == 'pending';
+    final paired = _paired;
+    final showTools = _isPaired == true && paired != null;
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 110),
       children: [
@@ -299,7 +301,35 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
           isPending: isPending,
           paired: _isPaired,
         ),
-        const SizedBox(height: 14),
+        // Outils dispo seulement une fois l'appairage confirmé (API authentifiée
+        // par le token device). Promus en cartes : plus visibles qu'en barre.
+        if (showTools) ...[
+          const SizedBox(height: 24),
+          const SectionLabel('Outils'),
+          const SizedBox(height: 14),
+          _ToolCard(
+            icon: Icons.content_paste_rounded,
+            title: 'Presse-papier partagé',
+            subtitle: 'Copier-coller entre ce téléphone et le PC',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ClipboardScreen(device: paired),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _ToolCard(
+            icon: Icons.public_rounded,
+            title: 'Dev Preview',
+            subtitle: 'Ouvrir un projet web servi par le PC',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => PreviewScreen(device: paired),
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 24),
         _TechnicalDetails(info: info, agent: widget.agent),
       ],
     );
@@ -313,6 +343,68 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
     // que le badge passe de « Non appairé » à « Appairé » sans rouvrir l'écran.
     if (!mounted) return;
     await _loadPaired();
+  }
+}
+
+/// Carte d'outil (presse-papier, dev preview) : icône violette, titre + sous-
+/// titre, chevron. Même gabarit que les cartes d'accueil pour la cohérence.
+class _ToolCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ToolCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.brandSoft,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: AppColors.brand, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.faint),
+        ],
+      ),
+    );
   }
 }
 

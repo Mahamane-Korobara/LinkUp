@@ -15,9 +15,17 @@ abstract final class AppColors {
   static const body = Color(0xFF3F3F46); // zinc-700 — texte courant
   static const muted = Color(0xFF71717A); // zinc-500 — texte secondaire
   static const faint = Color(0xFFA1A1AA); // zinc-400
-  static const line = Color(0xFFE4E4E7); // zinc-200 — bordures
+  static const line = Color(0xFFE4E4E7); // zinc-200 — bordures visibles (champs)
+  static const hairline = Color(0xFFF0F0F2); // bordure quasi invisible des cartes
   static const surface = Color(0xFFFFFFFF);
-  static const bg = Color(0xFFFAFAFB); // fond d'écran
+  static const bg = Color(0xFFF7F7F8); // fond d'écran (off-white doux, type Notion)
+
+  // Ombre douce « Stripe/Notion » : une couche serrée + une couche large et
+  // diffuse, teinte ardoise (pas du noir pur) → profondeur sans lourdeur.
+  static const cardShadow = <BoxShadow>[
+    BoxShadow(color: Color(0x0D1A2433), blurRadius: 2, offset: Offset(0, 1)),
+    BoxShadow(color: Color(0x141A2433), blurRadius: 16, offset: Offset(0, 8)),
+  ];
 
   // États
   static const success = Color(0xFF059669); // emerald-600

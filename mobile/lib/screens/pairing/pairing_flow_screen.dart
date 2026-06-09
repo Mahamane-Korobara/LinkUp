@@ -6,6 +6,7 @@ import '../../services/pairing/paired_device_store.dart';
 import '../../services/pairing/pairing_handshake_client.dart';
 import '../../services/pairing/pairing_poll_client.dart';
 import '../../services/pairing/pairing_url.dart';
+import '../../theme/app_colors.dart';
 import 'scan_qr_screen.dart';
 
 /// Orchestre le flow de pairing complet (T2.10 → T2.14) :
@@ -229,7 +230,7 @@ class _IdleView extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.qr_code_scanner, size: 96, color: Colors.deepPurple.shade300),
+        const Icon(Icons.qr_code_scanner, size: 96, color: AppColors.brand),
         const SizedBox(height: 24),
         const Text(
           'Scanne le QR du dashboard de ton PC',
@@ -240,7 +241,7 @@ class _IdleView extends StatelessWidget {
         Text(
           'Sur ton PC, ouvre http://localhost:3000/pair',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey.shade600),
+          style: const TextStyle(color: AppColors.muted),
         ),
         const SizedBox(height: 32),
         FilledButton.icon(
@@ -275,7 +276,7 @@ class _ProgressView extends StatelessWidget {
           Text(
             subtitle!,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, color: Colors.grey),
+            style: const TextStyle(fontSize: 13, color: AppColors.muted),
           ),
         ],
       ],
@@ -293,7 +294,7 @@ class _SuccessView extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.check_circle, size: 96, color: Colors.green.shade500),
+        const Icon(Icons.check_circle, size: 96, color: AppColors.success),
         const SizedBox(height: 16),
         const Text(
           'Appareil approuvé 🎉',
@@ -303,7 +304,7 @@ class _SuccessView extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           'Connecté à : ${result.pcName}',
-          style: TextStyle(color: Colors.grey.shade700),
+          style: const TextStyle(color: AppColors.muted),
         ),
         const SizedBox(height: 4),
         // On affiche l'empreinte du PC (son identité Ed25519), la MÊME que celle
@@ -338,7 +339,7 @@ class _ErrorView extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.error_outline, size: 96, color: Colors.red.shade400),
+        const Icon(Icons.error_outline, size: 96, color: AppColors.danger),
         const SizedBox(height: 16),
         const Text(
           'Pairing échoué',

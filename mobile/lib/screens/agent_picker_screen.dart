@@ -6,7 +6,9 @@ import '../models/linkup_agent.dart';
 import '../services/agent_discovery.dart';
 import '../services/linkup_discovery.dart';
 import '../theme/app_colors.dart';
+import '../widgets/app_card.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/section_label.dart';
 import 'agent_picker/empty_state.dart';
 import 'host/host_screen.dart';
 
@@ -121,75 +123,121 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
     widget.onAgentSelected?.call(agent);
   }
 
+  void _openHost() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const HostScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // AppBar épurée : seulement le wordmark. Les actions (rescanner, héberger)
+    // descendent dans le corps — un pull-to-refresh et une carte dédiée, plus
+    // lisibles que des icônes muettes en barre.
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
         title: const AppLogo(size: 30, showWordmark: true),
-        actions: [
-          IconButton(
-            tooltip: 'Héberger (sans PC)',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const HostScreen()),
-            ),
-            icon: const Icon(Icons.wifi_tethering_rounded),
-          ),
-          IconButton(
-            tooltip: 'Rescanner le LAN',
-            onPressed: _scanning ? null : _runScan,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-          const SizedBox(width: 4),
-        ],
       ),
       body: Column(
         children: [
           if (_scanning) const LinearProgressIndicator(minHeight: 2),
-          // L'erreur est masquée dès qu'au moins un agent est visible : on
-          // veut pas garder un bandeau rouge si la liste répond enfin.
-          if (_error != null && _agents.isEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              child: _ErrorBanner(message: _error!),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _runScan,
+              color: AppColors.brand,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
+                children: [
+                  // L'erreur est masquée dès qu'au moins un agent est visible :
+                  // on garde pas un bandeau rouge si la liste répond enfin.
+                  if (_error != null && _agents.isEmpty) ...[
+                    _ErrorBanner(message: _error!),
+                    const SizedBox(height: 16),
+                  ],
+                  const SectionLabel('PC sur ton Wi-Fi'),
+                  const SizedBox(height: 14),
+                  if (_agents.isEmpty)
+                    EmptyState(
+                      scanning: _scanning || _autoScanRunning,
+                      onRetry: _runScan,
+                    )
+                  else
+                    for (final agent in _agents) ...[
+                      _AgentCard(
+                        agent: agent,
+                        onTap: () => _notifySelection(agent),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  const SizedBox(height: 28),
+                  const SectionLabel('Sans ordinateur'),
+                  const SizedBox(height: 14),
+                  _HostEntryCard(onTap: _openHost),
+                ],
+              ),
             ),
-          Expanded(child: _buildAgentList()),
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildAgentList() {
-    if (_agents.isEmpty) {
-      return EmptyState(
-        scanning: _scanning || _autoScanRunning,
-        onRetry: _runScan,
-      );
-    }
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
-      children: [
-        Row(
-          children: [
-            const Text(
-              'PC trouvés sur ton Wi-Fi',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-                color: AppColors.faint,
-              ),
+/// Carte d'entrée du Mode Hôte (tél↔tél) : reçoit/envoie depuis un autre
+/// téléphone, sans aucun PC. Accent violet pour la distinguer des PC trouvés.
+class _HostEntryCard extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _HostEntryCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.brandSoft,
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(width: 8),
-            Expanded(child: Container(height: 1, color: AppColors.line)),
-          ],
-        ),
-        const SizedBox(height: 12),
-        for (final agent in _agents) ...[
-          _AgentCard(agent: agent, onTap: () => _notifySelection(agent)),
-          const SizedBox(height: 10),
+            child: const Icon(
+              Icons.wifi_tethering_rounded,
+              color: AppColors.brand,
+            ),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Héberger sans PC',
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Échange avec un autre téléphone, sans ordinateur',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 13, color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.faint),
         ],
-      ],
+      ),
     );
   }
 }
@@ -209,60 +257,56 @@ class _AgentCard extends StatelessWidget {
     final iconBg = isAuto ? AppColors.brandSoft : AppColors.warnSoft;
     final iconFg = isAuto ? AppColors.brand : AppColors.warn;
 
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  isAuto
-                      ? Icons.desktop_windows_rounded
-                      : Icons.edit_location_alt_rounded,
-                  color: iconFg,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      agent.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.ink,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      agent.subtitleLine,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.muted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.chevron_right_rounded, color: AppColors.faint),
-            ],
+    return AppCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              isAuto
+                  ? Icons.desktop_windows_rounded
+                  : Icons.edit_location_alt_rounded,
+              color: iconFg,
+            ),
           ),
-        ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  agent.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  agent.subtitleLine,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.faint),
+        ],
       ),
     );
   }

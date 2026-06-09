@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../services/pairing/paired_device_store.dart';
 import '../../services/transfer/transfer_client.dart';
+import '../../theme/app_colors.dart';
 import 'file_transfer_screen.dart';
 
 /// Ouvre localement un fichier (octets) — injectable pour les widget tests.
@@ -146,15 +147,10 @@ class _TransfersScreenState extends State<TransfersScreen> {
     }
 
     return Scaffold(
+      // AppBar épurée : pas d'icône « rafraîchir » — le pull-to-refresh du
+      // corps fait déjà le travail.
       appBar: AppBar(
         title: Text('Transferts — ${widget.device.pcName}'),
-        actions: [
-          IconButton(
-            tooltip: 'Rafraîchir',
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
       ),
       body: RefreshIndicator(onRefresh: _load, child: _buildBody()),
       floatingActionButton: FloatingActionButton.extended(
@@ -173,7 +169,7 @@ class _TransfersScreenState extends State<TransfersScreen> {
       return ListView(
         children: [
           const SizedBox(height: 80),
-          Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+          const Icon(Icons.error_outline, size: 64, color: AppColors.danger),
           const SizedBox(height: 12),
           Center(child: Text(_error!, textAlign: TextAlign.center)),
           const SizedBox(height: 16),
@@ -195,7 +191,7 @@ class _TransfersScreenState extends State<TransfersScreen> {
       return ListView(
         children: [
           const SizedBox(height: 100),
-          Icon(Icons.inbox, size: 72, color: Colors.grey.shade300),
+          const Icon(Icons.inbox, size: 72, color: AppColors.faint),
           const SizedBox(height: 12),
           Center(
             child: Text(widget.embedded
@@ -225,11 +221,11 @@ class _TransferTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (IconData icon, Color color, String label) = switch (item.status) {
-      'completed' => (Icons.check_circle, Colors.green, 'Envoyé'),
-      'failed' => (Icons.error, Colors.red, 'Échec'),
-      'cancelled' => (Icons.cancel, Colors.grey, 'Annulé'),
-      'uploading' => (Icons.upload, Colors.blue, 'En cours'),
-      _ => (Icons.hourglass_empty, Colors.orange, 'En attente'),
+      'completed' => (Icons.check_circle, AppColors.success, 'Envoyé'),
+      'failed' => (Icons.error, AppColors.danger, 'Échec'),
+      'cancelled' => (Icons.cancel, AppColors.muted, 'Annulé'),
+      'uploading' => (Icons.upload, AppColors.brand, 'En cours'),
+      _ => (Icons.hourglass_empty, AppColors.warn, 'En attente'),
     };
 
     final subtitle = [
@@ -249,7 +245,7 @@ class _TransferTile extends StatelessWidget {
           Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
           if (onOpen != null)
             const Text('Ouvrir ›',
-                style: TextStyle(fontSize: 11, color: Colors.indigo)),
+                style: TextStyle(fontSize: 11, color: AppColors.brand)),
         ],
       ),
     );

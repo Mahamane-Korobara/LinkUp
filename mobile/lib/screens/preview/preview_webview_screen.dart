@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/preview/local_proxy.dart';
+import '../../theme/app_colors.dart';
 
 /// Rend un projet de dev exposé par le PC dans une WebView in-app (S14).
 ///
@@ -237,7 +238,7 @@ class _PreviewWebViewScreenState extends State<PreviewWebViewScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.gpp_bad_outlined, size: 56, color: Colors.red),
+          const Icon(Icons.gpp_bad_outlined, size: 56, color: AppColors.danger),
           const SizedBox(height: 16),
           const Text(
             'Connexion non sécurisée',
@@ -247,7 +248,7 @@ class _PreviewWebViewScreenState extends State<PreviewWebViewScreen> {
           Text(
             _error!,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.grey),
+            style: const TextStyle(color: AppColors.muted),
           ),
         ],
       ),
