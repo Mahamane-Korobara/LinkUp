@@ -8,15 +8,17 @@ export const SITE = {
   name: "Linkup",
   tagline: "Ton téléphone et ton PC, reliés en un scan",
 
-  // Téléchargements directs (servis par le VPS, hors Vercel)
+  // Téléchargements directs (servis par le VPS, hors Vercel).
+  // ⚠️ Tailles indicatives — à rafraîchir à chaque release (`du -h dist/*` après
+  //    build, cf. README downloads) car elles dérivent à chaque rebuild.
   androidApk: "https://linkup.sahelstack.tech/dl/linkup.apk",
   androidSize: "67 Mo",
   // PC : AppImage universelle (aucune installation, toutes distros) — primaire.
   pcBundle: "https://linkup.sahelstack.tech/dl/linkup.AppImage",
-  pcSize: "159 Mo",
+  pcSize: "157 Mo",
   // Option Debian/Ubuntu/Mint via gestionnaire de paquets.
   pcDeb: "https://linkup.sahelstack.tech/dl/linkup-pc.deb",
-  pcDebSize: "149 Mo",
+  pcDebSize: "148 Mo",
 
   repo: "https://github.com/Mahamane-Korobara/LinkUp",
 };
