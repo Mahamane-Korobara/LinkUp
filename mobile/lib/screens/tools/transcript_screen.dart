@@ -56,10 +56,10 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
   Widget build(BuildContext context) {
     final doc = widget.doc;
     final formattedLabel = doc.formattedBy == 'gemini'
-        ? 'Mis en forme automatiquement'
+        ? 'Mise en forme par IA'
         : 'Mise en forme basique';
     return Scaffold(
-      appBar: AppBar(title: const Text('Transcript')),
+      appBar: AppBar(title: const Text('Transcription IA')),
       body: Column(
         children: [
           if (_busy) const LinearProgressIndicator(minHeight: 2),

@@ -50,12 +50,12 @@ void main() {
     // dernière avant d'asserter.
     final scrollable = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
-      find.text('Transcript → PDF'),
+      find.text('Transcription IA'),
       300,
       scrollable: scrollable,
     );
     expect(find.text('Télécharger la vidéo'), findsOneWidget);
-    expect(find.text('Transcript → PDF'), findsOneWidget);
+    expect(find.text('Transcription IA'), findsOneWidget);
     // Sous-titres absents → la tuile transcript affiche le message dédié.
     expect(find.text('Sous-titres non présents sur cette vidéo'), findsOneWidget);
   });

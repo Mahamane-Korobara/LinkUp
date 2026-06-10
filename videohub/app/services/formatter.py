@@ -22,16 +22,25 @@ logger = logging.getLogger(__name__)
 _GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 _PROMPT = (
-    "Tu reçois le transcript BRUT d'une vidéo (issu de sous-titres). Reformate-le "
-    "en un DOCUMENT lisible EN FRANÇAIS sans rien inventer ni résumer :\n"
-    "- corrige la ponctuation, les majuscules et les fautes évidentes d'orthographe ;\n"
-    "- regroupe en paragraphes cohérents ;\n"
-    "- découpe en sections thématiques avec un titre court (heading) quand c'est pertinent ;\n"
-    "- garde TOUT le contenu, n'ajoute aucune information absente du texte.\n"
+    "Tu reçois la transcription BRUTE d'une vidéo, issue de sous-titres : souvent "
+    "sans ponctuation, avec des répétitions, des hésitations et des erreurs de "
+    "reconnaissance vocale. Transforme-la en un DOCUMENT clair, fluide et bien "
+    "structuré, FIDÈLE au propos :\n"
+    "- restitue une ponctuation et des majuscules correctes, phrase par phrase ;\n"
+    "- corrige les fautes d'orthographe et les mots manifestement mal transcrits "
+    "(en t'appuyant sur le sens et le contexte) ;\n"
+    "- supprime les répétitions involontaires, les hésitations et tics de langage "
+    "(« euh », « hum », mots répétés) SANS retirer la moindre information ;\n"
+    "- regroupe les phrases en paragraphes cohérents et aérés ;\n"
+    "- découpe le texte en sections thématiques avec un titre court et descriptif "
+    "(heading) dès que le sujet change réellement ;\n"
+    "- rédige dans la MÊME LANGUE que la vidéo (ne traduis pas) ;\n"
+    "- ne résume pas, n'invente rien, n'ajoute aucune information absente : tout "
+    "le propos doit rester présent, seulement mieux écrit.\n"
     "Réponds UNIQUEMENT en JSON valide de la forme : "
     '{"title": "...", "sections": [{"heading": "...", "paragraphs": ["...", "..."]}]}\n'
     "Le heading peut être une chaîne vide si une section n'a pas de titre naturel.\n\n"
-    "Titre de la vidéo : {title}\n\nTranscript brut :\n{body}"
+    "Titre de la vidéo : {title}\n\nTranscription brute :\n{body}"
 )
 
 
@@ -85,10 +94,15 @@ async def format_transcript(title: str, paragraphs: list[str]) -> dict:
     url = _GEMINI_URL.format(model=settings.gemini_model)
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"response_mime_type": "application/json", "temperature": 0.2},
+        "generationConfig": {
+            "response_mime_type": "application/json",
+            "temperature": 0.2,
+            # Transcripts longs : éviter une sortie tronquée (JSON cassé → repli).
+            "maxOutputTokens": 16384,
+        },
     }
     try:
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        async with httpx.AsyncClient(timeout=90.0) as client:
             resp = await client.post(
                 url, params={"key": settings.gemini_api_key}, json=body
             )

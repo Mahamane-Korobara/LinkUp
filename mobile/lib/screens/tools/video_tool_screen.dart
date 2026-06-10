@@ -39,6 +39,12 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
   String? _busyLabel;
   double _progress = 0;
 
+  /// Fichiers déjà téléchargés (cache), pour que Lire / Télécharger / Partager
+  /// réutilisent le même fichier au lieu de re-télécharger à chaque fois.
+  /// Invalidés dès qu'on analyse un nouveau lien.
+  File? _videoFile;
+  File? _audioFile;
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +69,9 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
       _resolving = true;
       _error = null;
       _meta = null;
+      // Nouveau lien → on jette les fichiers téléchargés du lien précédent.
+      _videoFile = null;
+      _audioFile = null;
     });
     try {
       final meta = await _client.resolve(url);
@@ -82,21 +91,31 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  /// Télécharge le média dans un fichier temporaire avec progression.
+  /// Télécharge le média dans un fichier temporaire avec progression, ou renvoie
+  /// le fichier déjà en cache (évite de re-télécharger pour Lire/Partager).
   Future<File?> _download(String kind) async {
+    final cached = kind == 'audio' ? _audioFile : _videoFile;
+    if (cached != null && await cached.exists()) return cached;
+
     final url = _urlController.text.trim();
     setState(() {
       _busyLabel = kind == 'audio' ? 'Extraction audio…' : 'Téléchargement…';
       _progress = 0;
     });
     try {
-      return await _client.downloadToFile(
+      final file = await _client.downloadToFile(
         url,
         kind: kind,
         onProgress: (p) {
           if (mounted) setState(() => _progress = p);
         },
       );
+      if (kind == 'audio') {
+        _audioFile = file;
+      } else {
+        _videoFile = file;
+      }
+      return file;
     } on VideoHubException catch (e) {
       _snack(e.message);
     } catch (e) {
@@ -144,7 +163,7 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
   Future<void> _transcript() async {
     final url = _urlController.text.trim();
     setState(() {
-      _busyLabel = 'Transcript…';
+      _busyLabel = 'Transcription IA en cours… patiente un peu';
       _progress = 0;
     });
     try {
@@ -232,10 +251,10 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
                     onTap: _busy ? null : _shareVideo,
                   ),
                   _ActionTile(
-                    icon: Icons.article_outlined,
-                    title: 'Transcript → PDF',
+                    icon: Icons.auto_awesome_rounded,
+                    title: 'Transcription IA',
                     subtitle: _meta!.hasSubtitles
-                        ? 'Texte formaté, exportable en PDF'
+                        ? 'Texte mis en forme par IA → PDF (peut prendre un moment)'
                         : 'Sous-titres non présents sur cette vidéo',
                     enabled: _meta!.hasSubtitles,
                     onTap: (_busy || !_meta!.hasSubtitles) ? null : _transcript,

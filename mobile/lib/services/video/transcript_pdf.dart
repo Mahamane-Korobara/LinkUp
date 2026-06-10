@@ -7,9 +7,10 @@ import 'video_hub_client.dart';
 
 /// Rend un [TranscriptDoc] formaté en PDF (titre → sections → paragraphes).
 ///
-/// La police Helvetica par défaut du paquet `pdf` encode en WinAnsi, qui couvre
-/// les accents français et les guillemets « » / ’ / — : pas besoin d'embarquer
-/// une police TTF pour du texte FR courant.
+/// La police Helvetica par défaut du paquet `pdf` encode en WinAnsi : couvre le
+/// français/anglais/latin (accents, guillemets « », ', —). Limite connue : les
+/// alphabets non-latins (arabe, cyrillique, CJK) ne s'affichent pas — il faudrait
+/// embarquer une police Unicode (Noto) si on transcrit ces langues.
 Future<Uint8List> buildTranscriptPdf(TranscriptDoc doc) async {
   final pdf = pw.Document(title: doc.title);
   pdf.addPage(
