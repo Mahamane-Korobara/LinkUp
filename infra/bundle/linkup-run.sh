@@ -43,6 +43,15 @@ if [ ! -f "$HERE/.initialized" ]; then
   touch "$HERE/.initialized"
 fi
 
+# Mise à jour : le bundle tourne en place (le code est donc toujours à jour),
+# mais si le build a changé on applique les migrations éventuelles avant de
+# démarrer. L'empreinte est posée par build-bundle-linux.sh dans l'agent.
+CUR_BUILD="$(cat "$HERE/agent/LINKUP_BUILD" 2>/dev/null || echo "")"
+if [ -n "$CUR_BUILD" ] && [ "$CUR_BUILD" != "$(cat "$HERE/.build" 2>/dev/null || echo "")" ]; then
+  "$HERE/frankenphp" php-cli "$HERE/agent/artisan" migrate --force
+  printf '%s' "$CUR_BUILD" > "$HERE/.build"
+fi
+
 # Token partagé : le bridge le lit dans l'environnement.
 export LINKUP_BRIDGE_AGENT_TOKEN="$(grep '^LINKUP_BRIDGE_AGENT_TOKEN=' "$ENV_FILE" | cut -d= -f2-)"
 # S6.6 : les reçus sont rangés par catégorie sous Transfert/{photos,video,fichiers}.

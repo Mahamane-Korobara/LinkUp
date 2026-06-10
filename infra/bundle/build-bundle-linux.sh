@@ -42,6 +42,11 @@ rsync -a --delete \
   --exclude 'storage/logs/*' --exclude '.env' --exclude 'database/database.sqlite' \
   "$ROOT/agent/" "$OUT/agent/"
 mkdir -p "$OUT/agent/database"
+# Empreinte de build : le lanceur s'en sert pour rafraîchir la copie inscriptible
+# de l'agent lors d'une mise à jour (cf. infra/deb/linkup-launch.sh).
+printf '%s-%s\n' \
+  "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo nogit)" \
+  "$(date +%Y%m%d%H%M%S)" > "$OUT/agent/LINKUP_BUILD"
 cp -r "$ROOT/dashboard/out" "$OUT/dashboard-out"
 
 echo "==> Archive"

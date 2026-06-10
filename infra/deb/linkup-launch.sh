@@ -74,10 +74,41 @@ place_desktop_icon() {
   gio set "$desk/linkup.desktop" metadata::trusted true 2>/dev/null || true
 }
 
-# Init par-utilisateur au tout premier lancement (idempotent).
+# Empreinte du build embarqué (écrite par build-bundle-linux.sh dans l'agent).
+app_build()   { cat "$APP_DIR/agent/LINKUP_BUILD" 2>/dev/null || echo ""; }
+state_build() { cat "$AGENT/LINKUP_BUILD" 2>/dev/null || echo ""; }
+
+# Rafraîchit le CODE de l'agent depuis l'app installée, en PRÉSERVANT l'état
+# inscriptible (.env → APP_KEY + token, et la base SQLite). On ne recopie que le
+# fichier .sqlite (pas tout le dossier database) pour garder les NOUVELLES
+# migrations livrées avec la mise à jour, puis on les applique.
+refresh_agent_code() {
+  local newdir="$STATE/agent.new"
+  rm -rf "$newdir"
+  cp -a "$APP_DIR/agent" "$newdir"
+  cp -a "$AGENT/.env" "$newdir/.env" 2>/dev/null || true
+  mkdir -p "$newdir/database"
+  cp -a "$AGENT/database/database.sqlite" "$newdir/database/database.sqlite" 2>/dev/null || true
+  rm -rf "$AGENT"
+  mv "$newdir" "$AGENT"
+  "$APP_DIR/frankenphp" php-cli "$AGENT/artisan" migrate --force
+}
+
+# Init/MAJ par-utilisateur (idempotent). 1er lancement → init complète. Lancements
+# suivants → si le build embarqué a changé (mise à jour du .deb/AppImage), on
+# rafraîchit le code ; sinon la copie inscriptible garderait l'ANCIENNE version
+# (routes manquantes, etc.).
 ensure_init() {
   mkdir -p "$STATE"
-  [ -f "$STATE/.initialized" ] && return 0
+  if [ -f "$STATE/.initialized" ]; then
+    local src; src="$(app_build)"
+    if [ -n "$src" ] && [ "$src" != "$(state_build)" ]; then
+      command -v notify-send >/dev/null 2>&1 && \
+        notify-send -i "$(icon_abs)" "Linkup" "Mise à jour…" || true
+      refresh_agent_code
+    fi
+    return 0
+  fi
   command -v notify-send >/dev/null 2>&1 && \
     notify-send -i "$(icon_abs)" "Linkup" "Préparation au premier démarrage…" || true
 
