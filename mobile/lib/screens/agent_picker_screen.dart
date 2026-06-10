@@ -11,6 +11,7 @@ import '../widgets/app_logo.dart';
 import '../widgets/section_label.dart';
 import 'agent_picker/empty_state.dart';
 import 'host/host_screen.dart';
+import 'tools/video_tool_screen.dart';
 
 /// Écran principal du flow d'appairage : liste les agents découverts sur le LAN
 /// via mDNS + sweep /24 (le sweep couvre les cas où le multicast est bloqué,
@@ -129,6 +130,12 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
     );
   }
 
+  void _openVideoTool() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const VideoToolScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // AppBar épurée : seulement le wordmark. Les actions (rescanner, héberger)
@@ -175,6 +182,13 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
                   const SectionLabel('Sans ordinateur'),
                   const SizedBox(height: 14),
                   _HostEntryCard(onTap: _openHost),
+                  const SizedBox(height: 12),
+                  _ToolEntryCard(
+                    icon: Icons.video_library_rounded,
+                    title: 'Téléchargeur vidéo',
+                    subtitle: 'Lien → aperçu, télécharger, transcript PDF',
+                    onTap: _openVideoTool,
+                  ),
                 ],
               ),
             ),
@@ -231,6 +245,67 @@ class _HostEntryCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 13, color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.faint),
+        ],
+      ),
+    );
+  }
+}
+
+/// Carte d'entrée générique d'un outil standalone (section « Sans ordinateur »).
+class _ToolEntryCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ToolEntryCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.brandSoft,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: AppColors.brand),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: AppColors.muted),
                 ),
               ],
             ),

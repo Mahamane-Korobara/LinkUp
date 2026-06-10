@@ -1,0 +1,512 @@
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+
+import '../../services/transfer/received_saver.dart';
+import '../../services/video/video_hub_client.dart';
+import '../../theme/app_colors.dart';
+import '../../widgets/app_card.dart';
+import '../../widgets/app_logo.dart';
+import '../../widgets/section_label.dart';
+import 'transcript_screen.dart';
+import 'video_player_screen.dart';
+
+/// Outil STANDALONE (sans PC) : coller un lien vidéo → aperçu → télécharger /
+/// extraire l'audio / partager le fichier / transcript PDF / lire.
+class VideoToolScreen extends StatefulWidget {
+  /// Injectables pour les tests (sinon valeurs réelles).
+  final VideoHubClient? client;
+  final ReceivedFileSaver? saver;
+
+  const VideoToolScreen({super.key, this.client, this.saver});
+
+  @override
+  State<VideoToolScreen> createState() => _VideoToolScreenState();
+}
+
+class _VideoToolScreenState extends State<VideoToolScreen> {
+  late final VideoHubClient _client;
+  late final ReceivedFileSaver _saver;
+  final _urlController = TextEditingController();
+
+  VideoMeta? _meta;
+  bool _resolving = false;
+  String? _error;
+
+  /// Action de téléchargement en cours (libellé) + progression, pour ne lancer
+  /// qu'une opération à la fois et afficher un état clair.
+  String? _busyLabel;
+  double _progress = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _client = widget.client ?? VideoHubClient();
+    _saver = widget.saver ?? DeviceFileSaver();
+  }
+
+  @override
+  void dispose() {
+    _urlController.dispose();
+    if (widget.client == null) _client.close();
+    super.dispose();
+  }
+
+  bool get _busy => _busyLabel != null;
+
+  Future<void> _analyze() async {
+    final url = _urlController.text.trim();
+    if (url.isEmpty) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _resolving = true;
+      _error = null;
+      _meta = null;
+    });
+    try {
+      final meta = await _client.resolve(url);
+      if (!mounted) return;
+      setState(() => _meta = meta);
+    } on VideoHubException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Erreur réseau : $e');
+    } finally {
+      if (mounted) setState(() => _resolving = false);
+    }
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  /// Télécharge le média dans un fichier temporaire avec progression.
+  Future<File?> _download(String kind) async {
+    final url = _urlController.text.trim();
+    setState(() {
+      _busyLabel = kind == 'audio' ? 'Extraction audio…' : 'Téléchargement…';
+      _progress = 0;
+    });
+    try {
+      return await _client.downloadToFile(
+        url,
+        kind: kind,
+        onProgress: (p) {
+          if (mounted) setState(() => _progress = p);
+        },
+      );
+    } on VideoHubException catch (e) {
+      _snack(e.message);
+    } catch (e) {
+      _snack('Échec : $e');
+    } finally {
+      if (mounted) setState(() => _busyLabel = null);
+    }
+    return null;
+  }
+
+  Future<void> _saveVideo() async {
+    final file = await _download('video');
+    if (file == null) return;
+    final result = await _saver.saveFile(file.path.split('/').last, file);
+    _snack(result.kind == SaveKind.failed
+        ? 'Échec de l\'enregistrement.'
+        : 'Vidéo enregistrée dans la galerie.');
+  }
+
+  Future<void> _saveAudio() async {
+    final file = await _download('audio');
+    if (file == null) return;
+    final result = await _saver.saveFile(file.path.split('/').last, file);
+    _snack(result.kind == SaveKind.failed
+        ? 'Échec de l\'enregistrement.'
+        : 'Audio enregistré : ${result.location ?? 'Documents'}');
+  }
+
+  Future<void> _shareVideo() async {
+    final file = await _download('video');
+    if (file == null) return;
+    await SharePlus.instance.share(
+      ShareParams(files: [XFile(file.path)], text: _meta?.title),
+    );
+  }
+
+  Future<void> _play() async {
+    final file = await _download('video');
+    if (file == null || !mounted) return;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => VideoPlayerScreen(file: file, title: _meta?.title ?? 'Vidéo'),
+    ));
+  }
+
+  Future<void> _transcript() async {
+    final url = _urlController.text.trim();
+    setState(() {
+      _busyLabel = 'Transcript…';
+      _progress = 0;
+    });
+    try {
+      final doc = await _client.transcript(url);
+      if (!mounted) return;
+      if (!doc.available) {
+        _snack(doc.reason ?? 'Sous-titres non présents sur cette vidéo.');
+        return;
+      }
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => TranscriptScreen(doc: doc, saver: _saver),
+      ));
+    } on VideoHubException catch (e) {
+      _snack(e.message);
+    } catch (e) {
+      _snack('Échec : $e');
+    } finally {
+      if (mounted) setState(() => _busyLabel = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        titleSpacing: 16,
+        title: const AppLogo(size: 30, showWordmark: true),
+      ),
+      body: Column(
+        children: [
+          if (_resolving || _busy) const LinearProgressIndicator(minHeight: 2),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+              children: [
+                const SectionLabel('Lien de la vidéo'),
+                const SizedBox(height: 12),
+                _UrlField(
+                  controller: _urlController,
+                  enabled: !_busy,
+                  onSubmit: _analyze,
+                ),
+                const SizedBox(height: 12),
+                _PrimaryButton(
+                  label: 'Analyser',
+                  busy: _resolving,
+                  onTap: _busy ? null : _analyze,
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 16),
+                  _ErrorBanner(message: _error!),
+                ],
+                if (_meta != null) ...[
+                  const SizedBox(height: 24),
+                  _PreviewCard(meta: _meta!),
+                  const SizedBox(height: 20),
+                  const SectionLabel('Actions'),
+                  const SizedBox(height: 12),
+                  if (_busy) ...[
+                    _BusyRow(label: _busyLabel!, progress: _progress),
+                    const SizedBox(height: 12),
+                  ],
+                  _ActionTile(
+                    icon: Icons.play_circle_outline_rounded,
+                    title: 'Lire',
+                    subtitle: 'Télécharger puis lire sur le téléphone',
+                    onTap: _busy ? null : _play,
+                  ),
+                  _ActionTile(
+                    icon: Icons.download_rounded,
+                    title: 'Télécharger la vidéo',
+                    subtitle: 'Enregistrer dans la galerie',
+                    onTap: _busy ? null : _saveVideo,
+                  ),
+                  _ActionTile(
+                    icon: Icons.music_note_rounded,
+                    title: 'Extraire l\'audio',
+                    subtitle: 'Garder juste le son (M4A)',
+                    onTap: _busy ? null : _saveAudio,
+                  ),
+                  _ActionTile(
+                    icon: Icons.ios_share_rounded,
+                    title: 'Partager la vidéo',
+                    subtitle: 'Envoyer le fichier (pas le lien)',
+                    onTap: _busy ? null : _shareVideo,
+                  ),
+                  _ActionTile(
+                    icon: Icons.article_outlined,
+                    title: 'Transcript → PDF',
+                    subtitle: _meta!.hasSubtitles
+                        ? 'Texte formaté, exportable en PDF'
+                        : 'Sous-titres non présents sur cette vidéo',
+                    enabled: _meta!.hasSubtitles,
+                    onTap: (_busy || !_meta!.hasSubtitles) ? null : _transcript,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatDuration(int? seconds) {
+  if (seconds == null || seconds <= 0) return '';
+  final h = seconds ~/ 3600;
+  final m = (seconds % 3600) ~/ 60;
+  final s = seconds % 60;
+  final mm = m.toString().padLeft(h > 0 ? 2 : 1, '0');
+  final ss = s.toString().padLeft(2, '0');
+  return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
+}
+
+class _UrlField extends StatelessWidget {
+  final TextEditingController controller;
+  final bool enabled;
+  final VoidCallback onSubmit;
+
+  const _UrlField({
+    required this.controller,
+    required this.enabled,
+    required this.onSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      enabled: enabled,
+      keyboardType: TextInputType.url,
+      autocorrect: false,
+      onSubmitted: (_) => onSubmit(),
+      decoration: InputDecoration(
+        hintText: 'Coller un lien (YouTube, TikTok, Insta…)',
+        prefixIcon: const Icon(Icons.link_rounded, color: AppColors.faint),
+        filled: true,
+        fillColor: AppColors.surface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.line),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.line),
+        ),
+      ),
+    );
+  }
+}
+
+class _PrimaryButton extends StatelessWidget {
+  final String label;
+  final bool busy;
+  final VoidCallback? onTap;
+
+  const _PrimaryButton({required this.label, this.busy = false, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 50,
+      child: FilledButton(
+        onPressed: onTap,
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.brand,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+        child: busy
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              )
+            : Text(label,
+                style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700)),
+      ),
+    );
+  }
+}
+
+class _PreviewCard extends StatelessWidget {
+  final VideoMeta meta;
+
+  const _PreviewCard({required this.meta});
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = _formatDuration(meta.durationSeconds);
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (meta.thumbnail != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Image.network(
+                  meta.thumbnail!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(
+                    color: AppColors.bg,
+                    child: const Icon(Icons.movie_outlined, color: AppColors.faint),
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          Text(
+            meta.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 15.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            [
+              if (meta.uploader.isNotEmpty) meta.uploader,
+              if (duration.isNotEmpty) duration,
+            ].join('  ·  '),
+            style: const TextStyle(fontSize: 13, color: AppColors.muted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BusyRow extends StatelessWidget {
+  final String label;
+  final double progress;
+
+  const _BusyRow({required this.label, required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: AppColors.brand,
+              value: progress > 0 && progress < 1 ? progress : null,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              progress > 0 && progress < 1
+                  ? '$label ${(progress * 100).round()}%'
+                  : label,
+              style: const TextStyle(fontSize: 14, color: AppColors.body),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  const _ActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.enabled = true,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = enabled ? AppColors.ink : AppColors.faint;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AppCard(
+        onTap: onTap,
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: enabled ? AppColors.brandSoft : AppColors.bg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: enabled ? AppColors.brand : AppColors.faint),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: fg,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
+                  ),
+                ],
+              ),
+            ),
+            if (enabled)
+              const Icon(Icons.chevron_right_rounded, color: AppColors.faint),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+
+  const _ErrorBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.dangerSoft,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(message,
+                style: const TextStyle(color: AppColors.danger, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -95,3 +95,14 @@ dashboard/.env*.local
 **/linkup_data/
 **/transfers/
 **/gallery_cache/
+
+# VideoHub (service VPS) — secrets & venv, jamais commités
+videohub/.env
+videohub/.venv/
+**/__pycache__/
+# Cookies yt-dlp (YouTube) — secret de session, JAMAIS sur GitHub
+*cookies*.txt
+videohub/cookies.txt
+
+# Notes d'infra contenant des secrets (token coturn, etc.) — NE PAS commiter
+infra/vps-setup-done.md
