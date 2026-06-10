@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:http/http.dart' as http;
 
+import '../crypto/hex.dart';
 import '../pairing/paired_device_store.dart';
 
 /// Vrai si le cert feuille présenté (DER) correspond à l'empreinte épinglée.
@@ -18,8 +19,7 @@ import '../pairing/paired_device_store.dart';
 Future<bool> certMatchesPin(Uint8List leafDer, String? pinnedHex) async {
   if (pinnedHex == null || pinnedHex.isEmpty) return false;
   final digest = await Sha256().hash(leafDer);
-  final actual =
-      digest.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  final actual = hexEncode(digest.bytes);
   return actual.toLowerCase() == pinnedHex.toLowerCase();
 }
 

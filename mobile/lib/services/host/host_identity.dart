@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../crypto/hex.dart';
 import '../crypto/key_manager.dart';
 
 /// Identité du téléphone quand il joue le rôle serveur (Mode Hôte).
@@ -59,8 +60,6 @@ class HostIdentity {
 
   static String _randomHex(int bytes) {
     final rnd = Random.secure();
-    return List<int>.generate(bytes, (_) => rnd.nextInt(256))
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
+    return hexEncode(List<int>.generate(bytes, (_) => rnd.nextInt(256)));
   }
 }

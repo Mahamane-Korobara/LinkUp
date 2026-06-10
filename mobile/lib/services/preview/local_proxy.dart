@@ -155,7 +155,10 @@ class LocalPreviewProxy {
   void _noDelay(Socket s) {
     try {
       s.setOption(SocketOption.tcpNoDelay, true);
-    } catch (_) {}
+    } catch (_) {
+      // Best-effort : TCP_NODELAY n'est qu'une optimisation de latence ; si la
+      // plateforme le refuse, le proxy fonctionne quand même.
+    }
   }
 
   /// Épingle le cert serveur du bridge (SHA-256 du DER). Renvoyé à

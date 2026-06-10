@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'hex.dart';
+
 /// Gestionnaire de la paire de clés Ed25519 du téléphone Linkup.
 ///
 /// - Génère une paire au premier appel à `ensureKeyPair()`
@@ -85,10 +87,7 @@ class KeyManager {
   Future<String> fingerprint() async {
     final pub = await _readPublicKey();
     final hash = await Sha256().hash(pub.bytes);
-    return hash.bytes
-        .sublist(0, 4)
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
+    return hexEncode(hash.bytes.sublist(0, 4));
   }
 
   /// Vrai si une paire est déjà stockée.

@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:cryptography/cryptography.dart';
 import 'package:http/http.dart' as http;
 
+import '../crypto/hex.dart';
 import '../pairing/paired_device_store.dart';
 
 /// Progression d'un transfert, émise au fil des chunks envoyés.
@@ -398,7 +399,7 @@ class TransferClient {
 
   Future<String> _sha256Hex(List<int> data) async {
     final digest = await Sha256().hash(data);
-    return digest.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    return hexEncode(digest.bytes);
   }
 
   Map<String, dynamic> _decode(String body) {

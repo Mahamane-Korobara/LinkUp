@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:crypto/crypto.dart' as crypto;
 
 import '../crypto/constant_time.dart';
+import '../crypto/hex.dart';
 import '../crypto/key_manager.dart';
 import 'host_device_store.dart';
 import 'host_http.dart';
@@ -211,17 +212,11 @@ class HostPairing {
   /// `KeyManager.fingerprint` (4 premiers octets du SHA-256 des octets de clé).
   static String _fingerprint(String telPublicKeyB64) {
     final pubBytes = base64.decode(telPublicKeyB64);
-    final digest = crypto.sha256.convert(pubBytes).bytes;
-    return digest
-        .sublist(0, 4)
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
+    return hexEncode(crypto.sha256.convert(pubBytes).bytes.sublist(0, 4));
   }
 
   static String _randomOtp() {
     final rnd = Random.secure();
-    return List<int>.generate(8, (_) => rnd.nextInt(256))
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
+    return hexEncode(List<int>.generate(8, (_) => rnd.nextInt(256)));
   }
 }

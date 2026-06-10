@@ -54,13 +54,18 @@ class HostForeground {
           notificationText: _text(peers),
         );
       }
-    } catch (_) {}
+    } catch (_) {
+      // Best-effort : l'échec d'une mise à jour de notification ne doit pas
+      // interrompre l'hébergement (le serveur tourne indépendamment).
+    }
   }
 
   static Future<void> stop() async {
     try {
       await FlutterForegroundTask.stopService();
-    } catch (_) {}
+    } catch (_) {
+      // Best-effort : si le service n'était pas/plus actif, rien à arrêter.
+    }
   }
 
   static String _text(int peers) => peers == 0

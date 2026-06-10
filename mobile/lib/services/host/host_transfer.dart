@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:crypto/crypto.dart' as crypto;
 
 import '../crypto/constant_time.dart';
+import '../crypto/hex.dart';
 import '../transfer/received_saver.dart';
 import 'host_http.dart';
 import 'host_pairing.dart';
@@ -355,9 +356,7 @@ class HostTransfer {
 
   static String _randomId() {
     final rnd = Random.secure();
-    return List<int>.generate(16, (_) => rnd.nextInt(256))
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
+    return hexEncode(List<int>.generate(16, (_) => rnd.nextInt(256)));
   }
 
   static List<int> _randomBytes(int n) {
