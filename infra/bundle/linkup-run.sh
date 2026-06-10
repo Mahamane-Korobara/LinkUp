@@ -62,7 +62,10 @@ mkdir -p "$HOME/Linkup/Transfert" "$HOME/Linkup/Outbox"
 # --- Démarrage ---------------------------------------------------------------
 "$HERE/linkup-bridge" &
 BRIDGE_PID=$!
-trap 'kill "$BRIDGE_PID" 2>/dev/null || true' EXIT INT TERM
+# Planificateur Laravel (purge OTP de pairing + presse-papier expirés).
+"$HERE/frankenphp" php-cli "$HERE/agent/artisan" schedule:work >/dev/null 2>&1 &
+SCHED_PID=$!
+trap 'kill "$BRIDGE_PID" "$SCHED_PID" 2>/dev/null || true' EXIT INT TERM
 
 echo "Linkup démarré → dashboard : http://localhost:${LINKUP_HTTP_PORT}"  # 8770 par défaut
 exec "$HERE/frankenphp" run --config "$HERE/Caddyfile"

@@ -24,11 +24,10 @@ class PairingHandshakeService
      * Valide la requête de handshake. Retourne le Device créé en pending
      * (status `approved=false`), ou throw une HandshakeRejected.
      *
-     * @throws HandshakeRejected
-     */
-    /**
      * @param array{model?: ?string, platform?: ?string, os_version?: ?string} $metadata
      *        Infos d'affichage du tél (device_info_plus). Purement informatif.
+     *
+     * @throws HandshakeRejected
      */
     public function handshake(
         string $telPublicKeyBase64,

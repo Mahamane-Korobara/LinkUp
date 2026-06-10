@@ -43,7 +43,7 @@ class PairingController extends Controller
      */
     public function qrPng(): Response
     {
-        $url = $this->buildFreshPairingUrl();
+        [, $url] = $this->freshPairing();
 
         // endroid/qr-code v6 : Builder est immutable, params via constructeur.
         $qr = (new Builder(
@@ -64,10 +64,7 @@ class PairingController extends Controller
      */
     public function qrPayload(): JsonResponse
     {
-        $otp = $this->pairing->createOtp();
-        $ip = $this->resolveLocalIp();
-        $port = (int) config('services.linkup.pairing_port', 8000);
-        $url = $this->pairing->buildPairingUrl($ip, $port, $otp->token);
+        [$otp, $url] = $this->freshPairing();
 
         return response()->json([
             'url' => $url,
@@ -143,12 +140,22 @@ class PairingController extends Controller
         ]);
     }
 
-    private function buildFreshPairingUrl(): string
+    /**
+     * Crée un OTP frais et l'URL `linkup://` correspondante (IP LAN + port
+     * Laravel). Source unique pour le PNG du QR et son équivalent JSON.
+     *
+     * @return array{0: \App\Services\Pairing\PairingOtp, 1: string} [otp, url]
+     */
+    private function freshPairing(): array
     {
         $otp = $this->pairing->createOtp();
-        $ip = $this->resolveLocalIp();
-        $port = (int) config('services.linkup.pairing_port', 8000);
-        return $this->pairing->buildPairingUrl($ip, $port, $otp->token);
+        $url = $this->pairing->buildPairingUrl(
+            $this->resolveLocalIp(),
+            (int) config('services.linkup.pairing_port', 8000),
+            $otp->token,
+        );
+
+        return [$otp, $url];
     }
 
     /**

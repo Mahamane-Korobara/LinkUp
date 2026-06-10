@@ -87,3 +87,28 @@ export function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} Mo`;
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} Go`;
 }
+
+/** Statut d'un téléphone côté agent. */
+export type DeviceStatus = 'pending' | 'approved' | 'rejected';
+
+/** Représentation d'un téléphone telle qu'exposée par `/api/pairing/devices`. */
+export type DeviceDto = {
+  device_id: string;
+  name: string | null;
+  model: string | null;
+  platform: string | null;
+  os_version: string | null;
+  fingerprint: string;
+  status: DeviceStatus;
+  paired_at: string | null;
+  approved_at: string | null;
+};
+
+/**
+ * Liste des téléphones connus de l'agent. Centralisé ici (utilisé par /devices,
+ * /send et /pair) pour ne plus dupliquer l'appel + le type dans chaque page.
+ */
+export async function loadDevices(): Promise<DeviceDto[]> {
+  const data = await (await apiFetch('/api/pairing/devices')).json();
+  return (data.devices ?? []) as DeviceDto[];
+}

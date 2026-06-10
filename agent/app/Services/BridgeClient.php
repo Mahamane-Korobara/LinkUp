@@ -68,10 +68,7 @@ class BridgeClient
                 ->throw()
                 ->json();
         } catch (ConnectionException $e) {
-            throw new BridgeUnavailableException(
-                "Bridge Python injoignable sur {$this->baseUrl()}. Est-il démarré ?",
-                previous: $e,
-            );
+            throw $this->unavailable($e);
         } catch (RequestException $e) {
             throw new BridgeUnavailableException(
                 "Le PC n'a pas pu ouvrir le fichier ({$e->response->status()}).",
@@ -161,10 +158,7 @@ class BridgeClient
         try {
             return $this->request()->get('/preview/ca.crt')->throw()->body();
         } catch (ConnectionException $e) {
-            throw new BridgeUnavailableException(
-                "Bridge Python injoignable sur {$this->baseUrl()}. Est-il démarré ?",
-                previous: $e,
-            );
+            throw $this->unavailable($e);
         } catch (RequestException $e) {
             throw $this->bridgeError($e, '/preview/ca.crt');
         }
@@ -175,10 +169,7 @@ class BridgeClient
         try {
             return $this->request()->get($path)->throw()->json();
         } catch (ConnectionException $e) {
-            throw new BridgeUnavailableException(
-                "Bridge Python injoignable sur {$this->baseUrl()}. Est-il démarré ?",
-                previous: $e,
-            );
+            throw $this->unavailable($e);
         } catch (RequestException $e) {
             throw $this->bridgeError($e, $path);
         }
@@ -194,10 +185,7 @@ class BridgeClient
         try {
             return $this->request()->post($path, $json)->throw()->json();
         } catch (ConnectionException $e) {
-            throw new BridgeUnavailableException(
-                "Bridge Python injoignable sur {$this->baseUrl()}. Est-il démarré ?",
-                previous: $e,
-            );
+            throw $this->unavailable($e);
         } catch (RequestException $e) {
             throw $this->bridgeError($e, $path);
         }
@@ -216,6 +204,15 @@ class BridgeClient
             : "Bridge a répondu en erreur ({$e->response->status()}) pour {$path}.";
 
         return new BridgeUnavailableException($message, previous: $e);
+    }
+
+    /** Bridge non joignable (connexion refusée) → exception lisible, message unique. */
+    private function unavailable(ConnectionException $e): BridgeUnavailableException
+    {
+        return new BridgeUnavailableException(
+            "Bridge Python injoignable sur {$this->baseUrl()}. Est-il démarré ?",
+            previous: $e,
+        );
     }
 
     private function request(): PendingRequest

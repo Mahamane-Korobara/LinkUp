@@ -164,6 +164,10 @@ start_hub() {
   BRIDGE_PID=$!
   "$APP_DIR/frankenphp" run --config "$APP_DIR/Caddyfile" >/dev/null 2>&1 &
   FRANKEN_PID=$!
+  # Planificateur Laravel (purge des OTP de pairing + presse-papier expirés —
+  # cf. routes/console.php). Sans lui, ces tables ne sont jamais nettoyées.
+  "$APP_DIR/frankenphp" php-cli "$AGENT/artisan" schedule:work >/dev/null 2>&1 &
+  SCHED_PID=$!
 }
 
 # --------------------------------------------------------------------------- run
@@ -178,7 +182,7 @@ fi
 
 ensure_init
 start_hub
-trap 'kill "${BRIDGE_PID:-}" "${FRANKEN_PID:-}" 2>/dev/null || true' EXIT INT TERM
+trap 'kill "${BRIDGE_PID:-}" "${FRANKEN_PID:-}" "${SCHED_PID:-}" 2>/dev/null || true' EXIT INT TERM
 for _ in $(seq 1 80); do health && break; sleep 0.25; done
 log "hub démarré (bridge=${BRIDGE_PID:-?} frankenphp=${FRANKEN_PID:-?}) sur $PORT"
 

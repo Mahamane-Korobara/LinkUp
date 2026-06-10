@@ -13,6 +13,7 @@ public (`linkup-ca.crt`) est téléchargé par le tél.
 
 import datetime
 import ipaddress
+import os
 import socket
 import ssl
 from pathlib import Path
@@ -65,6 +66,12 @@ class CertManager:
     def ensure(self) -> None:
         """Garantit CA + certificat serveur sur disque. Idempotent pour la CA."""
         self.ca_dir.mkdir(parents=True, exist_ok=True)
+        # Dossier des clés en 0700 (comme le KeyManager de l'agent) : défense en
+        # profondeur en plus du 0600 par fichier.
+        try:
+            self.ca_dir.chmod(0o700)
+        except OSError:
+            pass
         ca_cert, ca_key = self._ensure_ca()
         self._issue_server_cert(ca_cert, ca_key)
 
@@ -163,15 +170,18 @@ class CertManager:
 
     @staticmethod
     def _write_key(path: Path, key: rsa.RSAPrivateKey) -> None:
-        path.write_bytes(
-            key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption(),
-            )
+        data = key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
         )
-        # Clé privée : lecture/écriture propriétaire uniquement.
+        # Créée d'emblée en 0600 (O_CREAT + mode) : la clé privée n'est JAMAIS
+        # lisible pendant une fenêtre umask entre l'écriture et le chmod (TOCTOU).
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        # Resserre si le fichier préexistait avec d'autres permissions.
         try:
-            path.chmod(0o600)
+            os.chmod(path, 0o600)
         except OSError:
             pass

@@ -12,7 +12,13 @@ import {
   FileText,
 } from 'lucide-react';
 
-import { LARAVEL_BASE, apiFetch, formatBytes } from '@/lib/api';
+import {
+  LARAVEL_BASE,
+  apiFetch,
+  formatBytes,
+  loadDevices,
+  type DeviceDto,
+} from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,13 +34,12 @@ import { ErrorBanner, EmptyState } from '@/components/ui/states';
  * pour pouvoir réessayer.
  */
 
-type Device = { device_id: string; name: string | null; status: string };
 /** Statut d'un fichier : 'pending' | 'ok' | message d'erreur. */
 type Status = 'pending' | 'ok' | string;
 
-async function loadDevices(): Promise<Device[]> {
-  const data = await (await apiFetch('/api/pairing/devices')).json();
-  return ((data.devices ?? []) as Device[]).filter((d) => d.status === 'approved');
+/** Téléphones APPROUVÉS uniquement (seuls éligibles à recevoir un fichier). */
+async function loadApprovedDevices(): Promise<DeviceDto[]> {
+  return (await loadDevices()).filter((d) => d.status === 'approved');
 }
 
 async function sendFile(deviceId: string, file: File): Promise<void> {
@@ -48,7 +53,7 @@ async function sendFile(deviceId: string, file: File): Promise<void> {
 const keyOf = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
 
 export default function SendPage() {
-  const [devices, setDevices] = useState<Device[]>([]);
+  const [devices, setDevices] = useState<DeviceDto[]>([]);
   const [deviceId, setDeviceId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -57,7 +62,7 @@ export default function SendPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    loadDevices()
+    loadApprovedDevices()
       .then((ds) => {
         setDevices(ds);
         if (ds.length > 0) setDeviceId(ds[0].device_id);

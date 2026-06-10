@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { QrCode, Timer, RefreshCw, ChevronDown } from 'lucide-react';
 
-import { LARAVEL_BASE } from '@/lib/api';
+import { LARAVEL_BASE, loadDevices } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -98,15 +98,9 @@ export default function PairPage() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch(`${LARAVEL_BASE}/api/pairing/devices`, {
-          headers: { Accept: 'application/json', 'X-Linkup-Client': 'dashboard' },
-          cache: 'no-store',
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        const pendingIds: string[] = (data.devices ?? [])
-          .filter((d: { status: string }) => d.status === 'pending')
-          .map((d: { device_id: string }) => d.device_id);
+        const pendingIds = (await loadDevices())
+          .filter((d) => d.status === 'pending')
+          .map((d) => d.device_id);
 
         if (baselinePendingIds.current === null) {
           baselinePendingIds.current = new Set(pendingIds);

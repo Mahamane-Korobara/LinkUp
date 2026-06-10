@@ -13,7 +13,14 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-import { LARAVEL_BASE, apiFetch, formatDate } from '@/lib/api';
+import {
+  LARAVEL_BASE,
+  apiFetch,
+  formatDate,
+  loadDevices,
+  type DeviceDto,
+  type DeviceStatus,
+} from '@/lib/api';
 import { usePolling } from '@/hooks/usePolling';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/card';
@@ -28,25 +35,6 @@ import { Skeleton } from '@/components/ui/skeleton';
  */
 
 const POLL_INTERVAL_MS = 2000;
-
-type DeviceStatus = 'pending' | 'approved' | 'rejected';
-
-type DeviceDto = {
-  device_id: string;
-  name: string | null;
-  model: string | null;
-  platform: string | null;
-  os_version: string | null;
-  fingerprint: string;
-  status: DeviceStatus;
-  paired_at: string | null;
-  approved_at: string | null;
-};
-
-async function loadDevices(): Promise<DeviceDto[]> {
-  const data = await (await apiFetch('/api/pairing/devices')).json();
-  return (data.devices ?? []) as DeviceDto[];
-}
 
 const STATUS_META: Record<DeviceStatus, { label: string; tone: 'amber' | 'green' | 'red' }> = {
   pending: { label: 'En attente', tone: 'amber' },

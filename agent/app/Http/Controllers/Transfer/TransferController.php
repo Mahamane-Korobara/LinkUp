@@ -3,8 +3,6 @@
 namespace App\Http\Controllers\Transfer;
 
 use App\Http\Controllers\Controller;
-use App\Http\Middleware\AuthenticateDevice;
-use App\Models\Device;
 use App\Models\Transfer;
 use App\Services\BridgeClient;
 use App\Services\BridgeUnavailableException;
@@ -196,11 +194,6 @@ class TransferController extends Controller
         }
 
         return response()->json(['ok' => true]);
-    }
-
-    private function device(Request $request): Device
-    {
-        return $request->attributes->get(AuthenticateDevice::ATTRIBUTE);
     }
 
     /** Port HTTP du bridge sur ce PC (déduit de sa base_url, défaut 8765). */

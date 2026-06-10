@@ -12,8 +12,10 @@ use RuntimeException;
  * - Le `.sec` est chmod 600 (lisible seulement par le user owner)
  * - Le dossier `~/.linkup/keys/` est chmod 700
  *
- * S2.J1 — base pour le handshake Noise IK (S2.J3) et la signature des
- * messages broadcast Reverb (S3).
+ * S2.J1 — identité Ed25519 de l'agent : sert à VÉRIFIER la signature du tél au
+ * handshake (`sign(otp‖tel_pubkey)`) et à exposer l'empreinte affichée à
+ * l'approbation. (Le Noise IK du CDC §10 n'est pas retenu en Phase 1 LAN —
+ * cf. PairingService.)
  */
 class KeyManager
 {
@@ -49,8 +51,12 @@ class KeyManager
         $secret = base64_encode(sodium_crypto_sign_secretkey($kp));
 
         $this->ensureDir();
-        file_put_contents($this->pubPath(), $public);
-        file_put_contents($this->secPath(), $secret);
+        if (file_put_contents($this->pubPath(), $public) === false
+            || file_put_contents($this->secPath(), $secret) === false) {
+            throw new RuntimeException(
+                "Impossible d'écrire la paire de clés dans {$this->keyDirPath()}."
+            );
+        }
         chmod($this->secPath(), 0600);
 
         return ['public' => $public, 'secret' => $secret];

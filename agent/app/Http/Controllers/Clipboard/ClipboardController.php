@@ -3,9 +3,7 @@
 namespace App\Http\Controllers\Clipboard;
 
 use App\Http\Controllers\Controller;
-use App\Http\Middleware\AuthenticateDevice;
 use App\Models\ClipboardEntry;
-use App\Models\Device;
 use App\Services\BridgeClient;
 use App\Services\BridgeUnavailableException;
 use App\Services\Clipboard\ClipboardService;
@@ -111,10 +109,5 @@ class ClipboardController extends Controller
         }
 
         return response()->json(['ok' => true, 'url' => $result['url'] ?? $validated['url']]);
-    }
-
-    private function device(Request $request): Device
-    {
-        return $request->attributes->get(AuthenticateDevice::ATTRIBUTE);
     }
 }
