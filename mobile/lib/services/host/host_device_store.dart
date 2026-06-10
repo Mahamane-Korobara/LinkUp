@@ -3,6 +3,8 @@ import 'dart:math';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../crypto/constant_time.dart';
+
 /// État d'un pair côté hôte.
 enum HostDeviceStatus { pending, approved, rejected }
 
@@ -175,7 +177,7 @@ class HostDeviceStore {
     return d != null &&
         d.status == HostDeviceStatus.approved &&
         d.token != null &&
-        d.token == token;
+        constantTimeEquals(d.token!, token);
   }
 
   Future<void> remove(String deviceId) async {

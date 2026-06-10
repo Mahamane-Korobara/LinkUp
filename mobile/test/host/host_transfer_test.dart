@@ -19,7 +19,7 @@ import 'package:linkup_mobile/services/transfer/transfer_client.dart';
 import 'host_test_support.dart';
 
 /// Saver factice : enregistre en mémoire le dernier fichier rangé.
-class _FakeSaver implements ReceivedFileSaver {
+class _FakeSaver extends ReceivedFileSaver {
   String? filename;
   Uint8List? bytes;
 

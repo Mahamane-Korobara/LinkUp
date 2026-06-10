@@ -21,7 +21,7 @@ const _device = PairedDevice(
 
 /// Saver factice : route par extension (.jpg/.mp4 → galerie, sinon document) ;
 /// échoue pour les noms listés dans [fail].
-class _FakeSaver implements ReceivedFileSaver {
+class _FakeSaver extends ReceivedFileSaver {
   final List<String> saved = [];
   final Set<String> fail;
   _FakeSaver({this.fail = const {}});

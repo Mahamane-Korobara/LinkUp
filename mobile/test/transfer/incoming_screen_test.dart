@@ -21,7 +21,7 @@ const _device = PairedDevice(
   pcName: 'mon-pc',
 );
 
-class _NoopSaver implements ReceivedFileSaver {
+class _NoopSaver extends ReceivedFileSaver {
   @override
   Future<SaveResult> save(String filename, Uint8List bytes) async => const SaveResult(SaveKind.gallery);
 }

@@ -17,7 +17,7 @@ import 'package:linkup_mobile/services/transfer/transfer_client.dart';
 
 import 'host_test_support.dart';
 
-class _FakeSaver implements ReceivedFileSaver {
+class _FakeSaver extends ReceivedFileSaver {
   String? filename;
   Uint8List? bytes;
   @override

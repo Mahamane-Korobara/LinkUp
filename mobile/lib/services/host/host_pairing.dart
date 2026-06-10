@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart' as crypto;
 
+import '../crypto/constant_time.dart';
 import '../crypto/key_manager.dart';
 import 'host_device_store.dart';
 import 'host_http.dart';
@@ -30,11 +31,17 @@ class HostPairing {
   String _otp;
   DateTime _otpIssuedAt;
 
+  /// Vrai dès qu'un handshake a réussi avec cet OTP → il n'est plus rejouable
+  /// (anti-rejeu, comme `PairingService::consumeOtp` côté PC). Réarmé par
+  /// [rotateOtp] quand l'hôte ré-affiche le QR pour appairer un autre téléphone.
+  bool _otpConsumed = false;
+
   HostPairing({
     required this.identity,
     required this.devices,
     KeyManager? keys,
-    this.otpTtl = const Duration(minutes: 10),
+    // TTL court (le QR est scanné dans la foulée) ; le CDC vise 60 s côté PC.
+    this.otpTtl = const Duration(minutes: 2),
   })  : keys = keys ?? KeyManager(),
         _otp = _randomOtp(),
         _otpIssuedAt = DateTime.now();
@@ -42,12 +49,15 @@ class HostPairing {
   /// OTP courant (régénéré via [rotateOtp]).
   String get otp => _otp;
 
-  bool get _otpExpired => DateTime.now().difference(_otpIssuedAt) > otpTtl;
+  bool get _otpUsable =>
+      !_otpConsumed && DateTime.now().difference(_otpIssuedAt) <= otpTtl;
 
-  /// Régénère l'OTP (à appeler quand on (ré)affiche le QR).
+  /// Régénère l'OTP (à appeler quand on (ré)affiche le QR, ou pour appairer un
+  /// nouveau téléphone après un premier appairage).
   String rotateOtp() {
     _otp = _randomOtp();
     _otpIssuedAt = DateTime.now();
+    _otpConsumed = false;
     return _otp;
   }
 
@@ -77,10 +87,10 @@ class HostPairing {
       return _reject(req, 'malformed', 'Champs de handshake manquants.');
     }
 
-    if (_otpExpired) {
+    if (!_otpUsable) {
       return _reject(req, 'otp_expired', 'Le code a expiré, régénère le QR.');
     }
-    if (otp != _otp) {
+    if (!constantTimeEquals(otp, _otp)) {
       return _reject(req, 'otp_invalid', 'Code d\'appairage incorrect.');
     }
 
@@ -92,6 +102,10 @@ class HostPairing {
     if (!ok) {
       return _reject(req, 'bad_signature', 'Signature du téléphone invalide.');
     }
+
+    // OTP valide ET signature valide → on le consomme : un rejeu de la même
+    // requête (ou un second scan du même QR) sera désormais refusé.
+    _otpConsumed = true;
 
     final deviceId = _deviceIdFor(telPub);
     final existing = await devices.get(deviceId);

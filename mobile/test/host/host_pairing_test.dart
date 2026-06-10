@@ -125,15 +125,48 @@ void main() {
     );
   });
 
-  test('poll avec un device inconnu → 404 remonté en erreur réseau', () async {
+  test('poll avec un device inconnu → 404 traité comme un refus', () async {
     final port = await freePort();
     final host = await _startHost(port);
     addTearDown(host.server.stop);
 
+    // Le device n'existe pas côté hôte → 404, que le client interprète comme un
+    // refus terminal (et non une erreur réseau à retenter).
     final poll = PairingPollClient(keyManager: KeyManager(storage: MemoryStorage()));
-    expect(
-      () => poll.pollOnce(host.url.laravelBaseUri, 'device-fantome'),
-      throwsA(isA<PollNetworkException>()),
-    );
+    final result = await poll.pollOnce(host.url.laravelBaseUri, 'device-fantome');
+    expect(result.status, PollStatus.rejected);
   });
+
+  test('OTP consommé : un second handshake avec le même OTP est refusé (anti-rejeu)',
+      () async {
+    final port = await freePort();
+    final host = await _startHost(port);
+    addTearDown(host.server.stop);
+
+    // 1er handshake (pair légitime) → réussit et consomme l'OTP.
+    final first = await PairingHandshakeClient(keyManager: KeyManager(storage: MemoryStorage()))
+        .handshake(host.url);
+    expect(first.isPending, isTrue);
+
+    // 2e handshake avec le MÊME QR/OTP (rejeu) → refusé.
+    expect(
+      () => PairingHandshakeClient(keyManager: KeyManager(storage: MemoryStorage()))
+          .handshake(host.url),
+      throwsA(isA<HandshakeRejected>()),
+    );
+
+    // Après rotation du QR, un nouvel appairage redevient possible.
+    final fresh = await _pairingUrlAfterRotation(host);
+    final third = await PairingHandshakeClient(keyManager: KeyManager(storage: MemoryStorage()))
+        .handshake(fresh);
+    expect(third.isPending, isTrue);
+  });
+}
+
+/// Régénère l'OTP de l'hôte (comme le fait l'UI en ré-affichant le QR) et
+/// renvoie l'URL d'appairage fraîche correspondante.
+Future<PairingUrl> _pairingUrlAfterRotation(_Host host) async {
+  host.pairing.rotateOtp();
+  final urlStr = await host.pairing.pairingUrl(host.url.host, host.url.port);
+  return PairingUrl.parse(urlStr);
 }

@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
 
+import '../crypto/constant_time.dart';
 import '../transfer/received_saver.dart';
 import 'host_http.dart';
 import 'host_pairing.dart';
@@ -81,7 +81,7 @@ class HostTransfer {
     final auth = req.headers.value('Authorization');
     if (auth == null || !auth.startsWith('Bearer ')) return false;
     final token = auth.substring('Bearer '.length).trim();
-    return token == _signToken(transferId);
+    return constantTimeEquals(token, _signToken(transferId));
   }
 
   // ------------------------------------------------------------- agent (/api)
@@ -214,11 +214,12 @@ class HostTransfer {
     }
     final file = File('${stagingRoot.path}/outbox/$id');
     if (!await file.exists()) return writeStatus(req, HttpStatus.notFound);
-    final bytes = await file.readAsBytes();
+    // Streaming disque→socket : ne charge jamais tout le fichier en RAM.
     req.response
       ..statusCode = HttpStatus.ok
       ..headers.contentType = ContentType.binary
-      ..add(bytes);
+      ..contentLength = await file.length();
+    await req.response.addStream(file.openRead());
     await req.response.close();
   }
 
@@ -281,27 +282,41 @@ class HostTransfer {
       return writeStatus(req, HttpStatus.badRequest);
     }
     final total = int.tryParse(totalStr);
-    if (total == null) return writeStatus(req, HttpStatus.badRequest);
+    if (total == null || total <= 0) return writeStatus(req, HttpStatus.badRequest);
 
     final dir = Directory('${stagingRoot.path}/$id');
-    final builder = BytesBuilder(copy: false);
-    for (var i = 0; i < total; i++) {
-      final f = File('${dir.path}/chunk_$i');
-      if (!await f.exists()) {
-        return writeJson(req, {'error': 'Chunk $i manquant'}, status: 422);
-      }
-      builder.add(await f.readAsBytes());
-    }
-    final bytes = builder.takeBytes();
 
-    final actual = crypto.sha256.convert(bytes).toString();
-    if (actual.toLowerCase() != sha.trim().toLowerCase()) {
+    // Assemblage en STREAMING vers un fichier temporaire : on ne tient jamais
+    // plus d'un buffer de lecture en RAM (un gros fichier ne fait plus OOM).
+    final assembled = File('${dir.path}/.assembled.part');
+    final sink = assembled.openWrite();
+    try {
+      for (var i = 0; i < total; i++) {
+        final f = File('${dir.path}/chunk_$i');
+        if (!await f.exists()) {
+          await sink.close();
+          await assembled.delete().catchError((_) => assembled);
+          return writeJson(req, {'error': 'Chunk $i manquant'}, status: 422);
+        }
+        await sink.addStream(f.openRead());
+      }
+    } finally {
+      await sink.close();
+    }
+    final size = await assembled.length();
+
+    // SHA-256 global calculé en STREAMING sur le fichier assemblé.
+    final digest = await crypto.sha256.bind(assembled.openRead()).first;
+    if (digest.toString().toLowerCase() != sha.trim().toLowerCase()) {
+      await assembled.delete().catchError((_) => assembled);
       return writeJson(req, {'error': 'SHA-256 global invalide'}, status: 422);
     }
 
-    // Range le fichier (galerie / documents) comme une réception depuis le PC.
-    final result = await saver.save(filename, Uint8List.fromList(bytes));
+    // Range le fichier (galerie / documents) SANS le recharger en RAM (le saver
+    // neutralise aussi le nom — anti path-traversal).
+    final result = await saver.saveFile(filename, assembled);
     if (result.kind == SaveKind.failed) {
+      await assembled.delete().catchError((_) => assembled);
       return writeJson(req, {'error': 'Échec d\'enregistrement'}, status: 422);
     }
 
@@ -316,7 +331,7 @@ class HostTransfer {
     return writeJson(req, {
       'ok': true,
       'filename': filename,
-      'size': bytes.length,
+      'size': size,
       'location': result.location,
     });
   }
