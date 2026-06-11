@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/linkup_agent.dart';
 import '../services/agent_discovery.dart';
 import '../services/linkup_discovery.dart';
+import '../services/update/update_checker.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_logo.dart';
@@ -47,6 +49,11 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
   bool _autoScanRunning = false;
   String? _error;
 
+  /// Mise à jour disponible (null = aucune ou pas encore vérifié), et masquage
+  /// si l'utilisateur ferme la bannière pour cette session.
+  UpdateInfo? _update;
+  bool _updateDismissed = false;
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +65,30 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
     });
     _agents = _discovery.agents;
     WidgetsBinding.instance.addPostFrameCallback((_) => _startAutoScan());
+    _checkForUpdate();
+  }
+
+  /// Vérifie en arrière-plan s'il existe une nouvelle version (best-effort).
+  Future<void> _checkForUpdate() async {
+    final checker = UpdateChecker();
+    try {
+      final info = await checker.check();
+      if (mounted && info != null) setState(() => _update = info);
+    } finally {
+      checker.close();
+    }
+  }
+
+  Future<void> _openUpdate(String url) async {
+    try {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible d\'ouvrir le lien.')),
+        );
+      }
+    }
   }
 
   @override
@@ -157,6 +188,14 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
                 children: [
+                  if (_update != null && !_updateDismissed) ...[
+                    _UpdateBanner(
+                      info: _update!,
+                      onUpdate: () => _openUpdate(_update!.apkUrl),
+                      onDismiss: () => setState(() => _updateDismissed = true),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   // L'erreur est masquée dès qu'au moins un agent est visible :
                   // on garde pas un bandeau rouge si la liste répond enfin.
                   if (_error != null && _agents.isEmpty) ...[
@@ -192,6 +231,82 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bannière « nouvelle version disponible » avec CTA « Mettre à jour » (ouvre
+/// le téléchargement de l'APK) et une croix pour la masquer cette session.
+class _UpdateBanner extends StatelessWidget {
+  final UpdateInfo info;
+  final VoidCallback onUpdate;
+  final VoidCallback onDismiss;
+
+  const _UpdateBanner({
+    required this.info,
+    required this.onUpdate,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+      decoration: BoxDecoration(
+        color: AppColors.brandSoft,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.brandSoftBorder),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.system_update_rounded, color: AppColors.brand),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  info.versionName.isEmpty
+                      ? 'Nouvelle version disponible'
+                      : 'Nouvelle version ${info.versionName} disponible',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                Text(
+                  info.notes?.trim().isNotEmpty == true
+                      ? info.notes!.trim()
+                      : 'Appuie pour télécharger la mise à jour.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: onUpdate,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.brand,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              minimumSize: const Size(0, 36),
+            ),
+            child: const Text('Mettre à jour',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+          ),
+          IconButton(
+            tooltip: 'Plus tard',
+            icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.faint),
+            onPressed: onDismiss,
           ),
         ],
       ),
