@@ -85,8 +85,12 @@ export default function HeroSection() {
               <strong className="font-semibold text-zinc-700">
                 sans fil
               </strong>
-              . Tu scannes un QR code une fois — pas de câble, pas de compte, pas
-              de cloud.
+              , en scannant un QR code. Et{" "}
+              <strong className="font-semibold text-zinc-700">
+                même sans PC
+              </strong>{" "}
+              : télécharge des vidéos (YouTube, TikTok…) et transcris-les en
+              texte. Pas de câble, pas de compte, pas de cloud.
             </motion.p>
 
             <motion.div
@@ -105,10 +109,10 @@ export default function HeroSection() {
                 </span>
               </a>
               <a
-                href="#etapes"
+                href="#outils"
                 className="py-2 text-sm font-semibold tracking-wide text-zinc-500 underline decoration-violet-300 decoration-2 underline-offset-8 transition-colors hover:text-violet-700"
               >
-                Voir comment ça marche
+                Voir les outils
               </a>
             </motion.div>
 
