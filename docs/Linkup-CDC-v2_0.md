@@ -410,6 +410,37 @@ Regroupement par **briques techniques partagées** plutôt que par module isolé
 | macOS | Webcam virtuelle CoreMediaIO, contrôle média MediaRemote |
 | Webcam virtuelle Windows native | Filtre DirectShow (remplace le wrapper OBS) |
 
+## 12.3 Outils standalone (sans appairage PC) — évolutions prévues
+
+Les **outils autonomes** (juste une connexion internet, aucun PC appairé) sont apparus
+**après** la v2.0 du CDC. Déjà **livrés** : le **téléchargeur vidéo multi-plateformes**
+(yt-dlp via le service `videohub` sur le VPS) et la **transcription IA** (cascade
+sous-titres → Gemini audio → Whisper, export PDF). Évolutions planifiées :
+
+### 📥 Téléchargeur — 2ᵉ section « Stories / Statuts »
+
+Ajouter un onglet « Stories » à côté de l'onglet « Lien » actuel.
+
+- **Status Saver WhatsApp** (cas d'usage principal). **Réalité technique** : un statut
+  WhatsApp **n'a pas d'URL**. WhatsApp met en cache **localement** les statuts **déjà
+  visionnés** dans `Android/media/com.whatsapp/WhatsApp/Media/.Statuses/` (+
+  `com.whatsapp.w4b` pour WhatsApp Business). La fonction lit ce dossier → grille
+  photos/vidéos → enregistrement galerie.
+  - ⚠️ On ne peut récupérer qu'un statut **déjà ouvert** dans WhatsApp (sinon il n'est pas
+    présent sur le téléphone).
+  - **Accès au dossier** : sur Android 11+, l'accès fiable au `.Statuses` passe par le
+    **SAF** (`ACTION_OPEN_DOCUMENT_TREE` + permission persistée une fois) ou l'accès
+    `Android/media/` (lisible, contrairement à `Android/data/`). À valider par appareil.
+- **Stories Facebook / Instagram** : elles passent par un **lien** + cookies (contenu
+  éphémère, ~24 h) → réutilisent l'onglet « Lien » existant plutôt qu'un mécanisme dédié.
+
+### 🔎 SEO — mini-blog vitrine
+
+Ajouter 2-3 articles **long-tail** à la vitrine (ex. « télécharger une vidéo TikTok sur
+Android », « transcrire une vidéo sans sous-titres ») pour capter un trafic de recherche
+peu concurrentiel. C'est le meilleur levier SEO **on-page** restant ; le reste relève des
+**backlinks** et du **temps** (3-6 mois pour un domaine neuf).
+
 # 13. Briques détaillées (Phase 1)
 
 ## 🏗️ B1 — Noyau & pairing (S1-S3)
