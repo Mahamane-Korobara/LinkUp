@@ -62,6 +62,14 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Linkup — apparaître dans le partage natif Android quand on partage
+                 un LIEN (texte). Le lien est récupéré par receive_sharing_intent
+                 et ouvert dans le téléchargeur vidéo. (iOS : plus tard.) -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain"/>
+            </intent-filter>
         </activity>
         <!-- Linkup tél↔tél — service de premier plan de flutter_foreground_task. -->
         <service

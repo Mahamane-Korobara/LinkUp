@@ -19,7 +19,10 @@ class VideoToolScreen extends StatefulWidget {
   final VideoHubClient? client;
   final ReceivedFileSaver? saver;
 
-  const VideoToolScreen({super.key, this.client, this.saver});
+  /// Lien pré-rempli (ex. ouvert via un partage entrant) : analysé au démarrage.
+  final String? initialUrl;
+
+  const VideoToolScreen({super.key, this.client, this.saver, this.initialUrl});
 
   @override
   State<VideoToolScreen> createState() => _VideoToolScreenState();
@@ -50,6 +53,12 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
     super.initState();
     _client = widget.client ?? VideoHubClient();
     _saver = widget.saver ?? DeviceFileSaver();
+    // Lien reçu par partage : pré-remplir et analyser tout de suite.
+    final shared = widget.initialUrl?.trim();
+    if (shared != null && shared.isNotEmpty) {
+      _urlController.text = shared;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _analyze());
+    }
   }
 
   @override
