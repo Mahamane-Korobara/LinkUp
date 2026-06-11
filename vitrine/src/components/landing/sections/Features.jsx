@@ -53,6 +53,18 @@ const AVAILABLE = [
     text: "Tu développes un site ou une app sur ton PC ? Ouvre-le tel quel sur ton téléphone, en vrai HTTPS de confiance — sans rien installer.",
     points: ["Le localhost du PC sur le tél", "Caméra, micro & géoloc actifs", "Zéro certificat à installer"],
   },
+  {
+    icon: Download,
+    title: "Téléchargeur vidéo",
+    text: "Colle le lien d’une vidéo (YouTube, TikTok, Instagram, X…) : aperçu, puis télécharge-la en vidéo ou en audio, et partage le fichier. Aucun PC nécessaire.",
+    points: ["YouTube, TikTok, Insta, X…", "Vidéo ou audio (MP3)", "Marche sans PC"],
+  },
+  {
+    icon: FileAudio,
+    title: "Transcription IA",
+    text: "Transforme la parole d’une vidéo en texte bien mis en forme — même sans sous-titres, l’IA écoute l’audio — puis exporte le document en PDF.",
+    points: ["Même sans sous-titres", "Document soigné → PDF", "Garde la langue d’origine"],
+  },
 ];
 
 // Outils prévus, pas encore disponibles.
@@ -60,8 +72,6 @@ const SOON = [
   { icon: LinkIcon, label: "Lien rapide" },
   { icon: Webcam, label: "Caméra webcam" },
   { icon: Mic, label: "Micro du tél" },
-  { icon: Download, label: "Téléchargeur vidéo" },
-  { icon: FileAudio, label: "Transcription" },
   { icon: RefreshCw, label: "Conversion" },
   { icon: Presentation, label: "Télécommande slides" },
   { icon: ScanLine, label: "Scanner" },
@@ -94,8 +104,8 @@ export default function Features() {
           </h2>
           <p className="mt-5 text-base leading-relaxed text-zinc-500 sm:text-lg">
             Linkup réunit les ponts les plus utiles entre ton téléphone et ton
-            PC — et même entre deux téléphones. Ils marchent maintenant, sur ton
-            réseau Wi-Fi.
+            PC — et même entre deux téléphones. Plus des outils qui marchent
+            seuls, sans aucun PC. Tout est disponible aujourd’hui.
           </p>
         </motion.header>
 
@@ -159,8 +169,8 @@ export default function Features() {
         >
           <p className="mb-5 max-w-2xl text-sm text-zinc-500">
             La boîte à outils s’agrandit : caméra de ton téléphone en webcam,
-            micro déporté, téléchargeur vidéo, notifications du tél sur le PC, et
-            plus encore. Ces outils arrivent au fil des mises à jour.
+            micro déporté, conversion de fichiers, notifications du tél sur le
+            PC, et plus encore. Ces outils arrivent au fil des mises à jour.
           </p>
           <div className="flex flex-wrap gap-2.5">
             {SOON.map((s) => (

@@ -12,10 +12,10 @@ const SITE_URL = "https://linkup-landing.sahelstack.tech";
 const TITLE = "Linkup — Ton téléphone et ton PC, reliés en un scan";
 // Meta description : ~155 caractères (au-delà, Google tronque), mots-clés en tête.
 const DESCRIPTION =
-  "Transfère fichiers, photos et presse-papier entre téléphone et PC, sans câble ni compte. L'alternative AirDrop pour Android et Linux, sur ton wifi. Gratuit.";
+  "Transfère fichiers et presse-papier entre téléphone et PC sans câble. Télécharge des vidéos (YouTube, TikTok…) et transcris-les en texte. Gratuit, Android & Linux.";
 // Description plus riche réservée aux données structurées (pas de limite SERP).
 const LONG_DESCRIPTION =
-  "Linkup relie ton téléphone et ton PC sur le même wifi pour transférer fichiers, photos, vidéos et presse-papier, sans câble, sans compte et sans cloud. L'alternative AirDrop pour Android et Linux (Windows bientôt). Gratuit et open source.";
+  "Linkup relie ton téléphone et ton PC sur le même wifi pour transférer fichiers, photos, vidéos et presse-papier, sans câble, sans compte et sans cloud. Il inclut aussi des outils autonomes (sans PC) : un téléchargeur de vidéos multi-plateformes (YouTube, TikTok, Instagram, X, Vimeo…) et une transcription par IA qui met la parole en texte — même sans sous-titres — exportable en PDF. L'alternative AirDrop pour Android et Linux (Windows bientôt). Gratuit et open source.";
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
@@ -36,6 +36,12 @@ export const metadata = {
     "appairage QR code",
     "partage de fichiers entre deux téléphones sans PC",
     "tester localhost sur téléphone mobile",
+    "télécharger une vidéo YouTube TikTok Instagram",
+    "télécharger vidéo en ligne sur téléphone",
+    "convertir une vidéo en MP3",
+    "transcrire une vidéo en texte",
+    "transcription vidéo gratuite par IA",
+    "extraire le texte d'une vidéo sans sous-titres",
     "Linkup",
   ],
   alternates: { canonical: "/" },
@@ -45,7 +51,7 @@ export const metadata = {
     siteName: "Linkup",
     title: TITLE,
     description:
-      "Fichiers, photos et presse-papier entre ton tél et ton PC. Sans câble, sans compte, sans cloud. Gratuit, open source.",
+      "Fichiers et presse-papier entre ton tél et ton PC, plus un téléchargeur vidéo (YouTube, TikTok…) et la transcription IA. Sans câble, sans compte. Gratuit, open source.",
     locale: "fr_FR",
     images: [
       {
@@ -60,7 +66,7 @@ export const metadata = {
     card: "summary_large_image",
     title: TITLE,
     description:
-      "Fichiers, photos et presse-papier entre ton tél et ton PC. Sans câble, sans compte, sans cloud.",
+      "Fichiers et presse-papier tél ↔ PC, téléchargeur vidéo (YouTube, TikTok…) et transcription IA. Sans câble, sans compte. Gratuit.",
     images: ["/og.png"],
   },
   robots: {
@@ -118,9 +124,12 @@ const JSON_LD = {
         "Presse-papier partagé téléphone ⇄ PC",
         "Appairage par scan d'un QR code, sans compte",
         "Aucune donnée dans le cloud : tout reste sur le réseau local",
+        "Téléchargeur de vidéos multi-plateformes (YouTube, TikTok, Instagram, X, Vimeo…)",
+        "Transcription par IA de la parole en texte, même sans sous-titres, export PDF",
+        "Partage de fichiers entre deux téléphones, sans PC",
       ],
       screenshot: `${SITE_URL}/og.png`,
-      softwareVersion: "0.6",
+      softwareVersion: "0.7",
       author: { "@type": "Person", name: "Mahamane Korobara" },
     },
   ],
