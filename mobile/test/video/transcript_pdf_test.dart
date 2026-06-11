@@ -3,6 +3,10 @@ import 'package:linkup_mobile/services/video/transcript_pdf.dart';
 import 'package:linkup_mobile/services/video/video_hub_client.dart';
 
 void main() {
+  // PdfGoogleFonts accède au bundle/réseau ; en test ça échoue et le builder
+  // retombe sur la police par défaut. On initialise le binding pour un échec propre.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('buildTranscriptPdf produit un PDF non vide', () async {
     const doc = TranscriptDoc(
       available: true,
