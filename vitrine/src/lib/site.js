@@ -12,7 +12,11 @@ export const SITE = {
   // ⚠️ Tailles indicatives — à rafraîchir à chaque release (`du -h dist/*` après
   //    build, cf. README downloads) car elles dérivent à chaque rebuild.
   androidApk: "https://linkup.sahelstack.tech/dl/linkup.apk",
-  androidSize: "67 Mo",
+  androidSize: "29 Mo",
+  // Variante 32-bit (armeabi-v7a) pour les téléphones ANCIENS où l'APK principal
+  // (64-bit) refuse de s'installer (« application non installée »).
+  androidApk32: "https://linkup.sahelstack.tech/dl/linkup-32bit.apk",
+  androidSize32: "25 Mo",
   // PC : AppImage universelle (aucune installation, toutes distros) — primaire.
   pcBundle: "https://linkup.sahelstack.tech/dl/linkup.AppImage",
   pcSize: "157 Mo",

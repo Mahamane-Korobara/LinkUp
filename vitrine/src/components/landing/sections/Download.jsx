@@ -81,6 +81,10 @@ export default function DownloadSection() {
               "Autorise l’installation si demandé",
               "Lance Linkup et appuie sur « Scanner »",
             ]}
+            alt={{
+              href: SITE.androidApk32,
+              label: "Tél. ancien ou « appli non installée » ? Version 32-bit",
+            }}
           />
           <DownloadCard
             delay={0.12}
