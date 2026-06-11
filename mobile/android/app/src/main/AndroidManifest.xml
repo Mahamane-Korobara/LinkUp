@@ -78,6 +78,13 @@
             android:exported="false"
             android:stopWithTask="true" />
 
+        <!-- Icône monochrome (maillon LinkUp) pour la barre de statut des
+             notifications (flutter_foreground_task la résout via ce nom). Android
+             n'affiche que la silhouette : pas de logo couleur possible ici. -->
+        <meta-data
+            android:name="tech.sahelstack.linkup.notification_icon"
+            android:resource="@drawable/ic_stat_linkup" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

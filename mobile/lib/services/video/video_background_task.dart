@@ -1,3 +1,5 @@
+import 'dart:ui' show Color;
+
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -18,6 +20,16 @@ class VideoBackgroundTask {
   static const _fgChannelId = 'linkup_video';
   static const _doneChannelId = 'linkup_video_done';
   static const _doneNotifId = 4201;
+
+  // Violet de marque (AppColors.brand) pour la couleur d'accent des notifs.
+  static const _brand = Color(0xFF7C3AED);
+
+  // Icône monochrome (maillon LinkUp) de la barre de statut : Android n'y affiche
+  // qu'une silhouette blanche, pas le logo couleur (cf. meta-data du manifest).
+  static const _fgIcon = NotificationIcon(
+    metaDataName: 'tech.sahelstack.linkup.notification_icon',
+    backgroundColor: _brand,
+  );
 
   static final FlutterLocalNotificationsPlugin _local =
       FlutterLocalNotificationsPlugin();
@@ -47,7 +59,7 @@ class VideoBackgroundTask {
 
   static Future<void> _ensureLocalInit() async {
     if (_localInited) return;
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const android = AndroidInitializationSettings('ic_stat_linkup');
     await _local.initialize(
         settings: const InitializationSettings(android: android));
     _localInited = true;
@@ -62,10 +74,14 @@ class VideoBackgroundTask {
       await FlutterForegroundTask.requestNotificationPermission();
       if (await FlutterForegroundTask.isRunningService) {
         await FlutterForegroundTask.updateService(
-            notificationTitle: 'LinkUp', notificationText: label);
+            notificationTitle: 'LinkUp',
+            notificationText: label,
+            notificationIcon: _fgIcon);
       } else {
         await FlutterForegroundTask.startService(
-            notificationTitle: 'LinkUp', notificationText: label);
+            notificationTitle: 'LinkUp',
+            notificationText: label,
+            notificationIcon: _fgIcon);
       }
     } catch (_) {
       // Service de premier plan indisponible → l'action reste utilisable au
@@ -86,7 +102,9 @@ class VideoBackgroundTask {
     try {
       if (await FlutterForegroundTask.isRunningService) {
         await FlutterForegroundTask.updateService(
-            notificationTitle: 'LinkUp', notificationText: text);
+            notificationTitle: 'LinkUp',
+            notificationText: text,
+            notificationIcon: _fgIcon);
       }
     } catch (_) {
       // Best-effort : un échec de mise à jour ne doit pas couper le travail.
@@ -109,7 +127,11 @@ class VideoBackgroundTask {
             channelDescription: 'Action vidéo terminée.',
             importance: Importance.high,
             priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
+            // Petite icône (barre de statut) = maillon blanc ; couleur d'accent
+            // violette ; grande icône = logo couleur dans la notif dépliée.
+            icon: 'ic_stat_linkup',
+            color: _brand,
+            largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
           ),
         ),
       );
