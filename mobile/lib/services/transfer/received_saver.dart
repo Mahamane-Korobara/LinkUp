@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:photo_manager/photo_manager.dart';
 
@@ -50,6 +50,9 @@ abstract class ReceivedFileSaver {
 class DeviceFileSaver implements ReceivedFileSaver {
   static const _imageExt = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'bmp'};
   static const _videoExt = {'mp4', 'mov', 'mkv', 'webm', '3gp', 'avi', 'm4v'};
+
+  /// Canal natif d'enregistrement public (cf. MainActivity, MediaStore).
+  static const _saveChannel = MethodChannel('linkup/savefile');
 
   static String _ext(String filename) {
     final dot = filename.lastIndexOf('.');
@@ -113,19 +116,66 @@ class DeviceFileSaver implements ReceivedFileSaver {
   }
 
   Future<SaveResult> _saveToDocuments(String filename, Uint8List bytes) async {
-    final file = File('${await _documentsDir()}/$filename');
-    await file.writeAsBytes(bytes, flush: true);
-    return SaveResult(SaveKind.document, location: file.path);
+    // Écrit d'abord dans un temp, puis pousse vers le dossier public.
+    final tmp = File('${Directory.systemTemp.path}/$filename');
+    await tmp.writeAsBytes(bytes, flush: true);
+    try {
+      return await _saveDocumentFromFile(filename, tmp);
+    } finally {
+      if (await tmp.exists()) await tmp.delete();
+    }
   }
 
   Future<SaveResult> _saveDocumentFromFile(String filename, File source) async {
+    // Cible publique « Téléchargements/LinkUp » (visible par l'utilisateur).
+    final publicLoc = await _saveToPublicDownloads(source, filename);
+    if (publicLoc != null) {
+      return SaveResult(SaveKind.document, location: publicLoc);
+    }
+    // Repli : ancien dossier externe de l'app (si le canal natif a échoué).
     final dest = File('${await _documentsDir()}/$filename');
     await source.copy(dest.path); // copie disque→disque, pas de RAM
     return SaveResult(SaveKind.document, location: dest.path);
   }
 
-  /// Dossier externe de l'app (visible via l'explorateur de fichiers) ; repli sur
-  /// le dossier documents privé si l'externe est indisponible.
+  /// Enregistre [source] dans le dossier PUBLIC Téléchargements/LinkUp via le
+  /// canal natif (MediaStore). Renvoie l'emplacement lisible, ou null si échec.
+  Future<String?> _saveToPublicDownloads(File source, String filename) async {
+    try {
+      return await _saveChannel.invokeMethod<String>('saveToDownloads', {
+        'srcPath': source.path,
+        'filename': filename,
+        'mime': _mimeFor(filename),
+      });
+    } catch (_) {
+      return null; // canal indispo / refus → repli appelant
+    }
+  }
+
+  static String _mimeFor(String filename) {
+    switch (_ext(filename)) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'm4a':
+        return 'audio/mp4';
+      case 'mp3':
+        return 'audio/mpeg';
+      case 'opus':
+      case 'ogg':
+        return 'audio/ogg';
+      case 'wav':
+        return 'audio/wav';
+      case 'txt':
+        return 'text/plain';
+      case 'zip':
+        return 'application/zip';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  /// Dossier externe de l'app (repli) — utilisé seulement si l'enregistrement
+  /// public échoue (ex. canal natif indisponible).
   Future<String> _documentsDir() async {
     final base = await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory();
     final dir = Directory('${base.path}/LinkupReçus');

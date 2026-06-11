@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:printing/printing.dart';
 
 import '../../services/transfer/received_saver.dart';
@@ -8,8 +9,8 @@ import '../../theme/app_colors.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/section_label.dart';
 
-/// Affiche le transcript formaté « comme un document » et permet de l'enregistrer
-/// en PDF (dossier Documents) ou de le partager.
+/// Affiche le transcript formaté « comme un document » : copier le texte,
+/// l'enregistrer en PDF (dossier public Téléchargements/LinkUp) ou le partager.
 class TranscriptScreen extends StatefulWidget {
   final TranscriptDoc doc;
   final ReceivedFileSaver saver;
@@ -37,6 +38,28 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Copie tout le texte du transcript (titre + sections + paragraphes).
+  Future<void> _copyText() async {
+    final b = StringBuffer();
+    b.writeln(widget.doc.title);
+    b.writeln();
+    for (final s in widget.doc.sections) {
+      final h = s.heading?.trim();
+      if (h != null && h.isNotEmpty) {
+        b.writeln(h);
+        b.writeln();
+      }
+      for (final p in s.paragraphs) {
+        b.writeln(p);
+        b.writeln();
+      }
+    }
+    await Clipboard.setData(ClipboardData(text: b.toString().trim()));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Texte copié.')));
   }
 
   Future<void> _sharePdf() async {
@@ -111,12 +134,20 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
                 children: [
                   Expanded(
                     child: _ActionButton(
-                      icon: Icons.download_rounded,
-                      label: 'Enregistrer PDF',
+                      icon: Icons.content_copy_rounded,
+                      label: 'Copier',
+                      onTap: _busy ? null : _copyText,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ActionButton(
+                      icon: Icons.picture_as_pdf_rounded,
+                      label: 'PDF',
                       onTap: _busy ? null : _savePdf,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: _ActionButton(
                       icon: Icons.ios_share_rounded,
