@@ -1,15 +1,19 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../services/share/shared_link.dart';
 import '../../services/transfer/received_saver.dart';
+import '../../services/video/transcript_cache.dart';
 import '../../services/video/video_background_task.dart';
 import '../../services/video/video_hub_client.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_logo.dart';
 import '../../widgets/section_label.dart';
+import 'transcript_history_screen.dart';
 import 'transcript_screen.dart';
 import 'video_player_screen.dart';
 
@@ -99,6 +103,27 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
   void _snack(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  /// Colle le lien depuis le presse-papier (en isolant l'URL si elle est noyée
+  /// dans du texte) puis lance l'analyse.
+  Future<void> _paste() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text?.trim() ?? '';
+    final url = firstHttpUrl(text) ?? (text.startsWith('http') ? text : '');
+    if (url.isEmpty) {
+      _snack('Aucun lien dans le presse-papier.');
+      return;
+    }
+    _urlController.text = url;
+    _analyze();
+  }
+
+  /// Ouvre la liste des transcriptions récentes (cache 2 jours).
+  void _openHistory() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => TranscriptHistoryScreen(saver: _saver),
+    ));
   }
 
   /// Exécute [task] sous un service de premier plan : l'action continue si l'app
@@ -217,37 +242,49 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
         },
       );
 
-  Future<void> _transcript() => _runBackground(
-        'Transcription IA…',
-        'Transcription prête',
-        () async {
-          final url = _urlController.text.trim();
-          setState(() {
-            _busyLabel = 'Transcription IA en cours… patiente un peu';
-            _progress = 0;
-          });
-          try {
-            final doc = await _client.transcript(url);
-            if (!mounted) return false;
-            if (!doc.available) {
-              _snack(doc.reason ?? 'Sous-titres non présents sur cette vidéo.');
-              return false;
-            }
-            Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => TranscriptScreen(doc: doc, saver: _saver),
-            ));
-            return true;
-          } on VideoHubException catch (e) {
-            _snack(e.message);
-            return false;
-          } catch (e) {
-            _snack('Échec : $e');
-            return false;
-          } finally {
-            if (mounted) setState(() => _busyLabel = null);
-          }
-        },
-      );
+  Future<void> _transcript() async {
+    final url = _urlController.text.trim();
+    // 1) Cache (2 jours) : si cette vidéo a déjà été transcrite récemment, on
+    //    rouvre le résultat SANS rappeler le serveur (économise les requêtes IA).
+    final cached = await TranscriptCache.get(url);
+    if (cached != null) {
+      if (!mounted) return;
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => TranscriptScreen(doc: cached, saver: _saver),
+      ));
+      _snack('Déjà transcrit récemment — réutilisé (cache).');
+      return;
+    }
+    // 2) Sinon : appel serveur en arrière-plan, puis mise en cache du résultat.
+    await _runBackground('Transcription IA…', 'Transcription prête', () async {
+      setState(() {
+        _busyLabel = 'Transcription IA en cours… patiente un peu';
+        _progress = 0;
+      });
+      try {
+        final doc = await _client.transcript(url);
+        if (!mounted) return false;
+        if (!doc.available) {
+          _snack(doc.reason ?? 'Sous-titres non présents sur cette vidéo.');
+          return false;
+        }
+        await TranscriptCache.put(url, doc, thumbnail: _meta?.thumbnail);
+        if (!mounted) return false;
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => TranscriptScreen(doc: doc, saver: _saver),
+        ));
+        return true;
+      } on VideoHubException catch (e) {
+        _snack(e.message);
+        return false;
+      } catch (e) {
+        _snack('Échec : $e');
+        return false;
+      } finally {
+        if (mounted) setState(() => _busyLabel = null);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -255,6 +292,13 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
       appBar: AppBar(
         titleSpacing: 16,
         title: const AppLogo(size: 30, showWordmark: true),
+        actions: [
+          IconButton(
+            tooltip: 'Transcriptions récentes',
+            icon: const Icon(Icons.history_rounded),
+            onPressed: _busy ? null : _openHistory,
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -269,6 +313,7 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
                   controller: _urlController,
                   enabled: !_busy,
                   onSubmit: _analyze,
+                  onPaste: _busy ? null : _paste,
                 ),
                 const SizedBox(height: 12),
                 _PrimaryButton(
@@ -347,11 +392,13 @@ class _UrlField extends StatelessWidget {
   final TextEditingController controller;
   final bool enabled;
   final VoidCallback onSubmit;
+  final VoidCallback? onPaste;
 
   const _UrlField({
     required this.controller,
     required this.enabled,
     required this.onSubmit,
+    this.onPaste,
   });
 
   @override
@@ -365,6 +412,12 @@ class _UrlField extends StatelessWidget {
       decoration: InputDecoration(
         hintText: 'Coller un lien (YouTube, TikTok, Insta…)',
         prefixIcon: const Icon(Icons.link_rounded, color: AppColors.faint),
+        suffixIcon: TextButton.icon(
+          onPressed: onPaste,
+          icon: const Icon(Icons.content_paste_rounded, size: 18),
+          label: const Text('Coller'),
+          style: TextButton.styleFrom(foregroundColor: AppColors.brand),
+        ),
         filled: true,
         fillColor: AppColors.surface,
         border: OutlineInputBorder(

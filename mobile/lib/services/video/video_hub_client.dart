@@ -44,6 +44,9 @@ class TranscriptSection {
   final String? heading;
   final List<String> paragraphs;
   const TranscriptSection(this.heading, this.paragraphs);
+
+  Map<String, dynamic> toJson() =>
+      {'heading': heading, 'paragraphs': paragraphs};
 }
 
 /// Réponse de `/video/transcript`. Quand [available] est faux, [reason] explique
@@ -91,6 +94,15 @@ class TranscriptDoc {
       sections: sections,
     );
   }
+
+  /// Sérialise un transcript DISPONIBLE pour le cache local (cf. TranscriptCache).
+  Map<String, dynamic> toJson() => {
+        'available': available,
+        'title': title,
+        'subtitle_source': subtitleSource,
+        'formatted_by': formattedBy,
+        'sections': sections.map((s) => s.toJson()).toList(),
+      };
 }
 
 /// Échec d'appel au service (réseau, lien refusé, quota…), message lisible.
