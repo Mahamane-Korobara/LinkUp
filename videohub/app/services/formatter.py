@@ -10,6 +10,7 @@ Le résultat est toujours la même forme :
      "formatted_by": "gemini" | "heuristic"}
 """
 
+import asyncio
 import json
 import logging
 
@@ -18,6 +19,27 @@ import httpx
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Statuts transitoires fréquents avec Gemini (surcharge, palier gratuit).
+_RETRYABLE = {429, 500, 502, 503, 504}
+
+
+async def _post_with_retry(client: httpx.AsyncClient, url: str, body: dict) -> dict:
+    """POST Gemini avec quelques tentatives sur erreurs transitoires (503/429…)."""
+    last: Exception | None = None
+    for attempt in range(4):  # ~1 + 2 + 4 + 8 s de backoff
+        resp = await client.post(
+            url, params={"key": settings.gemini_api_key}, json=body
+        )
+        if resp.status_code in _RETRYABLE:
+            last = httpx.HTTPStatusError(
+                str(resp.status_code), request=resp.request, response=resp
+            )
+            await asyncio.sleep(2 ** attempt)
+            continue
+        resp.raise_for_status()
+        return resp.json()
+    raise last or RuntimeError("Gemini: échec après retries")
 
 _GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -103,11 +125,7 @@ async def format_transcript(title: str, paragraphs: list[str]) -> dict:
     }
     try:
         async with httpx.AsyncClient(timeout=90.0) as client:
-            resp = await client.post(
-                url, params={"key": settings.gemini_api_key}, json=body
-            )
-            resp.raise_for_status()
-            data = resp.json()
+            data = await _post_with_retry(client, url, body)
         text = data["candidates"][0]["content"]["parts"][0]["text"]
         parsed = json.loads(text)
         return _coerce(parsed, title, paragraphs)
