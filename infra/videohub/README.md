@@ -16,6 +16,12 @@ apt update && apt install -y ffmpeg python3-venv
 mkdir -p /var/www/projects/linkup/videohub
 ```
 
+> **ASR (transcription sans sous-titres)** : la cascade est sous-titres → Gemini audio →
+> Whisper. Le dernier recours `faster-whisper` est **optionnel et hors `requirements.txt`**
+> (lourd). À (ré)installer dans le venv si besoin :
+> `sudo -u www-data .venv/bin/pip install faster-whisper` (modèle `base` téléchargé au
+> 1ᵉʳ usage). Sans lui, la cascade s'arrête à Gemini audio (qui couvre l'essentiel).
+
 ## 2. Secret (une fois, NON commité)
 
 ```bash
