@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -257,10 +258,14 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
     }
     // 2) Sinon : appel serveur en arrière-plan, puis mise en cache du résultat.
     await _runBackground('Transcription IA…', 'Transcription prête', () async {
-      setState(() {
-        _busyLabel = 'Transcription IA en cours… patiente un peu';
-        _progress = 0;
-      });
+      setState(() => _progress = 0);
+      // Étapes affichées pendant l'attente (le serveur fait la cascade en une
+      // requête : sous-titres → audio → IA → mise en forme) pour montrer que ça
+      // travaille — surtout l'ASR qui peut être long.
+      final stepper = _TranscriptStepper(onStep: (label) {
+        if (mounted) setState(() => _busyLabel = label);
+        VideoBackgroundTask.tick(label);
+      })..start();
       try {
         final doc = await _client.transcript(url);
         if (!mounted) return false;
@@ -281,6 +286,7 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
         _snack('Échec : $e');
         return false;
       } finally {
+        stepper.stop();
         if (mounted) setState(() => _busyLabel = null);
       }
     });
@@ -363,10 +369,9 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
                     icon: Icons.auto_awesome_rounded,
                     title: 'Transcription IA',
                     subtitle: _meta!.hasSubtitles
-                        ? 'Texte mis en forme par IA → PDF (peut prendre un moment)'
-                        : 'Sous-titres non présents sur cette vidéo',
-                    enabled: _meta!.hasSubtitles,
-                    onTap: (_busy || !_meta!.hasSubtitles) ? null : _transcript,
+                        ? 'Sous-titres détectés → document PDF'
+                        : 'Pas de sous-titres : on transcrit la parole (IA)',
+                    onTap: _busy ? null : _transcript,
                   ),
                 ],
               ],
@@ -386,6 +391,44 @@ String _formatDuration(int? seconds) {
   final mm = m.toString().padLeft(h > 0 ? 2 : 1, '0');
   final ss = s.toString().padLeft(2, '0');
   return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
+}
+
+/// Fait défiler des libellés d'étape pendant la transcription (le serveur fait
+/// toute la cascade en une seule requête, donc on ne peut pas connaître l'étape
+/// réelle ; on avance sur un minuteur pour montrer que ça travaille). [onStep]
+/// reçoit le libellé courant.
+class _TranscriptStepper {
+  _TranscriptStepper({required this.onStep});
+
+  final void Function(String label) onStep;
+
+  // (secondes écoulées avant d'afficher l'étape, libellé)
+  static const _steps = <(int, String)>[
+    (0, 'Recherche des sous-titres…'),
+    (4, 'Extraction de l\'audio…'),
+    (9, 'Transcription de la parole (IA)…'),
+    (30, 'Mise en forme du document…'),
+  ];
+
+  Timer? _timer;
+  int _elapsed = 0;
+
+  void start() {
+    onStep(_steps.first.$2);
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _elapsed++;
+      var label = _steps.first.$2;
+      for (final step in _steps) {
+        if (_elapsed >= step.$1) label = step.$2;
+      }
+      onStep(label);
+    });
+  }
+
+  void stop() {
+    _timer?.cancel();
+    _timer = null;
+  }
 }
 
 class _UrlField extends StatelessWidget {
@@ -557,20 +600,17 @@ class _ActionTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final bool enabled;
   final VoidCallback? onTap;
 
   const _ActionTile({
     required this.icon,
     required this.title,
     required this.subtitle,
-    this.enabled = true,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final fg = enabled ? AppColors.ink : AppColors.faint;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: AppCard(
@@ -582,10 +622,10 @@ class _ActionTile extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: enabled ? AppColors.brandSoft : AppColors.bg,
+                color: AppColors.brandSoft,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: enabled ? AppColors.brand : AppColors.faint),
+              child: Icon(icon, color: AppColors.brand),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -594,10 +634,10 @@ class _ActionTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: fg,
+                      color: AppColors.ink,
                       letterSpacing: -0.2,
                     ),
                   ),
@@ -611,8 +651,7 @@ class _ActionTile extends StatelessWidget {
                 ],
               ),
             ),
-            if (enabled)
-              const Icon(Icons.chevron_right_rounded, color: AppColors.faint),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.faint),
           ],
         ),
       ),

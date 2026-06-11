@@ -204,3 +204,31 @@ def download(url: str, kind: str, quality: int, dest_dir: Path) -> Path:
     if candidates:
         return candidates[-1]
     raise ExtractionError("Fichier téléchargé introuvable.")
+
+
+def download_audio_compact(url: str, dest_dir: Path) -> Path:
+    """Télécharge l'audio ré-encodé COMPACT (mono 16 kHz, 40 kbps mp3) pour l'ASR.
+
+    Objectif : un fichier petit (~0,3 Mo/min) qui passe en envoi direct (≤ 20 Mo)
+    vers Gemini, tout en restant intelligible pour la reconnaissance vocale.
+    """
+    opts = _build_opts({
+        "format": "bestaudio/best",
+        "outtmpl": str(dest_dir / "asr.%(ext)s"),
+        "restrictfilenames": True,
+        "postprocessors": [
+            {"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}
+        ],
+        # Mono, 16 kHz, 40 kbps : suffisant pour la parole, fichier minimal.
+        "postprocessor_args": ["-ac", "1", "-ar", "16000", "-b:a", "40k"],
+    })
+    try:
+        with YoutubeDL(opts) as ydl:
+            ydl.extract_info(url, download=True)
+    except Exception as exc:
+        raise ExtractionError(_friendly(str(exc))) from exc
+
+    mp3s = sorted(dest_dir.glob("*.mp3"))
+    if not mp3s:
+        raise ExtractionError("Extraction audio (ASR) échouée.")
+    return mp3s[0]

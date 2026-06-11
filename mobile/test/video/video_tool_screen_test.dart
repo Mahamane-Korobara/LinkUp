@@ -56,7 +56,8 @@ void main() {
     );
     expect(find.text('Télécharger la vidéo'), findsOneWidget);
     expect(find.text('Transcription IA'), findsOneWidget);
-    // Sous-titres absents → la tuile transcript affiche le message dédié.
-    expect(find.text('Sous-titres non présents sur cette vidéo'), findsOneWidget);
+    // Sans sous-titres, la transcription reste proposée (ASR sur la parole).
+    expect(find.text('Pas de sous-titres : on transcrit la parole (IA)'),
+        findsOneWidget);
   });
 }

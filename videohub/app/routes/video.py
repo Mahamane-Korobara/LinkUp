@@ -14,7 +14,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.config import settings
 from app.deps import rate_limit, require_service_token
-from app.services import extractor, formatter
+from app.services import asr, extractor, formatter
 from app.services.subtitles import clean_vtt
 
 router = APIRouter(
@@ -56,38 +56,61 @@ async def resolve(url: str = Query(...)) -> dict:
 
 @router.get("/transcript")
 async def transcript(url: str = Query(...), lang: str = Query("fr")) -> dict:
-    """Transcript formaté en document à partir des sous-titres (ou message si aucun)."""
+    """Transcript formaté en document, en CASCADE :
+    1) sous-titres (rapide), 2) sinon ASR Gemini sur l'audio, 3) sinon Whisper.
+    """
+    url = _require_url(url)
+
+    # --- 1) Sous-titres existants (voie rapide) ---
     try:
-        sub = await run_in_threadpool(
-            extractor.fetch_subtitle_vtt, _require_url(url), lang
-        )
+        sub = await run_in_threadpool(extractor.fetch_subtitle_vtt, url, lang)
     except extractor.ExtractionError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Impossible de lire ce lien : {exc}",
         )
 
-    if not sub.get("available"):
-        return {
-            "available": False,
-            "title": sub.get("title", "Transcript"),
-            "reason": sub.get("reason", "Sous-titres non présents sur cette vidéo."),
-        }
+    if sub.get("available"):
+        paragraphs = clean_vtt(sub["vtt"])
+        if paragraphs:
+            document = await formatter.format_transcript(sub["title"], paragraphs)
+            return {
+                "available": True,
+                "transcript_source": "subtitles",
+                "subtitle_source": sub["source"],
+                "lang": sub["lang"],
+                **document,
+            }
 
-    paragraphs = clean_vtt(sub["vtt"])
-    if not paragraphs:
-        return {
-            "available": False,
-            "title": sub["title"],
-            "reason": "Sous-titres présents mais vides après nettoyage.",
-        }
+    title = sub.get("title", "Transcript")
 
-    document = await formatter.format_transcript(sub["title"], paragraphs)
+    # --- 2 & 3) Pas de sous-titres exploitables → ASR sur l'audio ---
+    work_dir = Path(settings.tmp_dir) / f"asr-{uuid.uuid4().hex}"
+    work_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        audio = await run_in_threadpool(
+            extractor.download_audio_compact, url, work_dir
+        )
+
+        # 2) Gemini audio (transcrit + met en forme en un appel)
+        doc = await asr.transcribe_with_gemini(audio, title)
+        if doc:
+            return {"available": True, "transcript_source": "gemini_audio", **doc}
+
+        # 3) Whisper (dernier recours, texte brut → mise en forme)
+        raw = await run_in_threadpool(asr.transcribe_with_whisper, audio)
+        if raw:
+            document = await formatter.format_transcript(title, [raw])
+            return {"available": True, "transcript_source": "whisper", **document}
+    except extractor.ExtractionError:
+        pass  # audio indisponible → on tombe sur le message ci-dessous
+    finally:
+        _cleanup(work_dir)
+
     return {
-        "available": True,
-        "subtitle_source": sub["source"],
-        "lang": sub["lang"],
-        **document,
+        "available": False,
+        "title": title,
+        "reason": "Transcription impossible : ni sous-titres, ni parole exploitable.",
     }
 
 

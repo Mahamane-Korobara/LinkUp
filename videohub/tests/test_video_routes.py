@@ -42,23 +42,57 @@ def test_resolve_ok(monkeypatch, client):
     assert r.json()["title"] == "Démo"
 
 
-def test_transcript_no_subtitles(monkeypatch, client):
-    monkeypatch.setattr(
-        extractor,
-        "fetch_subtitle_vtt",
-        lambda url, lang: {
-            "available": False,
-            "title": "Sans sous-titres",
-            "reason": "Sous-titres non présents sur cette vidéo.",
-        },
-    )
+def _no_subs(url, lang):
+    return {
+        "available": False,
+        "title": "Sans sous-titres",
+        "reason": "Sous-titres non présents sur cette vidéo.",
+    }
+
+
+def test_transcript_no_subtitles_and_no_audio(monkeypatch, client):
+    # Pas de sous-titres ET audio indisponible → message final de la cascade.
+    monkeypatch.setattr(extractor, "fetch_subtitle_vtt", _no_subs)
+
+    def _boom(url, dest):
+        raise extractor.ExtractionError("audio indisponible")
+
+    monkeypatch.setattr(extractor, "download_audio_compact", _boom)
     r = client.get(
         "/video/transcript", params={"url": "https://x.test/v"}, headers=AUTH
     )
     assert r.status_code == 200
     body = r.json()
     assert body["available"] is False
-    assert "non présents" in body["reason"]
+    assert "Transcription impossible" in body["reason"]
+
+
+def test_transcript_falls_back_to_asr_gemini(monkeypatch, client):
+    from pathlib import Path
+
+    from app.services import asr
+
+    monkeypatch.setattr(extractor, "fetch_subtitle_vtt", _no_subs)
+    monkeypatch.setattr(
+        extractor, "download_audio_compact", lambda url, dest: Path("/tmp/x.mp3")
+    )
+
+    async def _gem(audio, title):
+        return {
+            "title": title,
+            "sections": [{"heading": None, "paragraphs": ["Parole transcrite."]}],
+            "formatted_by": "gemini",
+        }
+
+    monkeypatch.setattr(asr, "transcribe_with_gemini", _gem)
+    r = client.get(
+        "/video/transcript", params={"url": "https://x.test/v"}, headers=AUTH
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True
+    assert body["transcript_source"] == "gemini_audio"
+    assert body["sections"][0]["paragraphs"][0] == "Parole transcrite."
 
 
 def test_transcript_formats_document(monkeypatch, client):
