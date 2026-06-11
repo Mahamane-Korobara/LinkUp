@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../services/transfer/received_saver.dart';
+import '../../services/video/video_background_task.dart';
 import '../../services/video/video_hub_client.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_card.dart';
@@ -100,6 +101,28 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  /// Exécute [task] sous un service de premier plan : l'action continue si l'app
+  /// passe en arrière-plan, avec une notification de progression. [donePush] est
+  /// le texte de la notification de fin (null = pas de push, ex. lecture/partage
+  /// dont la fin est déjà visible). [task] renvoie `true` si l'action a abouti.
+  Future<void> _runBackground(
+    String running,
+    String? donePush,
+    Future<bool> Function() task,
+  ) async {
+    await VideoBackgroundTask.begin(running);
+    var ok = false;
+    try {
+      ok = await task();
+    } finally {
+      if (ok && donePush != null) {
+        await VideoBackgroundTask.finishOk(donePush);
+      } else {
+        await VideoBackgroundTask.finish();
+      }
+    }
+  }
+
   /// Télécharge le média dans un fichier temporaire avec progression, ou renvoie
   /// le fichier déjà en cache (évite de re-télécharger pour Lire/Partager).
   Future<File?> _download(String kind) async {
@@ -117,6 +140,8 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
         kind: kind,
         onProgress: (p) {
           if (mounted) setState(() => _progress = p);
+          // Reflète la progression dans la notification d'arrière-plan.
+          VideoBackgroundTask.progress(p);
         },
       );
       if (kind == 'audio') {
@@ -135,64 +160,94 @@ class _VideoToolScreenState extends State<VideoToolScreen> {
     return null;
   }
 
-  Future<void> _saveVideo() async {
-    final file = await _download('video');
-    if (file == null) return;
-    final result = await _saver.saveFile(file.path.split('/').last, file);
-    _snack(result.kind == SaveKind.failed
-        ? 'Échec de l\'enregistrement.'
-        : 'Vidéo enregistrée dans la galerie.');
-  }
+  Future<void> _saveVideo() => _runBackground(
+        'Téléchargement…',
+        'Vidéo enregistrée dans la galerie',
+        () async {
+          final file = await _download('video');
+          if (file == null) return false;
+          final result = await _saver.saveFile(file.path.split('/').last, file);
+          final ok = result.kind != SaveKind.failed;
+          _snack(ok
+              ? 'Vidéo enregistrée dans la galerie.'
+              : 'Échec de l\'enregistrement.');
+          return ok;
+        },
+      );
 
-  Future<void> _saveAudio() async {
-    final file = await _download('audio');
-    if (file == null) return;
-    final result = await _saver.saveFile(file.path.split('/').last, file);
-    _snack(result.kind == SaveKind.failed
-        ? 'Échec de l\'enregistrement.'
-        : 'Audio enregistré : ${result.location ?? 'Documents'}');
-  }
+  Future<void> _saveAudio() => _runBackground(
+        'Extraction audio…',
+        'Audio enregistré',
+        () async {
+          final file = await _download('audio');
+          if (file == null) return false;
+          final result = await _saver.saveFile(file.path.split('/').last, file);
+          final ok = result.kind != SaveKind.failed;
+          _snack(ok
+              ? 'Audio enregistré : ${result.location ?? 'Documents'}'
+              : 'Échec de l\'enregistrement.');
+          return ok;
+        },
+      );
 
-  Future<void> _shareVideo() async {
-    final file = await _download('video');
-    if (file == null) return;
-    await SharePlus.instance.share(
-      ShareParams(files: [XFile(file.path)], text: _meta?.title),
-    );
-  }
+  Future<void> _shareVideo() => _runBackground(
+        'Téléchargement…',
+        null, // l'ouverture du partage est déjà la « fin » visible
+        () async {
+          final file = await _download('video');
+          if (file == null) return false;
+          await SharePlus.instance.share(
+            ShareParams(files: [XFile(file.path)], text: _meta?.title),
+          );
+          return true;
+        },
+      );
 
-  Future<void> _play() async {
-    final file = await _download('video');
-    if (file == null || !mounted) return;
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => VideoPlayerScreen(file: file, title: _meta?.title ?? 'Vidéo'),
-    ));
-  }
+  Future<void> _play() => _runBackground(
+        'Téléchargement…',
+        null, // la lecture est déjà la « fin » visible
+        () async {
+          final file = await _download('video');
+          if (file == null || !mounted) return false;
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) =>
+                VideoPlayerScreen(file: file, title: _meta?.title ?? 'Vidéo'),
+          ));
+          return true;
+        },
+      );
 
-  Future<void> _transcript() async {
-    final url = _urlController.text.trim();
-    setState(() {
-      _busyLabel = 'Transcription IA en cours… patiente un peu';
-      _progress = 0;
-    });
-    try {
-      final doc = await _client.transcript(url);
-      if (!mounted) return;
-      if (!doc.available) {
-        _snack(doc.reason ?? 'Sous-titres non présents sur cette vidéo.');
-        return;
-      }
-      Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => TranscriptScreen(doc: doc, saver: _saver),
-      ));
-    } on VideoHubException catch (e) {
-      _snack(e.message);
-    } catch (e) {
-      _snack('Échec : $e');
-    } finally {
-      if (mounted) setState(() => _busyLabel = null);
-    }
-  }
+  Future<void> _transcript() => _runBackground(
+        'Transcription IA…',
+        'Transcription prête',
+        () async {
+          final url = _urlController.text.trim();
+          setState(() {
+            _busyLabel = 'Transcription IA en cours… patiente un peu';
+            _progress = 0;
+          });
+          try {
+            final doc = await _client.transcript(url);
+            if (!mounted) return false;
+            if (!doc.available) {
+              _snack(doc.reason ?? 'Sous-titres non présents sur cette vidéo.');
+              return false;
+            }
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => TranscriptScreen(doc: doc, saver: _saver),
+            ));
+            return true;
+          } on VideoHubException catch (e) {
+            _snack(e.message);
+            return false;
+          } catch (e) {
+            _snack('Échec : $e');
+            return false;
+          } finally {
+            if (mounted) setState(() => _busyLabel = null);
+          }
+        },
+      );
 
   @override
   Widget build(BuildContext context) {
