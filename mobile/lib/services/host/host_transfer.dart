@@ -337,6 +337,22 @@ class HostTransfer {
     });
   }
 
+  // ------------------------------------------------------- UI hôte (lecture)
+
+  /// Fichiers REÇUS d'un pair (to_pc terminés), pour l'écran de transfert hôte.
+  /// (Ils sont déjà rangés dans la galerie/Téléchargements via le saver.)
+  List<Map<String, dynamic>> receivedFrom(String deviceId) {
+    final list = _records.values
+        .where((r) =>
+            r.deviceId == deviceId &&
+            r.direction == 'to_pc' &&
+            r.status == 'completed')
+        .toList()
+      ..sort((a, b) => (b.completedAt ?? b.createdAt)
+          .compareTo(a.completedAt ?? a.createdAt));
+    return list.map((r) => r.present()).toList();
+  }
+
   // ----------------------------------------------------------------- helpers
 
   List<int> _receivedChunks(String id) {

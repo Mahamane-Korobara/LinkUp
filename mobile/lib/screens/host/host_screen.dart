@@ -1,15 +1,12 @@
 import 'dart:async';
-import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-import '../../services/apps/installed_apps.dart';
 import '../../services/host/host_controller.dart';
 import '../../services/host/host_device_store.dart';
 import '../../theme/app_colors.dart';
-import 'app_picker_screen.dart';
+import 'host_peer_transfer_screen.dart';
 
 /// Écran « Mode Hôte » : ce téléphone joue le serveur pour qu'un autre
 /// téléphone (sans PC) puisse lui envoyer/recevoir des fichiers.
@@ -50,83 +47,11 @@ class _HostScreenState extends State<HostScreen> {
     super.dispose();
   }
 
-  /// Propose d'envoyer soit des fichiers, soit des applications installées
-  /// (façon Xender), puis dépose la sélection pour le pair.
-  Future<void> _sendTo(HostDevice peer) async {
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.insert_drive_file_rounded),
-              title: const Text('Fichiers, photos, vidéos'),
-              onTap: () => Navigator.pop(context, 'files'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.apps_rounded),
-              title: const Text('Applications'),
-              subtitle: const Text('Envoyer une app installée (.apk)'),
-              onTap: () => Navigator.pop(context, 'apps'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (choice == 'files') {
-      await _sendFiles(peer);
-    } else if (choice == 'apps') {
-      await _sendApps(peer);
-    }
-  }
-
-  Future<void> _sendFiles(HostDevice peer) async {
-    final picked = await FilePicker.platform.pickFiles(withData: true, allowMultiple: true);
-    if (picked == null) return;
-    var sent = 0;
-    for (final f in picked.files) {
-      final bytes = f.bytes;
-      if (bytes == null) continue;
-      await _c.sendToPeer(deviceId: peer.deviceId, filename: f.name, bytes: bytes);
-      sent++;
-    }
-    _notifySent(peer, sent, 'fichier(s)');
-  }
-
-  Future<void> _sendApps(HostDevice peer) async {
-    final apps = await Navigator.of(context).push<List<InstalledApp>>(
-      MaterialPageRoute(builder: (_) => const AppPickerScreen()),
-    );
-    if (apps == null || apps.isEmpty) return;
-    var sent = 0;
-    var failed = 0;
-    for (final app in apps) {
-      try {
-        // Le base.apk (sourceDir) est lisible : on l'envoie tel quel au pair.
-        final bytes = await File(app.apkPath).readAsBytes();
-        await _c.sendToPeer(
-          deviceId: peer.deviceId,
-          filename: app.suggestedFilename,
-          bytes: bytes,
-        );
-        sent++;
-      } catch (_) {
-        failed++;
-      }
-    }
-    _notifySent(peer, sent, 'app(s)', failed: failed);
-  }
-
-  void _notifySent(HostDevice peer, int sent, String unit, {int failed = 0}) {
-    if (!mounted || (sent == 0 && failed == 0)) return;
-    final tail = failed > 0 ? ' · $failed échec(s)' : '';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$sent $unit prêt(s) pour ${peer.name}$tail. '
-            'Il les récupère depuis « Fichiers reçus » sur son téléphone.'),
-      ),
-    );
+  /// Ouvre la page Transfert (envoi photos/fichiers/app + reçus) pour ce pair.
+  void _openTransfer(HostDevice peer) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => HostPeerTransferScreen(controller: _c, peer: peer),
+    ));
   }
 
   @override
@@ -257,10 +182,11 @@ class _HostScreenState extends State<HostScreen> {
           title: Text(d.name),
           subtitle: Text('${d.platform} ${d.osVersion}'.trim()),
           trailing: FilledButton.tonalIcon(
-            onPressed: () => _sendTo(d),
-            icon: const Icon(Icons.upload_file_rounded),
-            label: const Text('Envoyer'),
+            onPressed: () => _openTransfer(d),
+            icon: const Icon(Icons.swap_vert_rounded),
+            label: const Text('Transfert'),
           ),
+          onTap: () => _openTransfer(d),
         ),
       );
 

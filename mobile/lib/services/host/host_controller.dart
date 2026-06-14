@@ -144,6 +144,19 @@ class HostController extends ChangeNotifier {
     );
   }
 
+  /// Fichiers reçus d'un pair (pour l'onglet « Reçus » de l'écran hôte). Ils sont
+  /// déjà enregistrés dans la galerie / Téléchargements.
+  List<HostReceived> receivedFrom(String deviceId) {
+    final raw = _transfer?.receivedFrom(deviceId) ?? const [];
+    return raw
+        .map((m) => HostReceived(
+              filename: m['filename'] as String? ?? '?',
+              size: (m['size'] as num?)?.toInt() ?? 0,
+              at: DateTime.tryParse(m['completed_at'] as String? ?? ''),
+            ))
+        .toList();
+  }
+
   @override
   void dispose() {
     // Best-effort : on coupe le serveur si l'écran disparaît.
@@ -151,4 +164,12 @@ class HostController extends ChangeNotifier {
     HostForeground.stop();
     super.dispose();
   }
+}
+
+/// Un fichier reçu d'un pair (vue hôte).
+class HostReceived {
+  final String filename;
+  final int size;
+  final DateTime? at;
+  const HostReceived({required this.filename, required this.size, this.at});
 }
