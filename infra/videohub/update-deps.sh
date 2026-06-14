@@ -15,7 +15,7 @@ echo "===== $(date -Is) — MAJ deps VideoHub ====="
 # PIP_CACHE_DIR inscriptible par www-data (sinon warning « cache disabled »).
 sudo -u www-data env PIP_CACHE_DIR="$DIR/.pip-cache" \
   "$DIR/.venv/bin/pip" install -U --quiet \
-  yt-dlp bgutil-ytdlp-pot-provider yt-dlp-ejs \
+  yt-dlp bgutil-ytdlp-pot-provider yt-dlp-ejs curl_cffi \
   && echo "pip -U OK" || echo "pip -U ÉCHEC"
 
 # POT provider (conteneur Docker) — on rafraîchit l'image latest.
