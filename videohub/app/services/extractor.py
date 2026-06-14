@@ -40,8 +40,25 @@ def _friendly(msg: str) -> str:
         )
     if "private video" in low or "video is private" in low:
         return "Cette vidéo est privée."
+    if "log in for access" in low or "comfortable for some audiences" in low or (
+        "log in" in low and "tiktok" in low
+    ):
+        return (
+            "Vidéo sensible ou restreinte : elle nécessite une connexion au compte "
+            "(cookies) pour être téléchargée."
+        )
+    if "cannot parse data" in low or "/privacy/consent" in low:
+        return (
+            "Vidéo Facebook non téléchargeable pour l'instant (format Facebook "
+            "modifié, ou vidéo privée/supprimée). Réessaie un peu plus tard."
+        )
     if "video unavailable" in low or "has been removed" in low or "removed by" in low:
         return "Vidéo indisponible ou supprimée."
+    if "linkedin" in low:
+        return (
+            "Cette vidéo LinkedIn n'est pas téléchargeable (LinkedIn n'expose pas "
+            "toujours la vidéo). Essaie le lien direct de la vidéo si possible."
+        )
     if "unsupported url" in low or "no video" in low or "unable to extract" in low:
         return "Lien non reconnu ou sans vidéo exploitable."
     if "requested format is not available" in low:
