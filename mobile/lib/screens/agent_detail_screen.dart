@@ -5,12 +5,14 @@ import '../models/linkup_agent.dart';
 import '../services/agent_info_client.dart';
 import '../services/pairing/paired_device_store.dart';
 import '../services/pairing/pairing_verifier.dart';
+import '../services/transfer/transfer_client.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_card.dart';
 import '../widgets/section_label.dart';
 import 'clipboard/clipboard_screen.dart';
 import 'pairing/pairing_flow_screen.dart';
 import 'preview/preview_screen.dart';
+import 'transfer/app_send_screen.dart';
 import 'transfer/transfer_hub_screen.dart';
 
 /// Écran T1.19 : affiche les infos riches d'un agent sélectionné en appelant
@@ -279,6 +281,10 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
     final isPending = info.fingerprint == 'pending';
     final paired = _paired;
     final showTools = _isPaired == true && paired != null;
+    // Hôte-téléphone (tél↔tél) vs PC : l'hôte annonce source == 'host'. En
+    // tél↔tél on n'expose QUE Transfert + Application (pas de presse-papier ni
+    // de dev preview, propres au PC).
+    final isHost = info.source == 'host';
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 110),
       children: [
@@ -312,28 +318,52 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          _ToolCard(
-            icon: Icons.content_paste_rounded,
-            title: 'Presse-papier partagé',
-            subtitle: 'Copier-coller entre ce téléphone et le PC',
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ClipboardScreen(device: paired),
+          if (isHost) ...[
+            // tél↔tél : envoyer une application installée (façon Xender).
+            const SizedBox(height: 12),
+            _ToolCard(
+              icon: Icons.apps_rounded,
+              title: 'Application',
+              subtitle: 'Envoyer une app installée (.apk)',
+              onTap: () {
+                final client = TransferClient();
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => AppSendScreen(
+                    targetName: paired.pcName,
+                    send: (filename, bytes, onProgress) => client.uploadBytes(
+                      device: paired,
+                      filename: filename,
+                      bytes: bytes,
+                      onProgress: (p) => onProgress?.call(p.fraction),
+                    ),
+                  ),
+                ));
+              },
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            _ToolCard(
+              icon: Icons.content_paste_rounded,
+              title: 'Presse-papier partagé',
+              subtitle: 'Copier-coller entre ce téléphone et le PC',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ClipboardScreen(device: paired),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          _ToolCard(
-            icon: Icons.public_rounded,
-            title: 'Dev Preview',
-            subtitle: 'Ouvrir un projet web servi par le PC',
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => PreviewScreen(device: paired),
+            const SizedBox(height: 12),
+            _ToolCard(
+              icon: Icons.public_rounded,
+              title: 'Dev Preview',
+              subtitle: 'Ouvrir un projet web servi par le PC',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => PreviewScreen(device: paired),
+                ),
               ),
             ),
-          ),
+          ],
         ],
         const SizedBox(height: 24),
         _TechnicalDetails(info: info, agent: widget.agent),
