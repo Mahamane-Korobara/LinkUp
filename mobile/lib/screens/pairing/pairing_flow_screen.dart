@@ -20,12 +20,17 @@ class PairingFlowScreen extends StatefulWidget {
   final PairingPollClient? pollClient;
   final PairedDeviceStore? deviceStore;
 
+  /// tél↔tél (Mode Hôte) : le pair est un téléphone, pas un PC — les libellés
+  /// d'appairage s'adaptent (« l'autre téléphone » au lieu de « le PC »).
+  final bool isHost;
+
   const PairingFlowScreen({
     super.key,
     this.keyManager,
     this.handshakeClient,
     this.pollClient,
     this.deviceStore,
+    this.isHost = false,
   });
 
   @override
@@ -135,7 +140,9 @@ class _PairingFlowScreenState extends State<PairingFlowScreen> {
       if (poll.status == PollStatus.rejected) {
         setState(() {
           _state = _PairingState.rejected;
-          _errorMessage = 'Le PC a refusé cet appareil.';
+          _errorMessage = widget.isHost
+              ? 'L\'autre téléphone a refusé cet appareil.'
+              : 'Le PC a refusé cet appareil.';
         });
         return;
       }
@@ -168,7 +175,9 @@ class _PairingFlowScreenState extends State<PairingFlowScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Appairer le PC')),
+      appBar: AppBar(
+        title: Text(widget.isHost ? 'Appairer le téléphone' : 'Appairer le PC'),
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -181,23 +190,35 @@ class _PairingFlowScreenState extends State<PairingFlowScreen> {
   Widget _buildContent() {
     switch (_state) {
       case _PairingState.idle:
-        return _IdleView(onScan: _startScan);
+        return _IdleView(onScan: _startScan, isHost: widget.isHost);
       case _PairingState.scanning:
         return const _ProgressView(text: 'Scanner en cours…');
       case _PairingState.handshaking:
-        return const _ProgressView(text: 'Connexion sécurisée au PC…');
-      case _PairingState.waitingApproval:
         return _ProgressView(
-          text: 'En attente d\'approbation sur le PC…',
+          text: widget.isHost
+              ? 'Connexion sécurisée à l\'autre téléphone…'
+              : 'Connexion sécurisée au PC…',
+        );
+      case _PairingState.waitingApproval:
+        final peer = widget.isHost ? 'l\'autre téléphone' : 'le PC';
+        return _ProgressView(
+          text: 'En attente d\'approbation sur $peer…',
           subtitle: _result != null
-              ? 'Empreinte à vérifier sur le PC : ${_result!.deviceFingerprint}'
+              ? 'Empreinte à vérifier sur $peer : ${_result!.deviceFingerprint}'
               : null,
         );
       case _PairingState.success:
-        return _SuccessView(result: _result!, onDone: () => Navigator.of(context).pop());
+        return _SuccessView(
+          result: _result!,
+          isHost: widget.isHost,
+          onDone: () => Navigator.of(context).pop(),
+        );
       case _PairingState.rejected:
         return _ErrorView(
-          message: _errorMessage ?? 'Appareil refusé par le PC.',
+          message: _errorMessage ??
+              (widget.isHost
+                  ? 'Appareil refusé par l\'autre téléphone.'
+                  : 'Appareil refusé par le PC.'),
           onRetry: _startScan,
           onCancel: () => Navigator.of(context).pop(),
         );
@@ -223,7 +244,8 @@ enum _PairingState {
 
 class _IdleView extends StatelessWidget {
   final VoidCallback onScan;
-  const _IdleView({required this.onScan});
+  final bool isHost;
+  const _IdleView({required this.onScan, this.isHost = false});
 
   @override
   Widget build(BuildContext context) {
@@ -232,14 +254,18 @@ class _IdleView extends StatelessWidget {
       children: [
         const Icon(Icons.qr_code_scanner, size: 96, color: AppColors.brand),
         const SizedBox(height: 24),
-        const Text(
-          'Scanne le QR du dashboard de ton PC',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        Text(
+          isHost
+              ? 'Scanne le QR affiché sur l\'autre téléphone'
+              : 'Scanne le QR du dashboard de ton PC',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
-          'Sur ton PC, ouvre http://localhost:3000/pair',
+          isHost
+              ? 'Sur l\'autre téléphone : « Héberger sans PC » affiche un QR.'
+              : 'Sur ton PC, ouvre http://localhost:3000/pair',
           textAlign: TextAlign.center,
           style: const TextStyle(color: AppColors.muted),
         ),
@@ -287,7 +313,12 @@ class _ProgressView extends StatelessWidget {
 class _SuccessView extends StatelessWidget {
   final HandshakeResult result;
   final VoidCallback onDone;
-  const _SuccessView({required this.result, required this.onDone});
+  final bool isHost;
+  const _SuccessView({
+    required this.result,
+    required this.onDone,
+    this.isHost = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -307,11 +338,11 @@ class _SuccessView extends StatelessWidget {
           style: const TextStyle(color: AppColors.muted),
         ),
         const SizedBox(height: 4),
-        // On affiche l'empreinte du PC (son identité Ed25519), la MÊME que celle
-        // de l'écran de détail de l'agent. C'est elle qu'on a appairée : afficher
-        // l'empreinte du téléphone ici créait une incohérence visuelle.
+        // On affiche l'empreinte du pair (son identité Ed25519), la MÊME que
+        // celle de l'écran de détail de l'agent. C'est elle qu'on a appairée :
+        // afficher l'empreinte du téléphone local ici créait une incohérence.
         Text(
-          'Empreinte du PC : ${result.pcFingerprint}',
+          '${isHost ? 'Empreinte du téléphone' : 'Empreinte du PC'} : ${result.pcFingerprint}',
           style: const TextStyle(
             fontFamily: 'monospace',
             fontWeight: FontWeight.w500,

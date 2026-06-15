@@ -202,7 +202,7 @@ class _AgentPickerScreenState extends State<AgentPickerScreen> {
                     _ErrorBanner(message: _error!),
                     const SizedBox(height: 16),
                   ],
-                  const SectionLabel('PC sur ton Wi-Fi'),
+                  const SectionLabel('Sur ton Wi-Fi'),
                   const SizedBox(height: 14),
                   if (_agents.isEmpty)
                     EmptyState(

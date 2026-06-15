@@ -18,6 +18,9 @@ class GallerySendScreen extends StatefulWidget {
   /// Embarqué dans un onglet (TransferHub) → pas de Scaffold/AppBar propre.
   final bool embedded;
 
+  /// tél↔tél : le pair est un téléphone (libellés « à l'autre téléphone »).
+  final bool isHost;
+
   /// Injectables pour les tests (sinon plugin + réseau réels).
   final GalleryAssetSource? source;
   final GallerySender? sender;
@@ -26,6 +29,7 @@ class GallerySendScreen extends StatefulWidget {
     super.key,
     required this.device,
     this.embedded = false,
+    this.isHost = false,
     this.source,
     this.sender,
   });
@@ -218,7 +222,11 @@ class _GallerySendScreenState extends State<GallerySendScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('Envoyer au PC — ${widget.device.pcName}')),
+      appBar: AppBar(
+        title: Text(
+          '${widget.isHost ? 'Envoyer' : 'Envoyer au PC'} — ${widget.device.pcName}',
+        ),
+      ),
       body: _buildBody(),
       bottomNavigationBar: sendBar,
     );
@@ -303,8 +311,9 @@ class _GallerySendScreenState extends State<GallerySendScreen> {
           Icons.check_circle,
           AppColors.success,
           'Envoi terminé',
-          '${r.sent} photo(s) envoyée(s) au PC'
-              '${r.failed > 0 ? '\n${r.failed} échec(s)' : ''}.\nRetrouve-les dans « Fichiers » sur le PC.',
+          '${r.sent} photo(s) envoyée(s)${widget.isHost ? '' : ' au PC'}'
+              '${r.failed > 0 ? '\n${r.failed} échec(s)' : ''}.'
+              '${widget.isHost ? '\nRetrouve-les dans « Reçus » sur l\'autre téléphone.' : '\nRetrouve-les dans « Fichiers » sur le PC.'}',
           action: FilledButton.icon(
             onPressed: () => setState(() => _phase = _Phase.picking),
             icon: const Icon(Icons.photo_library),
@@ -389,7 +398,9 @@ class _GallerySendScreenState extends State<GallerySendScreen> {
         child: FilledButton.icon(
           onPressed: n == 0 ? null : _send,
           icon: const Icon(Icons.send),
-          label: Text(n == 0 ? 'Sélectionne des médias' : 'Envoyer $n élément(s) au PC'),
+          label: Text(n == 0
+              ? 'Sélectionne des médias'
+              : 'Envoyer $n élément(s)${widget.isHost ? '' : ' au PC'}'),
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
         ),
       ),

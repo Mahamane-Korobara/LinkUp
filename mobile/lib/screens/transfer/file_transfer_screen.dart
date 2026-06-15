@@ -18,12 +18,16 @@ typedef FilePickFn = Future<PickedFile?> Function();
 /// Écran d'envoi d'un fichier du tél vers le PC appairé (S4.J4).
 class FileTransferScreen extends StatefulWidget {
   final PairedDevice device;
+
+  /// tél↔tél : le pair est un téléphone (libellés adaptés).
+  final bool isHost;
   final TransferClient? client;
   final FilePickFn? pickFile;
 
   const FileTransferScreen({
     super.key,
     required this.device,
+    this.isHost = false,
     this.client,
     this.pickFile,
   });
@@ -126,9 +130,11 @@ class _FileTransferScreenState extends State<FileTransferScreen> {
           children: [
             const Icon(Icons.description, size: 96, color: AppColors.brand),
             const SizedBox(height: 24),
-            const Text(
-              'Envoyer un fichier (document) au PC',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              widget.isHost
+                  ? 'Envoyer un fichier (document)'
+                  : 'Envoyer un fichier (document) au PC',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),

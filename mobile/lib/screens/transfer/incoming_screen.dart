@@ -37,6 +37,9 @@ class IncomingScreen extends StatefulWidget {
 
   /// Embarqué dans un onglet (TransferHub) → pas de Scaffold/AppBar propre.
   final bool embedded;
+
+  /// tél↔tél : le pair est un téléphone (libellés adaptés).
+  final bool isHost;
   final IncomingReceiver? receiver;
 
   /// Intervalle de rafraîchissement « temps réel ». `null` = pas de polling
@@ -47,6 +50,7 @@ class IncomingScreen extends StatefulWidget {
     super.key,
     required this.device,
     this.embedded = false,
+    this.isHost = false,
     this.receiver,
     this.pollInterval = const Duration(seconds: 4),
   });
@@ -221,7 +225,11 @@ class _IncomingScreenState extends State<IncomingScreen> {
     final body = Padding(padding: const EdgeInsets.all(16), child: _buildBody());
     if (widget.embedded) return body;
     return Scaffold(
-      appBar: AppBar(title: Text('Reçus du PC — ${widget.device.pcName}')),
+      appBar: AppBar(
+        title: Text(
+          '${widget.isHost ? 'Reçus' : 'Reçus du PC'} — ${widget.device.pcName}',
+        ),
+      ),
       body: body,
     );
   }
@@ -314,7 +322,9 @@ class _IncomingScreenState extends State<IncomingScreen> {
     if (items.isEmpty) {
       return Center(
         child: Text(_pending.isEmpty
-            ? 'Aucun fichier envoyé par le PC.\nDépose-en depuis l\'onglet « Envoyer » du dashboard.'
+            ? (widget.isHost
+                ? 'Aucun fichier reçu pour l\'instant.\nL\'autre téléphone peut t\'en envoyer depuis « Transfert ».'
+                : 'Aucun fichier envoyé par le PC.\nDépose-en depuis l\'onglet « Envoyer » du dashboard.')
             : 'Rien pour ce filtre.'),
       );
     }

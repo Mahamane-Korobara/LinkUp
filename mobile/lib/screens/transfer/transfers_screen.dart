@@ -33,6 +33,9 @@ class TransfersScreen extends StatefulWidget {
 
   /// Embarqué dans un onglet (TransferHub) → pas de Scaffold/AppBar propre.
   final bool embedded;
+
+  /// tél↔tél : le pair est un téléphone (libellés adaptés).
+  final bool isHost;
   final TransferClient? client;
 
   /// Ouverture locale injectable (sinon écrit en cache + open_filex).
@@ -42,6 +45,7 @@ class TransfersScreen extends StatefulWidget {
     super.key,
     required this.device,
     this.embedded = false,
+    this.isHost = false,
     this.client,
     this.openLocalFile,
   });
@@ -116,7 +120,7 @@ class _TransfersScreenState extends State<TransfersScreen> {
   Future<void> _openSend() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => FileTransferScreen(device: widget.device),
+        builder: (_) => FileTransferScreen(device: widget.device, isHost: widget.isHost),
       ),
     );
     // Au retour de l'envoi, on recharge l'historique.

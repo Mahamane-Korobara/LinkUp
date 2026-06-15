@@ -12,7 +12,15 @@ import 'transfers_screen.dart';
 class TransferHubScreen extends StatelessWidget {
   final PairedDevice device;
 
-  const TransferHubScreen({super.key, required this.device});
+  /// `true` en tél↔tél (Mode Hôte) : le pair est un téléphone, pas un PC —
+  /// les libellés s'adaptent (« Reçus » au lieu de « Reçus du PC », etc.).
+  final bool isHost;
+
+  const TransferHubScreen({
+    super.key,
+    required this.device,
+    this.isHost = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -21,19 +29,22 @@ class TransferHubScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: Text('Transfert — ${device.pcName}'),
-          bottom: const TabBar(
+          bottom: TabBar(
             tabs: [
-              Tab(icon: Icon(Icons.photo_library), text: 'Galerie'),
-              Tab(icon: Icon(Icons.description), text: 'Fichier'),
-              Tab(icon: Icon(Icons.move_to_inbox), text: 'Reçus du PC'),
+              const Tab(icon: Icon(Icons.photo_library), text: 'Galerie'),
+              const Tab(icon: Icon(Icons.description), text: 'Fichier'),
+              Tab(
+                icon: const Icon(Icons.move_to_inbox),
+                text: isHost ? 'Reçus' : 'Reçus du PC',
+              ),
             ],
           ),
         ),
         body: TabBarView(
           children: [
-            GallerySendScreen(device: device, embedded: true),
-            TransfersScreen(device: device, embedded: true),
-            IncomingScreen(device: device, embedded: true),
+            GallerySendScreen(device: device, embedded: true, isHost: isHost),
+            TransfersScreen(device: device, embedded: true, isHost: isHost),
+            IncomingScreen(device: device, embedded: true, isHost: isHost),
           ],
         ),
       ),

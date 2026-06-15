@@ -298,6 +298,7 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
           fingerprint: info.fingerprint,
           isPending: isPending,
           paired: _isPaired,
+          isHost: isHost,
         ),
         // Outils dispo seulement une fois l'appairage confirmé (API authentifiée
         // par le token device). Promus en cartes : plus visibles qu'en barre.
@@ -314,7 +315,7 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
             primary: true,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => TransferHubScreen(device: paired),
+                builder: (_) => TransferHubScreen(device: paired, isHost: isHost),
               ),
             ),
           ),
@@ -372,8 +373,9 @@ class _AgentDetailScreenState extends State<AgentDetailScreen> {
   }
 
   Future<void> _openPairingFlow(BuildContext context) async {
+    final isHost = _info?.source == 'host';
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const PairingFlowScreen()),
+      MaterialPageRoute(builder: (_) => PairingFlowScreen(isHost: isHost)),
     );
     // Au retour du flow, l'appairage a pu aboutir : on recharge le statut pour
     // que le badge passe de « Non appairé » à « Appairé » sans rouvrir l'écran.
@@ -573,11 +575,13 @@ class _FingerprintRow extends StatelessWidget {
   final String fingerprint;
   final bool isPending;
   final bool? paired;
+  final bool isHost;
 
   const _FingerprintRow({
     required this.fingerprint,
     required this.isPending,
     required this.paired,
+    this.isHost = false,
   });
 
   @override
@@ -617,9 +621,9 @@ class _FingerprintRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Empreinte du PC',
-                    style: TextStyle(
+                  Text(
+                    isHost ? 'Empreinte du téléphone' : 'Empreinte du PC',
+                    style: const TextStyle(
                         fontSize: 12.5,
                         color: AppColors.muted,
                         fontWeight: FontWeight.w600),

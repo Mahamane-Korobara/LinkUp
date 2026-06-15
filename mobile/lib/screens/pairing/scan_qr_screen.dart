@@ -53,7 +53,7 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scanner le QR du PC'),
+        title: const Text('Scanner le QR'),
         actions: [
           IconButton(
             tooltip: 'Flash',
